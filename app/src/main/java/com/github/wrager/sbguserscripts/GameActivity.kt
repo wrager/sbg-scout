@@ -6,6 +6,9 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.github.wrager.sbguserscripts.bridge.ClipboardBridge
 import com.github.wrager.sbguserscripts.bridge.ShareBridge
 import com.github.wrager.sbguserscripts.webview.SbgWebViewClient
@@ -19,6 +22,7 @@ class GameActivity : AppCompatActivity() {
         setContentView(R.layout.activity_game)
 
         webView = findViewById(R.id.gameWebView)
+        enableImmersiveMode()
         setupWebView()
         setupBackPressHandling()
 
@@ -35,6 +39,14 @@ class GameActivity : AppCompatActivity() {
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         super.onRestoreInstanceState(savedInstanceState)
         webView.restoreState(savedInstanceState)
+    }
+
+    private fun enableImmersiveMode() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
     private fun setupWebView() {
