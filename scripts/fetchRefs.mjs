@@ -27,7 +27,7 @@ const URLS = {
   euiRelease: 'https://github.com/egorantonov/sbg-enhanced/releases/latest/download/eui.user.js',
   cuiRelease: 'https://github.com/egorantonov/sbg-enhanced/releases/latest/download/cui.user.js',
   olBundle: 'https://sbg-game.ru/packages/js/ol@10.6.0.js',
-  authPage: 'https://sbg-game.ru/',
+  loginPage: 'https://sbg-game.ru/login',
   gamePage: 'https://sbg-game.ru/app/',
   anmilesRepo: 'https://github.com/anmiles/sbg.git',
 };
@@ -178,13 +178,13 @@ async function fetchOlBundle() {
   ok('OpenLayers', 'ol/ol.js', URLS.olBundle);
 }
 
-async function fetchAuthPage() {
-  const response = await fetchUrl(URLS.authPage);
+async function fetchLoginPage() {
+  const response = await fetchUrl(URLS.loginPage);
   const html = await response.text();
-  const dest = join(REFS, 'game', 'auth.html');
+  const dest = join(REFS, 'game', 'login.html');
   await mkdir(join(REFS, 'game'), { recursive: true });
   await writeFile(dest, html, 'utf-8');
-  ok('Auth page HTML', 'game/auth.html', URLS.authPage);
+  ok('Login page HTML', 'game/login.html', URLS.loginPage);
 }
 
 async function fetchGameAssets() {
@@ -309,12 +309,12 @@ async function main() {
 
   const stubs = [
     {
-      path: join(REFS, 'game', 'dom', 'auth-body.html'),
+      path: join(REFS, 'game', 'dom', 'login-body.html'),
       content: [
         '<!--',
-        '  Rendered DOM of the auth screen (before Telegram login).',
+        '  Rendered DOM of the login screen (before Telegram login).',
         '  How to get:',
-        '  1. Open https://sbg-game.ru/ in browser (use incognito to avoid auto-login)',
+        '  1. Open https://sbg-game.ru/login in browser (use incognito to avoid auto-login)',
         '  2. Open DevTools → Elements',
         '  3. Right-click <body> → Copy → Copy outerHTML',
         '  4. Replace this file contents with the result',
@@ -385,7 +385,7 @@ async function main() {
     fetchEuiRelease().catch((error) => fail('EUI release', URLS.euiRelease, error.message)),
     fetchCuiRelease().catch((error) => fail('CUI release', URLS.cuiRelease, error.message)),
     fetchOlBundle().catch((error) => fail('OL bundle', URLS.olBundle, error.message)),
-    fetchAuthPage().catch((error) => fail('Auth page', URLS.authPage, error.message)),
+    fetchLoginPage().catch((error) => fail('Login page', URLS.loginPage, error.message)),
     fetchGameAssets().catch((error) => fail('Game assets', URLS.gamePage, error.message)),
     fetchAnmilesSources().catch((error) => fail('Anmiles APK', URLS.anmilesRepo, error.message)),
   ]);

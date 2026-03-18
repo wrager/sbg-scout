@@ -25,7 +25,7 @@ Android APK для SBG (мобильная браузерная геолокац
 
 - Любое написание или изменение кода должно соответствовать docs/dev-principles.md и docs/codestyle.md
 - Любое изменение в архитектуре или в ключевых механизмах должно соответствовать docs/architecture.md
-- **Не угадывать** DOM-классы/ID игровых элементов — искать в refs/ или запросить HTML из DevTools у пользователя
+- **Не угадывать** URL, DOM-классы/ID, структуру страниц и любые факты об игре — искать в refs/ (в т.ч. refs/anmiles/) или спросить пользователя
 
 ## Терминология
 
@@ -56,11 +56,11 @@ Android APK для SBG (мобильная браузерная геолокац
 | CUI sources | `cui/` | Исходники CUI |
 | EUI/CUI releases | `releases/` | Собранные .user.js |
 | OpenLayers | `ol/ol.js` | Картографическая библиотека игры |
-| Auth page HTML | `game/auth.html` | Страница авторизации (`sbg-game.ru/`) |
-| Game HTML + script | `game/index.html`, `game/script.js` | Страница игры (`sbg-game.ru/app/`) |
+| Login page HTML | `game/login.html` | Страница авторизации (`sbg-game.ru/login`) |
+| Game HTML + script | `game/index.html`, `game/script.js` | Страница игры (`sbg-game.ru/app`) |
 
 Ручной контент (не скачивается автоматически; см. инструкции в stub-файлах):
-- `refs/game/dom/auth-body.html` — DOM экрана авторизации (из DevTools)
+- `refs/game/dom/login-body.html` — DOM экрана авторизации (из DevTools)
 - `refs/game/dom/game-body.html` — DOM игрового экрана после авторизации (из DevTools)
 - `refs/game/css/variables.css` — CSS custom properties (из DevTools)
 - `refs/game/har/` — HAR-файлы сетевых запросов из DevTools (авторизация, загрузка игры)

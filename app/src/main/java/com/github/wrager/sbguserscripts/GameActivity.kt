@@ -135,6 +135,6 @@ class GameActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val GAME_URL = "https://sbg-game.ru/"
+        private const val GAME_URL = "https://sbg-game.ru/login"
     }
 }
