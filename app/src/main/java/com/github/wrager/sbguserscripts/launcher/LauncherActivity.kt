@@ -21,6 +21,7 @@ import com.github.wrager.sbguserscripts.script.preset.StaticConflictRules
 import com.github.wrager.sbguserscripts.script.storage.ScriptFileStorageImpl
 import com.github.wrager.sbguserscripts.script.storage.ScriptStorageImpl
 import com.github.wrager.sbguserscripts.script.updater.DefaultHttpFetcher
+import com.github.wrager.sbguserscripts.script.updater.GithubReleaseProvider
 import com.github.wrager.sbguserscripts.script.updater.ScriptDownloader
 import com.github.wrager.sbguserscripts.script.updater.ScriptUpdateChecker
 import com.github.wrager.sbguserscripts.settings.SettingsActivity
@@ -31,6 +32,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
 import java.io.File
+import android.widget.PopupMenu
 
 class LauncherActivity : AppCompatActivity() {
 
@@ -42,12 +44,14 @@ class LauncherActivity : AppCompatActivity() {
         val httpFetcher = DefaultHttpFetcher()
         val downloader = ScriptDownloader(httpFetcher, scriptStorage)
         val updateChecker = ScriptUpdateChecker(httpFetcher, scriptStorage)
+        val githubReleaseProvider = GithubReleaseProvider(httpFetcher)
         val appPreferences = getSharedPreferences("app", MODE_PRIVATE)
         LauncherViewModel.Factory(
             scriptStorage,
             conflictDetector,
             downloader,
             updateChecker,
+            githubReleaseProvider,
             appPreferences,
         )
     }
@@ -85,8 +89,8 @@ class LauncherActivity : AppCompatActivity() {
             onToggleChanged = { identifier, enabled ->
                 viewModel.toggleScript(identifier, enabled)
             },
-            onDeleteClick = { identifier ->
-                showDeleteConfirmation(identifier)
+            onOverflowClick = { anchor, item ->
+                showScriptOverflowMenu(anchor, item)
             },
         )
     }
@@ -131,6 +135,10 @@ class LauncherActivity : AppCompatActivity() {
     }
 
     private fun handleEvent(event: LauncherEvent) {
+        if (event is LauncherEvent.VersionsLoaded) {
+            showVersionSelectionDialog(event.identifier, event.versions)
+            return
+        }
         val message = when (event) {
             is LauncherEvent.ScriptAdded ->
                 getString(R.string.script_added, event.scriptName)
@@ -144,6 +152,15 @@ class LauncherActivity : AppCompatActivity() {
                 } else {
                     getString(R.string.no_updates)
                 }
+            is LauncherEvent.VersionsLoaded -> return
+            is LauncherEvent.VersionInstallCompleted ->
+                getString(R.string.version_install_completed, event.scriptName)
+            is LauncherEvent.VersionInstallFailed ->
+                getString(R.string.version_load_failed, event.errorMessage)
+            is LauncherEvent.ReinstallCompleted ->
+                getString(R.string.reinstall_completed, event.scriptName)
+            is LauncherEvent.ReinstallFailed ->
+                getString(R.string.reinstall_failed, event.errorMessage)
         }
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
@@ -159,6 +176,64 @@ class LauncherActivity : AppCompatActivity() {
                 val url = urlInput.text?.toString()?.trim()
                 if (!url.isNullOrEmpty()) {
                     viewModel.addScript(url)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showScriptOverflowMenu(anchor: View, item: ScriptUiItem) {
+        val popup = PopupMenu(this, anchor)
+        if (item.isGithubHosted) {
+            popup.menu.add(R.string.select_version)
+        } else {
+            popup.menu.add(R.string.reinstall)
+        }
+        if (!item.isPreset) {
+            popup.menu.add(R.string.delete_script)
+        }
+        popup.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.title) {
+                getString(R.string.select_version) -> {
+                    viewModel.loadVersions(item.identifier)
+                    true
+                }
+                getString(R.string.reinstall) -> {
+                    viewModel.reinstallScript(item.identifier)
+                    true
+                }
+                getString(R.string.delete_script) -> {
+                    showDeleteConfirmation(item.identifier)
+                    true
+                }
+                else -> false
+            }
+        }
+        popup.show()
+    }
+
+    private fun showVersionSelectionDialog(
+        identifier: ScriptIdentifier,
+        versions: List<VersionOption>,
+    ) {
+        val labels = versions.map { version ->
+            if (version.isCurrent) {
+                "${version.tagName} ${getString(R.string.version_current_marker)}"
+            } else {
+                version.tagName
+            }
+        }.toTypedArray()
+
+        val currentIndex = versions.indexOfFirst { it.isCurrent }.coerceAtLeast(0)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.select_version)
+            .setSingleChoiceItems(labels, currentIndex, null)
+            .setPositiveButton(R.string.install) { dialog, _ ->
+                val listView = (dialog as androidx.appcompat.app.AlertDialog).listView
+                val selectedPosition = listView.checkedItemPosition
+                if (selectedPosition >= 0) {
+                    viewModel.installVersion(identifier, versions[selectedPosition].downloadUrl)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)

@@ -8,6 +8,9 @@ import com.github.wrager.sbguserscripts.script.preset.ConflictDetector
 import com.github.wrager.sbguserscripts.script.preset.PresetScripts
 import com.github.wrager.sbguserscripts.script.preset.StaticConflictRules
 import com.github.wrager.sbguserscripts.script.storage.ScriptStorage
+import com.github.wrager.sbguserscripts.script.updater.GithubAsset
+import com.github.wrager.sbguserscripts.script.updater.GithubRelease
+import com.github.wrager.sbguserscripts.script.updater.GithubReleaseProvider
 import com.github.wrager.sbguserscripts.script.updater.ScriptDownloadResult
 import com.github.wrager.sbguserscripts.script.updater.ScriptDownloader
 import com.github.wrager.sbguserscripts.script.updater.ScriptUpdateChecker
@@ -22,6 +25,7 @@ import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -41,6 +45,7 @@ class LauncherViewModelTest {
     private val conflictDetector = ConflictDetector(StaticConflictRules())
     private lateinit var downloader: ScriptDownloader
     private lateinit var updateChecker: ScriptUpdateChecker
+    private lateinit var githubReleaseProvider: GithubReleaseProvider
     private lateinit var appPreferences: SharedPreferences
     private lateinit var preferencesEditor: SharedPreferences.Editor
 
@@ -50,6 +55,7 @@ class LauncherViewModelTest {
         scriptStorage = mockk()
         downloader = mockk()
         updateChecker = mockk()
+        githubReleaseProvider = mockk()
         appPreferences = mockk()
         preferencesEditor = mockk()
 
@@ -243,11 +249,127 @@ class LauncherViewModelTest {
         verify { scriptStorage.setEnabled(updatedScript.identifier, script.enabled) }
     }
 
+    @Test
+    fun `loadVersions sends VersionsLoaded event for GitHub script`() = runTest {
+        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
+        val script = testScript(
+            sourceUrl = "https://github.com/owner/repo/releases/latest/download/script.user.js",
+        )
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery {
+            githubReleaseProvider.fetchReleases("owner", "repo")
+        } returns listOf(
+            GithubRelease(
+                "v2.0.0",
+                listOf(GithubAsset("script.user.js", "https://github.com/download/v2.0.0/script.user.js")),
+            ),
+            GithubRelease(
+                "v1.0.0",
+                listOf(GithubAsset("script.user.js", "https://github.com/download/v1.0.0/script.user.js")),
+            ),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.loadVersions(script.identifier)
+        advanceUntilIdle()
+
+        val versionsEvent = events.filterIsInstance<LauncherEvent.VersionsLoaded>().first()
+        assertEquals(2, versionsEvent.versions.size)
+        assertEquals("v2.0.0", versionsEvent.versions[0].tagName)
+        assertFalse(versionsEvent.versions[0].isCurrent)
+        assertEquals("v1.0.0", versionsEvent.versions[1].tagName)
+        assertTrue(versionsEvent.versions[1].isCurrent)
+
+        job.cancel()
+    }
+
+    @Test
+    fun `loadVersions filters releases without matching asset`() = runTest {
+        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
+        val script = testScript(
+            sourceUrl = "https://github.com/owner/repo/releases/latest/download/script.user.js",
+        )
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery {
+            githubReleaseProvider.fetchReleases("owner", "repo")
+        } returns listOf(
+            GithubRelease(
+                "v2.0.0",
+                listOf(GithubAsset("other.user.js", "https://github.com/download/v2.0.0/other.user.js")),
+            ),
+            GithubRelease(
+                "v1.0.0",
+                listOf(GithubAsset("script.user.js", "https://github.com/download/v1.0.0/script.user.js")),
+            ),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.loadVersions(script.identifier)
+        advanceUntilIdle()
+
+        val versionsEvent = events.filterIsInstance<LauncherEvent.VersionsLoaded>().first()
+        assertEquals(1, versionsEvent.versions.size)
+        assertEquals("v1.0.0", versionsEvent.versions[0].tagName)
+
+        job.cancel()
+    }
+
+    @Test
+    fun `installVersion downloads and preserves enabled state`() = runTest {
+        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
+        val script = testScript(enabled = true)
+        every { scriptStorage.getAll() } returns listOf(script)
+        val updatedScript = testScript(version = "2.0.0", enabled = false)
+        coEvery {
+            downloader.download("https://example.com/v2/script.user.js", isPreset = false)
+        } returns ScriptDownloadResult.Success(updatedScript)
+        every { scriptStorage.setEnabled(any(), any()) } just Runs
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.installVersion(script.identifier, "https://example.com/v2/script.user.js")
+        advanceUntilIdle()
+
+        verify { scriptStorage.setEnabled(updatedScript.identifier, true) }
+    }
+
+    @Test
+    fun `reinstallScript re-downloads from sourceUrl`() = runTest {
+        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
+        val script = testScript(enabled = true)
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery {
+            downloader.download(script.sourceUrl!!, isPreset = false)
+        } returns ScriptDownloadResult.Success(script)
+        every { scriptStorage.setEnabled(any(), any()) } just Runs
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.reinstallScript(script.identifier)
+        advanceUntilIdle()
+
+        coVerify { downloader.download(script.sourceUrl!!, isPreset = false) }
+        verify { scriptStorage.setEnabled(script.identifier, true) }
+    }
+
     private fun createViewModel() = LauncherViewModel(
         scriptStorage,
         conflictDetector,
         downloader,
         updateChecker,
+        githubReleaseProvider,
         appPreferences,
     )
 
@@ -256,10 +378,11 @@ class LauncherViewModelTest {
         name: String = "Test Script",
         version: String = "1.0.0",
         enabled: Boolean = false,
+        sourceUrl: String = "https://example.com/script.user.js",
     ) = UserScript(
         identifier = identifier,
         header = ScriptHeader(name = name, version = version),
-        sourceUrl = "https://example.com/script.user.js",
+        sourceUrl = sourceUrl,
         updateUrl = "https://example.com/script.meta.js",
         content = "console.log('test')",
         enabled = enabled,

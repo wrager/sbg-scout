@@ -9,6 +9,9 @@
     <string name="script_url_hint">Script URL (.user.js)</string>
     <string name="add">Add</string>
     <string name="delete">Delete</string>
+    <string name="select_version">Select version</string>
+    <string name="reinstall">Reinstall</string>
+    <string name="script_menu">Script menu</string>
     <string name="delete_script">Delete script</string>
     <string name="delete_script_confirmation">Delete %s?</string>
     <string name="update_all">Update all</string>
@@ -18,6 +21,13 @@
     <string name="updates_applied">Scripts updated: %d</string>
     <string name="no_updates">All scripts are up to date</string>
     <string name="checking_updates">Checking for updates\u2026</string>
+    <string name="loading_versions">Loading versions\u2026</string>
+    <string name="version_load_failed">Failed to load versions: %s</string>
+    <string name="version_current_marker">(current)</string>
+    <string name="install">Install</string>
+    <string name="version_install_completed">Installed %s</string>
+    <string name="reinstall_completed">Reinstalled %s</string>
+    <string name="reinstall_failed">Failed to reinstall: %s</string>
     <string name="settings">Settings</string>
     <string name="settings_category_display">Display</string>
     <string name="settings_fullscreen">Fullscreen mode</string>

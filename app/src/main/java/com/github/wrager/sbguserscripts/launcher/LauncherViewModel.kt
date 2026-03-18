@@ -10,6 +10,7 @@ import com.github.wrager.sbguserscripts.script.model.UserScript
 import com.github.wrager.sbguserscripts.script.preset.ConflictDetector
 import com.github.wrager.sbguserscripts.script.preset.PresetScripts
 import com.github.wrager.sbguserscripts.script.storage.ScriptStorage
+import com.github.wrager.sbguserscripts.script.updater.GithubReleaseProvider
 import com.github.wrager.sbguserscripts.script.updater.ScriptDownloadResult
 import com.github.wrager.sbguserscripts.script.updater.ScriptDownloader
 import com.github.wrager.sbguserscripts.script.updater.ScriptUpdateChecker
@@ -27,6 +28,7 @@ class LauncherViewModel(
     private val conflictDetector: ConflictDetector,
     private val downloader: ScriptDownloader,
     private val updateChecker: ScriptUpdateChecker,
+    private val githubReleaseProvider: GithubReleaseProvider,
     private val appPreferences: SharedPreferences,
 ) : ViewModel() {
 
@@ -111,6 +113,78 @@ class LauncherViewModel(
         }
     }
 
+    fun loadVersions(identifier: ScriptIdentifier) {
+        viewModelScope.launch {
+            try {
+                val script = scriptStorage.getAll().find { it.identifier == identifier } ?: return@launch
+                val sourceUrl = script.sourceUrl ?: return@launch
+                val (owner, repository) = GithubReleaseProvider.extractOwnerAndRepository(sourceUrl)
+                    ?: return@launch
+                val releases = githubReleaseProvider.fetchReleases(owner, repository)
+                val filename = sourceUrl.substringAfterLast("/")
+                val versions = releases.mapNotNull { release ->
+                    val asset = release.assets.find { it.name == filename } ?: return@mapNotNull null
+                    val versionTag = release.tagName.removePrefix("v")
+                    VersionOption(
+                        tagName = release.tagName,
+                        downloadUrl = asset.downloadUrl,
+                        isCurrent = versionTag == script.header.version,
+                    )
+                }
+                _events.send(LauncherEvent.VersionsLoaded(identifier, versions))
+            } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
+                _events.send(
+                    LauncherEvent.VersionInstallFailed(
+                        exception.message ?: exception.toString(),
+                    ),
+                )
+            }
+        }
+    }
+
+    fun installVersion(identifier: ScriptIdentifier, downloadUrl: String) {
+        viewModelScope.launch {
+            val script = scriptStorage.getAll().find { it.identifier == identifier } ?: return@launch
+            val result = downloader.download(downloadUrl, isPreset = script.isPreset)
+            when (result) {
+                is ScriptDownloadResult.Success -> {
+                    scriptStorage.setEnabled(result.script.identifier, script.enabled)
+                    refreshScriptList()
+                    _events.send(LauncherEvent.VersionInstallCompleted(result.script.header.name))
+                }
+                is ScriptDownloadResult.Failure -> {
+                    _events.send(
+                        LauncherEvent.VersionInstallFailed(
+                            result.error.message ?: result.error.toString(),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    fun reinstallScript(identifier: ScriptIdentifier) {
+        viewModelScope.launch {
+            val script = scriptStorage.getAll().find { it.identifier == identifier } ?: return@launch
+            val sourceUrl = script.sourceUrl ?: return@launch
+            val result = downloader.download(sourceUrl, isPreset = script.isPreset)
+            when (result) {
+                is ScriptDownloadResult.Success -> {
+                    scriptStorage.setEnabled(result.script.identifier, script.enabled)
+                    refreshScriptList()
+                    _events.send(LauncherEvent.ReinstallCompleted(result.script.header.name))
+                }
+                is ScriptDownloadResult.Failure -> {
+                    _events.send(
+                        LauncherEvent.ReinstallFailed(
+                            result.error.message ?: result.error.toString(),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
     private suspend fun applyUpdate(identifier: ScriptIdentifier): Boolean {
         val script = scriptStorage.getAll().find { it.identifier == identifier } ?: return false
         val downloadUrl = script.sourceUrl ?: return false
@@ -168,6 +242,7 @@ class LauncherViewModel(
         private val conflictDetector: ConflictDetector,
         private val downloader: ScriptDownloader,
         private val updateChecker: ScriptUpdateChecker,
+        private val githubReleaseProvider: GithubReleaseProvider,
         private val appPreferences: SharedPreferences,
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -177,6 +252,7 @@ class LauncherViewModel(
                 conflictDetector,
                 downloader,
                 updateChecker,
+                githubReleaseProvider,
                 appPreferences,
             ) as T
         }

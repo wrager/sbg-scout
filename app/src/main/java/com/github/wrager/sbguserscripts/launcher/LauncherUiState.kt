@@ -23,9 +23,23 @@ data class ScriptUiItem(
             GithubReleaseProvider.extractOwnerAndRepository(sourceUrl) != null
 }
 
+data class VersionOption(
+    val tagName: String,
+    val downloadUrl: String,
+    val isCurrent: Boolean,
+)
+
 sealed class LauncherEvent {
     data class ScriptAdded(val scriptName: String) : LauncherEvent()
     data class ScriptAddFailed(val errorMessage: String) : LauncherEvent()
     data class ScriptDeleted(val scriptName: String) : LauncherEvent()
     data class UpdatesCompleted(val updatedCount: Int) : LauncherEvent()
+    data class VersionsLoaded(
+        val identifier: ScriptIdentifier,
+        val versions: List<VersionOption>,
+    ) : LauncherEvent()
+    data class VersionInstallCompleted(val scriptName: String) : LauncherEvent()
+    data class VersionInstallFailed(val errorMessage: String) : LauncherEvent()
+    data class ReinstallCompleted(val scriptName: String) : LauncherEvent()
+    data class ReinstallFailed(val errorMessage: String) : LauncherEvent()
 }

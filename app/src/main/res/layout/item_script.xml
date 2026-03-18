@@ -35,13 +35,12 @@
             app:layout_constraintTop_toBottomOf="@id/scriptName" />
 
         <ImageButton
-            android:id="@+id/deleteButton"
+            android:id="@+id/overflowButton"
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/delete_script"
-            android:src="@drawable/ic_delete"
-            android:visibility="gone"
+            android:contentDescription="@string/script_menu"
+            android:src="@drawable/ic_more_vert"
             app:layout_constraintBottom_toBottomOf="@id/scriptToggle"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="@id/scriptToggle"
@@ -53,7 +52,7 @@
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
             app:layout_constraintBottom_toBottomOf="@id/scriptDetails"
-            app:layout_constraintEnd_toStartOf="@id/deleteButton"
+            app:layout_constraintEnd_toStartOf="@id/overflowButton"
             app:layout_constraintTop_toTopOf="@id/scriptName" />
 
         <TextView

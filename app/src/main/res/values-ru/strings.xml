@@ -9,6 +9,9 @@
     <string name="script_url_hint">URL скрипта (.user.js)</string>
     <string name="add">Добавить</string>
     <string name="delete">Удалить</string>
+    <string name="select_version">Выбрать версию</string>
+    <string name="reinstall">Переустановить</string>
+    <string name="script_menu">Меню скрипта</string>
     <string name="delete_script">Удалить скрипт</string>
     <string name="delete_script_confirmation">Удалить %s?</string>
     <string name="update_all">Обновить все</string>
@@ -18,6 +21,13 @@
     <string name="updates_applied">Обновлено скриптов: %d</string>
     <string name="no_updates">Все скрипты актуальны</string>
     <string name="checking_updates">Проверка обновлений…</string>
+    <string name="loading_versions">Загрузка версий…</string>
+    <string name="version_load_failed">Не удалось загрузить версии: %s</string>
+    <string name="version_current_marker">(текущая)</string>
+    <string name="install">Установить</string>
+    <string name="version_install_completed">Установлен %s</string>
+    <string name="reinstall_completed">Переустановлен %s</string>
+    <string name="reinstall_failed">Не удалось переустановить: %s</string>
     <string name="settings">Настройки</string>
     <string name="settings_category_display">Экран</string>
     <string name="settings_fullscreen">Полноэкранный режим</string>
