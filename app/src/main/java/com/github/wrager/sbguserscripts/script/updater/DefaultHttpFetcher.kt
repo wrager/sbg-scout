@@ -7,10 +7,14 @@ import java.net.URL
 
 class DefaultHttpFetcher : HttpFetcher {
 
-    override suspend fun fetch(url: String): String = withContext(Dispatchers.IO) {
+    override suspend fun fetch(
+        url: String,
+        headers: Map<String, String>,
+    ): String = withContext(Dispatchers.IO) {
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
             connection.useCaches = false
+            headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
             connection.inputStream.bufferedReader().use { it.readText() }
         } finally {
             connection.disconnect()
