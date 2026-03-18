@@ -5,8 +5,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -23,6 +25,11 @@ class ClipboardBridgeTest {
         clipboardManager = mockk()
         every { context.getSystemService(Context.CLIPBOARD_SERVICE) } returns clipboardManager
         bridge = ClipboardBridge(context)
+    }
+
+    @After
+    fun tearDown() {
+        unmockkStatic(ClipData::class)
     }
 
     @Test
@@ -45,12 +52,14 @@ class ClipboardBridgeTest {
 
     @Test
     fun `writeText puts text into clipboard`() {
-        val clipDataSlot = slot<ClipData>()
-        every { clipboardManager.setPrimaryClip(capture(clipDataSlot)) } returns Unit
+        mockkStatic(ClipData::class)
+        val mockClipData = mockk<ClipData>()
+        every { ClipData.newPlainText(any(), eq("world")) } returns mockClipData
+        every { clipboardManager.setPrimaryClip(mockClipData) } returns Unit
 
         bridge.writeText("world")
 
-        verify { clipboardManager.setPrimaryClip(any()) }
-        assertEquals("world", clipDataSlot.captured.getItemAt(0).text)
+        verify { ClipData.newPlainText(any(), eq("world")) }
+        verify { clipboardManager.setPrimaryClip(mockClipData) }
     }
 }

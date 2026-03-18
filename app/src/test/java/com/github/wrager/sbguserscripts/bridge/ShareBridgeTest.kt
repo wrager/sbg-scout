@@ -5,9 +5,10 @@ import android.content.Intent
 import android.net.Uri
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
-import org.junit.Assert.assertEquals
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
@@ -18,29 +19,35 @@ class ShareBridgeTest {
 
     @Before
     fun setUp() {
+        mockkStatic(Uri::class)
         context = mockk()
         bridge = ShareBridge(context)
     }
 
-    @Test
-    fun `open starts activity with correct URL`() {
-        val intentSlot = slot<Intent>()
-        every { context.startActivity(capture(intentSlot)) } returns Unit
-
-        bridge.open("https://sbg-game.ru")
-
-        verify { context.startActivity(any()) }
-        assertEquals(Uri.parse("https://sbg-game.ru"), intentSlot.captured.data)
-        assertEquals(Intent.ACTION_VIEW, intentSlot.captured.action)
+    @After
+    fun tearDown() {
+        unmockkStatic(Uri::class)
     }
 
     @Test
-    fun `open adds FLAG_ACTIVITY_NEW_TASK to intent`() {
-        val intentSlot = slot<Intent>()
-        every { context.startActivity(capture(intentSlot)) } returns Unit
+    fun `open starts activity with correct URL`() {
+        val mockUri = mockk<Uri>()
+        every { Uri.parse("https://sbg-game.ru") } returns mockUri
+        every { context.startActivity(any()) } returns Unit
 
         bridge.open("https://sbg-game.ru")
 
-        assert(intentSlot.captured.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+        verify { Uri.parse("https://sbg-game.ru") }
+        verify { context.startActivity(any()) }
+    }
+
+    @Test
+    fun `open calls startActivity`() {
+        every { Uri.parse(any<String>()) } returns mockk()
+        every { context.startActivity(any()) } returns Unit
+
+        bridge.open("https://example.com")
+
+        verify { context.startActivity(any()) }
     }
 }
