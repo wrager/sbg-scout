@@ -3,6 +3,8 @@ package com.github.wrager.sbguserscripts
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.WebChromeClient
@@ -102,6 +104,21 @@ class GameActivity : AppCompatActivity() {
         webView.webViewClient = SbgWebViewClient()
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                val logLevel = when (consoleMessage.messageLevel()) {
+                    ConsoleMessage.MessageLevel.ERROR -> Log.ERROR
+                    ConsoleMessage.MessageLevel.WARNING -> Log.WARN
+                    ConsoleMessage.MessageLevel.DEBUG -> Log.DEBUG
+                    else -> Log.INFO
+                }
+                Log.println(
+                    logLevel,
+                    LOG_TAG,
+                    "${consoleMessage.message()} [${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}]",
+                )
+                return true
+            }
+
             override fun onGeolocationPermissionsShowPrompt(
                 origin: String,
                 callback: GeolocationPermissions.Callback,
@@ -149,5 +166,6 @@ class GameActivity : AppCompatActivity() {
 
     companion object {
         private const val GAME_URL = "https://sbg-game.ru/app"
+        private const val LOG_TAG = "SbgWebView"
     }
 }
