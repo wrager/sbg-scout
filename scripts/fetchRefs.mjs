@@ -20,6 +20,8 @@ const REFS = join(ROOT, 'refs');
 const TEMP = join(REFS, '.tmp');
 
 const URLS = {
+  svpZipball: 'https://api.github.com/repos/wrager/sbg-vanilla-plus/zipball',
+  svpRelease: 'https://github.com/wrager/sbg-vanilla-plus/releases/latest/download/sbg-vanilla-plus.user.js',
   euiZipball: 'https://api.github.com/repos/egorantonov/sbg-enhanced/zipball',
   cuiZipball: 'https://api.github.com/repos/nicko-v/sbg-cui/zipball',
   euiRelease: 'https://github.com/egorantonov/sbg-enhanced/releases/latest/download/eui.user.js',
@@ -132,6 +134,18 @@ function fail(name, source, error) {
 // ---------------------------------------------------------------------------
 // Tasks
 // ---------------------------------------------------------------------------
+
+async function fetchSvpSources() {
+  const dest = join(REFS, 'svp');
+  await downloadAndExtractZip(URLS.svpZipball, dest, 'src', null);
+  ok('SVP sources', 'svp/src/', URLS.svpZipball);
+}
+
+async function fetchSvpRelease() {
+  const dest = join(REFS, 'releases', 'sbg-vanilla-plus.user.js');
+  await downloadFile(URLS.svpRelease, dest);
+  ok('SVP release', 'releases/sbg-vanilla-plus.user.js', URLS.svpRelease);
+}
 
 async function fetchEuiSources() {
   const dest = join(REFS, 'eui');
@@ -260,6 +274,7 @@ async function main() {
   }
 
   const dirs = [
+    join(REFS, 'svp'),
     join(REFS, 'eui'),
     join(REFS, 'cui'),
     join(REFS, 'ol'),
@@ -315,6 +330,8 @@ async function main() {
   }
 
   await Promise.allSettled([
+    fetchSvpSources().catch((error) => fail('SVP sources', URLS.svpZipball, error.message)),
+    fetchSvpRelease().catch((error) => fail('SVP release', URLS.svpRelease, error.message)),
     fetchEuiSources().catch((error) => fail('EUI sources', URLS.euiZipball, error.message)),
     fetchCuiSources().catch((error) => fail('CUI sources', URLS.cuiZipball, error.message)),
     fetchEuiRelease().catch((error) => fail('EUI release', URLS.euiRelease, error.message)),

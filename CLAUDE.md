@@ -48,6 +48,8 @@ Android APK для SBG (мобильная браузерная геолокац
 
 | Референс | Путь в refs/ | Назначение |
 |---|---|---|
+| SVP sources | `svp/src/` | Исходники SVP |
+| SVP release | `releases/sbg-vanilla-plus.user.js` | Собранный SVP .user.js |
 | Anmiles APK | `anmiles/` | WebView-настройки, авторизация, JS-мосты, инжекция |
 | EUI sources | `eui/src/` | Исходники EUI для понимания API |
 | CUI sources | `cui/` | Исходники CUI |
