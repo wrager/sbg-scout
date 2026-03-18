@@ -1,23 +1,11 @@
 package com.github.wrager.sbguserscripts.webview
 
 import android.app.Activity
-import android.webkit.SslErrorHandler
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.net.http.SslError
-import com.github.wrager.sbguserscripts.BuildConfig
 
 class SbgWebViewClient : WebViewClient() {
-
-    override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-        if (BuildConfig.DEBUG) {
-            // Старые эмуляторы (API 24) не доверяют Let's Encrypt — разрешаем только в debug
-            handler?.proceed()
-        } else {
-            super.onReceivedSslError(view, handler, error)
-        }
-    }
 
     override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
         super.onPageStarted(view, url, favicon)
