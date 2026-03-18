@@ -19,6 +19,9 @@
     <string name="no_updates">Все скрипты актуальны</string>
     <string name="checking_updates">Проверка обновлений…</string>
     <string name="settings">Настройки</string>
+    <string name="settings_category_display">Экран</string>
+    <string name="settings_fullscreen">Полноэкранный режим</string>
+    <string name="settings_fullscreen_summary">Скрывать статус-бар и кнопки навигации</string>
     <string name="settings_category_scripts">Скрипты</string>
     <string name="settings_auto_update">Автообновление скриптов</string>
     <string name="settings_auto_update_summary">Проверять обновления при запуске</string>

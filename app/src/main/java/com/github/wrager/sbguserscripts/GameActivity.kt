@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.preference.PreferenceManager
 import com.github.wrager.sbguserscripts.bridge.ClipboardBridge
 import com.github.wrager.sbguserscripts.bridge.ShareBridge
 import com.github.wrager.sbguserscripts.script.injector.ScriptInjector
@@ -58,7 +59,12 @@ class GameActivity : AppCompatActivity() {
         setContentView(R.layout.activity_game)
 
         webView = findViewById(R.id.gameWebView)
-        enableImmersiveMode()
+
+        val isFullscreen = PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(KEY_FULLSCREEN_MODE, false)
+        if (isFullscreen) {
+            enableImmersiveMode()
+        }
         setupWebView()
         setupBackPressHandling()
 
@@ -182,5 +188,6 @@ class GameActivity : AppCompatActivity() {
     companion object {
         private const val GAME_URL = "https://sbg-game.ru/app"
         private const val LOG_TAG = "SbgWebView"
+        private const val KEY_FULLSCREEN_MODE = "fullscreen_mode"
     }
 }

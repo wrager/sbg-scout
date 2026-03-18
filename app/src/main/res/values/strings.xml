@@ -19,6 +19,9 @@
     <string name="no_updates">All scripts are up to date</string>
     <string name="checking_updates">Checking for updates\u2026</string>
     <string name="settings">Settings</string>
+    <string name="settings_category_display">Display</string>
+    <string name="settings_fullscreen">Fullscreen mode</string>
+    <string name="settings_fullscreen_summary">Hide status bar and navigation buttons</string>
     <string name="settings_category_scripts">Scripts</string>
     <string name="settings_auto_update">Auto-update scripts</string>
     <string name="settings_auto_update_summary">Check for updates on launch</string>

@@ -2,6 +2,16 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <PreferenceCategory android:title="@string/settings_category_display">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="fullscreen_mode"
+            android:summary="@string/settings_fullscreen_summary"
+            android:title="@string/settings_fullscreen" />
+
+    </PreferenceCategory>
+
     <PreferenceCategory android:title="@string/settings_category_scripts">
 
         <SwitchPreferenceCompat
