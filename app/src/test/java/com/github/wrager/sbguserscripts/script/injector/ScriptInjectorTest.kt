@@ -33,15 +33,29 @@ class ScriptInjectorTest {
     }
 
     @Test
-    fun `wrapInSafeIife wraps content in try-catch IIFE`() {
+    fun `wrapInSafeIife wraps content with DOMContentLoaded by default`() {
         val result = ScriptInjector.wrapInSafeIife("Test Script", "console.log('hello');")
 
         assertTrue(result.contains("(function() {"))
         assertTrue(result.contains("try {"))
         assertTrue(result.contains("console.log('hello');"))
         assertTrue(result.contains("} catch (error) {"))
-        assertTrue(result.contains("console.error('[SBG Userscripts] \"Test Script\" failed:', error);"))
+        assertTrue(result.contains("DOMContentLoaded"))
+        assertTrue(result.contains("document.readyState"))
         assertTrue(result.contains("})();"))
+    }
+
+    @Test
+    fun `wrapInSafeIife with document-start injects immediately without DOMContentLoaded`() {
+        val result = ScriptInjector.wrapInSafeIife(
+            "Early Script",
+            "console.log('early');",
+            runAt = "document-start",
+        )
+
+        assertTrue(result.contains("console.log('early');"))
+        assertTrue(result.contains("try {"))
+        assertFalse(result.contains("DOMContentLoaded"))
     }
 
     @Test

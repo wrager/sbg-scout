@@ -38,7 +38,11 @@ class ScriptInjector(
     }
 
     private fun injectScript(webView: WebView, script: UserScript) {
-        val wrapped = wrapInSafeIife(script.header.name, script.content)
+        val wrapped = wrapInSafeIife(
+            script.header.name,
+            script.content,
+            script.header.runAt,
+        )
         webView.evaluateJavascript(wrapped) {}
     }
 
@@ -60,19 +64,39 @@ class ScriptInjector(
         private const val READ_ERRORS_SCRIPT =
             "JSON.stringify(window.__sbg_injection_errors || [])"
 
-        internal fun wrapInSafeIife(scriptName: String, content: String): String {
+        internal fun wrapInSafeIife(
+            scriptName: String,
+            content: String,
+            runAt: String? = null,
+        ): String {
             val escapedName = scriptName.replace("\\", "\\\\").replace("'", "\\'")
-            return """
-                (function() {
-                    try {
-                        $content
-                    } catch (error) {
-                        console.error('[SBG Userscripts] "$escapedName" failed:', error);
-                        window.__sbg_injection_errors = window.__sbg_injection_errors || [];
-                        window.__sbg_injection_errors.push({script: '$escapedName', error: String(error)});
-                    }
-                })();
+            val body = """
+                try {
+                    $content
+                } catch (error) {
+                    console.error('[SBG Userscripts] "$escapedName" failed:', error);
+                    window.__sbg_injection_errors = window.__sbg_injection_errors || [];
+                    window.__sbg_injection_errors.push({script: '$escapedName', error: String(error)});
+                }
             """.trimIndent()
+
+            return if (runAt == "document-start") {
+                "(function() {\n$body\n})();"
+            } else {
+                // document-end, document-idle, или не указано — ждём DOM
+                """
+                    (function() {
+                        function run() {
+                            $body
+                        }
+                        if (document.readyState === 'loading') {
+                            document.addEventListener('DOMContentLoaded', run);
+                        } else {
+                            run();
+                        }
+                    })();
+                """.trimIndent()
+            }
         }
 
         internal fun buildGlobalVariablesScript(
