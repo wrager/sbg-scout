@@ -52,4 +52,12 @@ class PresetScriptsTest {
         assertEquals("SBG CUI", PresetScripts.CUI.displayName)
         assertEquals("SBG plus", PresetScripts.ANMILES.displayName)
     }
+
+    @Test
+    fun `ALL order is SVP then CUI then EUI then ANMILES`() {
+        assertEquals(
+            listOf(PresetScripts.SVP, PresetScripts.CUI, PresetScripts.EUI, PresetScripts.ANMILES),
+            PresetScripts.ALL,
+        )
+    }
 }
