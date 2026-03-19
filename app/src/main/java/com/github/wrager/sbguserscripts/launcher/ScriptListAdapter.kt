@@ -95,7 +95,7 @@ class ScriptListAdapter(
                     loadingProgress.visibility = View.VISIBLE
                 }
                 else -> {
-                    loadingProgress.visibility = View.GONE
+                    loadingProgress.visibility = View.INVISIBLE
                 }
             }
         }

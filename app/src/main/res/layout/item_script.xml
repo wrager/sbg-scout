@@ -69,14 +69,6 @@
 
         </LinearLayout>
 
-        <ProgressBar
-            android:id="@+id/loadingProgress"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="4dp"
-            android:layout_marginTop="8dp"
-            android:visibility="gone" />
-
         <TextView
             android:id="@+id/conflictWarning"
             android:layout_width="match_parent"
@@ -87,5 +79,14 @@
             android:visibility="gone" />
 
     </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/loadingProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_gravity="bottom"
+        android:minHeight="0dp"
+        android:visibility="invisible" />
 
 </com.google.android.material.card.MaterialCardView>
