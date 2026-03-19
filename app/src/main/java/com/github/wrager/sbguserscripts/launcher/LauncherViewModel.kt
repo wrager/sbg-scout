@@ -30,6 +30,7 @@ class LauncherViewModel(
     private val updateChecker: ScriptUpdateChecker,
     private val githubReleaseProvider: GithubReleaseProvider,
     private val injectionStateStorage: InjectionStateStorage,
+    private val autoUpdateEnabled: Boolean,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LauncherUiState())
@@ -50,7 +51,9 @@ class LauncherViewModel(
     private fun loadScripts() {
         viewModelScope.launch {
             refreshScriptList()
-            checkUpdatesInBackground()
+            if (autoUpdateEnabled) {
+                checkUpdatesInBackground()
+            }
         }
     }
 
@@ -375,6 +378,7 @@ class LauncherViewModel(
         private val updateChecker: ScriptUpdateChecker,
         private val githubReleaseProvider: GithubReleaseProvider,
         private val injectionStateStorage: InjectionStateStorage,
+        private val autoUpdateEnabled: Boolean,
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
@@ -385,6 +389,7 @@ class LauncherViewModel(
                 updateChecker,
                 githubReleaseProvider,
                 injectionStateStorage,
+                autoUpdateEnabled,
             ) as T
         }
     }

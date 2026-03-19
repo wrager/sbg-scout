@@ -155,7 +155,7 @@ class LauncherViewModelTest {
             ScriptUpdateResult.UpToDate(script.identifier),
         )
 
-        val viewModel = createViewModel()
+        val viewModel = createViewModel(autoUpdateEnabled = true)
         advanceUntilIdle()
 
         val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
@@ -175,7 +175,7 @@ class LauncherViewModelTest {
             ),
         )
 
-        val viewModel = createViewModel()
+        val viewModel = createViewModel(autoUpdateEnabled = true)
         advanceUntilIdle()
 
         val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
@@ -466,13 +466,14 @@ class LauncherViewModelTest {
         verify { scriptStorage.setEnabled(script.identifier, true) }
     }
 
-    private fun createViewModel() = LauncherViewModel(
+    private fun createViewModel(autoUpdateEnabled: Boolean = false) = LauncherViewModel(
         scriptStorage,
         conflictDetector,
         downloader,
         updateChecker,
         githubReleaseProvider,
         injectionStateStorage,
+        autoUpdateEnabled,
     )
 
     private fun testScript(

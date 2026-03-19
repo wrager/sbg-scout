@@ -48,6 +48,8 @@ class LauncherActivity : AppCompatActivity() {
         val updateChecker = ScriptUpdateChecker(httpFetcher, scriptStorage)
         val githubReleaseProvider = GithubReleaseProvider(httpFetcher)
         val injectionStateStorage = InjectionStateStorage(preferences)
+        val autoUpdateEnabled = PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean("auto_update_scripts", true)
         LauncherViewModel.Factory(
             scriptStorage,
             conflictDetector,
@@ -55,6 +57,7 @@ class LauncherActivity : AppCompatActivity() {
             updateChecker,
             githubReleaseProvider,
             injectionStateStorage,
+            autoUpdateEnabled,
         )
     }
 
