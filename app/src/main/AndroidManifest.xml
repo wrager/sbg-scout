@@ -32,6 +32,10 @@
             android:exported="false"
             android:label="@string/settings" />
         <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:noHistory="true" />
+        <activity
             android:name=".GameActivity"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="false"
