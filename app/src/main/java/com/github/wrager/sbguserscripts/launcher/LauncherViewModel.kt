@@ -131,6 +131,31 @@ class LauncherViewModel(
         }
     }
 
+    fun checkUpdates() {
+        viewModelScope.launch {
+            try {
+                upToDateIdentifiers.clear()
+                updateAvailableIdentifiers.clear()
+                val downloadedIdentifiers = scriptStorage.getAll().map { it.identifier }.toSet()
+                checkingUpdateIdentifiers.addAll(downloadedIdentifiers)
+                refreshScriptList()
+                val results = updateChecker.checkAllForUpdates()
+                checkingUpdateIdentifiers.clear()
+                results.filterIsInstance<ScriptUpdateResult.UpToDate>().forEach { result ->
+                    upToDateIdentifiers.add(result.identifier)
+                }
+                results.filterIsInstance<ScriptUpdateResult.UpdateAvailable>().forEach { result ->
+                    updateAvailableIdentifiers.add(result.identifier)
+                }
+                refreshScriptList()
+            } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
+                checkingUpdateIdentifiers.clear()
+                Log.w(LOG_TAG, "Проверка обновлений завершилась с ошибкой", exception)
+                refreshScriptList()
+            }
+        }
+    }
+
     fun updateAllScripts() {
         viewModelScope.launch {
             val results = updateChecker.checkAllForUpdates()

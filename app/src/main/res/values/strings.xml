@@ -14,6 +14,7 @@
     <string name="script_menu">Script menu</string>
     <string name="delete_script">Delete script</string>
     <string name="delete_script_confirmation">Delete %s?</string>
+    <string name="check_updates">Check updates</string>
     <string name="update_all">Update all</string>
     <string name="script_added">Script %s added</string>
     <string name="script_add_failed">Failed to add script: %s</string>

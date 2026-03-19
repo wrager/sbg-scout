@@ -74,8 +74,18 @@ class LauncherActivity : AppCompatActivity() {
     }
 
     private fun setupToolbar() {
-        findViewById<MaterialToolbar>(R.id.toolbar).setOnMenuItemClickListener { menuItem ->
+        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
+        if (intent.getBooleanExtra(EXTRA_FROM_SETTINGS, false)) {
+            toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+            toolbar.setNavigationOnClickListener { finish() }
+        }
+        toolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
+                R.id.action_check_updates -> {
+                    viewModel.checkUpdates()
+                    Toast.makeText(this, R.string.checking_updates, Toast.LENGTH_SHORT).show()
+                    true
+                }
                 R.id.action_update_all -> {
                     viewModel.updateAllScripts()
                     Toast.makeText(this, R.string.checking_updates, Toast.LENGTH_SHORT).show()
