@@ -50,23 +50,22 @@
 
             </LinearLayout>
 
-            <androidx.appcompat.widget.SwitchCompat
-                android:id="@+id/scriptToggle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:showText="false" />
-
             <ImageButton
                 android:id="@+id/actionButton"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:layout_marginStart="4dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/script_menu"
                 android:src="@drawable/ic_more_vert"
                 android:visibility="gone"
                 app:tint="?attr/colorControlNormal" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/scriptToggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:showText="false" />
 
         </LinearLayout>
 

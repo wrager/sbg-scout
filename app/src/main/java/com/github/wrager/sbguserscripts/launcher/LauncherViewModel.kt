@@ -228,6 +228,7 @@ class LauncherViewModel(
 
         val presetItems = PresetScripts.ALL.map { preset ->
             val script = storedScripts.find { it.identifier == preset.identifier }
+                ?: storedScripts.find { it.isPreset && it.sourceUrl == preset.downloadUrl }
             if (script != null) {
                 buildScriptUiItem(script, enabledIdentifiers, nameByIdentifier)
             } else {
