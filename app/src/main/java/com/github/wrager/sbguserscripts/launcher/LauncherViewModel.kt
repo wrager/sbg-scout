@@ -117,7 +117,12 @@ class LauncherViewModel(
             when (result) {
                 is ScriptDownloadResult.Success -> {
                     refreshScriptList()
-                    _events.send(LauncherEvent.ScriptAdded(result.script.header.name))
+                    _events.send(
+                        LauncherEvent.ScriptAdded(
+                            result.script.header.name,
+                            result.script.header.version,
+                        ),
+                    )
                 }
                 is ScriptDownloadResult.Failure -> {
                     _events.send(
@@ -251,7 +256,12 @@ class LauncherViewModel(
                         updateAvailableIdentifiers.add(result.script.identifier)
                     }
                     refreshScriptList()
-                    _events.send(LauncherEvent.VersionInstallCompleted(result.script.header.name))
+                    _events.send(
+                        LauncherEvent.VersionInstallCompleted(
+                            result.script.header.name,
+                            result.script.header.version,
+                        ),
+                    )
                 }
                 is ScriptDownloadResult.Failure -> {
                     _events.send(
@@ -276,7 +286,12 @@ class LauncherViewModel(
                     updateAvailableIdentifiers.remove(result.script.identifier)
                     upToDateIdentifiers.add(result.script.identifier)
                     refreshScriptList()
-                    _events.send(LauncherEvent.ReinstallCompleted(result.script.header.name))
+                    _events.send(
+                        LauncherEvent.ReinstallCompleted(
+                            result.script.header.name,
+                            result.script.header.version,
+                        ),
+                    )
                 }
                 is ScriptDownloadResult.Failure -> {
                     _events.send(

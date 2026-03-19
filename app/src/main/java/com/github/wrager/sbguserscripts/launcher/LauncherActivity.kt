@@ -189,7 +189,7 @@ class LauncherActivity : AppCompatActivity() {
         }
         val message = when (event) {
             is LauncherEvent.ScriptAdded ->
-                getString(R.string.script_added, event.scriptName)
+                getString(R.string.script_added, formatNameWithVersion(event.scriptName, event.scriptVersion))
             is LauncherEvent.ScriptAddFailed ->
                 getString(R.string.script_add_failed, event.errorMessage)
             is LauncherEvent.ScriptDeleted ->
@@ -202,11 +202,17 @@ class LauncherActivity : AppCompatActivity() {
                 }
             is LauncherEvent.VersionsLoaded -> return
             is LauncherEvent.VersionInstallCompleted ->
-                getString(R.string.version_install_completed, event.scriptName)
+                getString(
+                    R.string.version_install_completed,
+                    formatNameWithVersion(event.scriptName, event.scriptVersion),
+                )
             is LauncherEvent.VersionInstallFailed ->
                 getString(R.string.version_load_failed, event.errorMessage)
             is LauncherEvent.ReinstallCompleted ->
-                getString(R.string.reinstall_completed, event.scriptName)
+                getString(
+                    R.string.reinstall_completed,
+                    formatNameWithVersion(event.scriptName, event.scriptVersion),
+                )
             is LauncherEvent.ReinstallFailed ->
                 getString(R.string.reinstall_failed, event.errorMessage)
         }
@@ -286,6 +292,10 @@ class LauncherActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun formatNameWithVersion(name: String, version: String?): String {
+        return if (version != null) "$name v$version" else name
     }
 
     private fun showDeleteConfirmation(identifier: ScriptIdentifier) {
