@@ -17,6 +17,10 @@ data class ScriptUiItem(
     val isPreset: Boolean,
     val conflictNames: List<String>,
     val sourceUrl: String?,
+    val isDownloaded: Boolean = true,
+    val downloadProgress: Int? = null,
+    val isJustInstalled: Boolean = false,
+    val isUpToDate: Boolean = false,
 ) {
     val isGithubHosted: Boolean
         get() = sourceUrl != null &&

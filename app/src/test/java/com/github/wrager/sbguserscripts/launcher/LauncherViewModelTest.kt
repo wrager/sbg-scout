@@ -1,6 +1,5 @@
 package com.github.wrager.sbguserscripts.launcher
 
-import android.content.SharedPreferences
 import com.github.wrager.sbguserscripts.script.model.ScriptHeader
 import com.github.wrager.sbguserscripts.script.model.ScriptIdentifier
 import com.github.wrager.sbguserscripts.script.model.UserScript
@@ -24,8 +23,8 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -33,6 +32,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -46,8 +46,6 @@ class LauncherViewModelTest {
     private lateinit var downloader: ScriptDownloader
     private lateinit var updateChecker: ScriptUpdateChecker
     private lateinit var githubReleaseProvider: GithubReleaseProvider
-    private lateinit var appPreferences: SharedPreferences
-    private lateinit var preferencesEditor: SharedPreferences.Editor
 
     @Before
     fun setUp() {
@@ -56,12 +54,8 @@ class LauncherViewModelTest {
         downloader = mockk()
         updateChecker = mockk()
         githubReleaseProvider = mockk()
-        appPreferences = mockk()
-        preferencesEditor = mockk()
 
-        every { appPreferences.edit() } returns preferencesEditor
-        every { preferencesEditor.putBoolean(any(), any()) } returns preferencesEditor
-        every { preferencesEditor.apply() } just Runs
+        coEvery { updateChecker.checkAllForUpdates() } returns emptyList()
     }
 
     @After
@@ -71,7 +65,6 @@ class LauncherViewModelTest {
 
     @Test
     fun `loads existing scripts from storage`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         every { scriptStorage.getAll() } returns listOf(testScript())
 
         val viewModel = createViewModel()
@@ -79,46 +72,95 @@ class LauncherViewModelTest {
 
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
-        assertEquals(1, state.scripts.size)
-        assertEquals("Test Script", state.scripts[0].name)
+        assertTrue(state.scripts.any { it.name == "Test Script" && it.isDownloaded })
     }
 
     @Test
-    fun `downloads presets on first launch`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns false
+    fun `shows undownloaded presets in list`() = runTest {
         every { scriptStorage.getAll() } returns emptyList()
-        coEvery { downloader.download(any(), isPreset = true) } returns
-            ScriptDownloadResult.Success(testScript())
-        every { scriptStorage.setEnabled(any(), any()) } just Runs
 
         val viewModel = createViewModel()
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
-        coVerify(exactly = PresetScripts.ALL.size) { downloader.download(any(), isPreset = true) }
+        assertEquals(PresetScripts.ALL.size, state.scripts.size)
+        assertTrue(state.scripts.all { !it.isDownloaded })
     }
 
     @Test
-    fun `enables SVP by default on first launch`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns false
+    fun `undownloaded preset has no download progress`() = runTest {
         every { scriptStorage.getAll() } returns emptyList()
-        val svpScript = testScript(identifier = PresetScripts.SVP.identifier, name = "SVP")
-        coEvery { downloader.download(PresetScripts.SVP.downloadUrl, isPreset = true) } returns
-            ScriptDownloadResult.Success(svpScript)
-        coEvery { downloader.download(neq(PresetScripts.SVP.downloadUrl), isPreset = true) } returns
-            ScriptDownloadResult.Success(testScript())
-        every { scriptStorage.setEnabled(any(), any()) } just Runs
 
-        createViewModel()
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
-        verify { scriptStorage.setEnabled(PresetScripts.SVP.identifier, true) }
+        val svpItem = viewModel.uiState.value.scripts.first { it.identifier == PresetScripts.SVP.identifier }
+        assertFalse(svpItem.isDownloaded)
+        assertNull(svpItem.downloadProgress)
+    }
+
+    @Test
+    fun `downloadScript marks script as downloaded after completion`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        val svpScript = testScript(identifier = PresetScripts.SVP.identifier, name = "SVP")
+        coEvery {
+            downloader.download(PresetScripts.SVP.downloadUrl, isPreset = true, any())
+        } answers {
+            every { scriptStorage.getAll() } returns listOf(svpScript)
+            ScriptDownloadResult.Success(svpScript)
+        }
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.downloadScript(PresetScripts.SVP.identifier)
+        advanceUntilIdle()
+
+        val svpItem = viewModel.uiState.value.scripts.first { it.identifier == PresetScripts.SVP.identifier }
+        assertTrue(svpItem.isDownloaded)
+        assertTrue(svpItem.isJustInstalled)
+    }
+
+    @Test
+    fun `downloadScript shows progress during download`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        coEvery {
+            downloader.download(PresetScripts.SVP.downloadUrl, isPreset = true, any())
+        } answers {
+            @Suppress("UNCHECKED_CAST")
+            val onProgress = arg<((Int) -> Unit)?>(2)
+            onProgress?.invoke(50)
+            ScriptDownloadResult.Failure(PresetScripts.SVP.downloadUrl, RuntimeException("fail"))
+        }
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.downloadScript(PresetScripts.SVP.identifier)
+        advanceUntilIdle()
+
+        val svpItem = viewModel.uiState.value.scripts.first { it.identifier == PresetScripts.SVP.identifier }
+        assertNull(svpItem.downloadProgress)
+    }
+
+    @Test
+    fun `checkUpdatesInBackground marks scripts as up to date`() = runTest {
+        val script = testScript()
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpToDate(script.identifier),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
+        assertTrue(item.isUpToDate)
     }
 
     @Test
     fun `toggles script enabled state`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         val script = testScript()
         every { scriptStorage.getAll() } returns listOf(script)
         every { scriptStorage.setEnabled(any(), any()) } just Runs
@@ -133,7 +175,6 @@ class LauncherViewModelTest {
 
     @Test
     fun `detects conflicts for enabled scripts`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         val svp = testScript(
             identifier = PresetScripts.SVP.identifier,
             name = "SVP",
@@ -159,7 +200,6 @@ class LauncherViewModelTest {
 
     @Test
     fun `no conflicts for disabled scripts`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         val svp = testScript(
             identifier = PresetScripts.SVP.identifier,
             name = "SVP",
@@ -182,7 +222,6 @@ class LauncherViewModelTest {
 
     @Test
     fun `addScript downloads and refreshes list`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         val newScript = testScript(name = "New Script")
         every { scriptStorage.getAll() } returns emptyList()
         coEvery { downloader.download("https://example.com/script.user.js", isPreset = false) } returns
@@ -200,7 +239,6 @@ class LauncherViewModelTest {
 
     @Test
     fun `deleteScript removes script and refreshes list`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         val script = testScript()
         val scriptList = mutableListOf(script)
         every { scriptStorage.getAll() } answers { scriptList.toList() }
@@ -213,12 +251,11 @@ class LauncherViewModelTest {
         advanceUntilIdle()
 
         verify { scriptStorage.delete(script.identifier) }
-        assertTrue(viewModel.uiState.value.scripts.isEmpty())
+        assertFalse(viewModel.uiState.value.scripts.any { it.identifier == script.identifier })
     }
 
     @Test
     fun `updateAllScripts downloads updates when available`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         val script = testScript(
             identifier = ScriptIdentifier("test/updatable"),
             version = "1.0.0",
@@ -251,7 +288,6 @@ class LauncherViewModelTest {
 
     @Test
     fun `loadVersions sends VersionsLoaded event for GitHub script`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         val script = testScript(
             sourceUrl = "https://github.com/owner/repo/releases/latest/download/script.user.js",
         )
@@ -290,7 +326,6 @@ class LauncherViewModelTest {
 
     @Test
     fun `loadVersions filters releases without matching asset`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         val script = testScript(
             sourceUrl = "https://github.com/owner/repo/releases/latest/download/script.user.js",
         )
@@ -326,7 +361,6 @@ class LauncherViewModelTest {
 
     @Test
     fun `installVersion downloads and preserves enabled state`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         val script = testScript(enabled = true)
         every { scriptStorage.getAll() } returns listOf(script)
         val updatedScript = testScript(version = "2.0.0", enabled = false)
@@ -346,7 +380,6 @@ class LauncherViewModelTest {
 
     @Test
     fun `reinstallScript re-downloads from sourceUrl`() = runTest {
-        every { appPreferences.getBoolean("presetsDownloaded", false) } returns true
         val script = testScript(enabled = true)
         every { scriptStorage.getAll() } returns listOf(script)
         coEvery {
@@ -370,7 +403,6 @@ class LauncherViewModelTest {
         downloader,
         updateChecker,
         githubReleaseProvider,
-        appPreferences,
     )
 
     private fun testScript(

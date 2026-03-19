@@ -1,6 +1,5 @@
 package com.github.wrager.sbguserscripts.launcher
 
-import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -29,7 +28,6 @@ class LauncherViewModel(
     private val downloader: ScriptDownloader,
     private val updateChecker: ScriptUpdateChecker,
     private val githubReleaseProvider: GithubReleaseProvider,
-    private val appPreferences: SharedPreferences,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LauncherUiState())
@@ -38,35 +36,62 @@ class LauncherViewModel(
     private val _events = Channel<LauncherEvent>(Channel.BUFFERED)
     val events: Flow<LauncherEvent> = _events.receiveAsFlow()
 
+    private val downloadProgressMap = mutableMapOf<ScriptIdentifier, Int>()
+    private val justInstalledIdentifiers = mutableSetOf<ScriptIdentifier>()
+    private val upToDateIdentifiers = mutableSetOf<ScriptIdentifier>()
+
     init {
         loadScripts()
     }
 
     private fun loadScripts() {
         viewModelScope.launch {
-            if (!appPreferences.getBoolean(KEY_PRESETS_DOWNLOADED, false)) {
-                downloadPresets()
-            }
             refreshScriptList()
+            checkUpdatesInBackground()
         }
     }
 
-    private suspend fun downloadPresets() {
-        for (preset in PresetScripts.ALL) {
-            val result = downloader.download(preset.downloadUrl, isPreset = true)
+    private fun checkUpdatesInBackground() {
+        viewModelScope.launch {
+            try {
+                val results = updateChecker.checkAllForUpdates()
+                results.filterIsInstance<ScriptUpdateResult.UpToDate>().forEach { result ->
+                    upToDateIdentifiers.add(result.identifier)
+                }
+                refreshScriptList()
+            } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
+                Log.w(LOG_TAG, "Фоновая проверка обновлений завершилась с ошибкой", exception)
+            }
+        }
+    }
+
+    fun downloadScript(identifier: ScriptIdentifier) {
+        viewModelScope.launch {
+            val preset = PresetScripts.ALL.find { it.identifier == identifier } ?: return@launch
+            downloadProgressMap[identifier] = 0
+            refreshScriptList()
+            val result = downloader.download(preset.downloadUrl, isPreset = true) { progress ->
+                downloadProgressMap[identifier] = progress
+                refreshScriptList()
+            }
+            downloadProgressMap.remove(identifier)
             when (result) {
                 is ScriptDownloadResult.Success -> {
-                    if (preset == PresetScripts.SVP) {
-                        scriptStorage.setEnabled(result.script.identifier, true)
-                    }
+                    justInstalledIdentifiers.add(result.script.identifier)
+                    refreshScriptList()
                     Log.i(LOG_TAG, "Загружен ${preset.displayName}: ${result.script.header.version}")
                 }
                 is ScriptDownloadResult.Failure -> {
+                    refreshScriptList()
                     Log.e(LOG_TAG, "Не удалось загрузить ${preset.displayName}: ${result.error}")
+                    _events.send(
+                        LauncherEvent.ScriptAddFailed(
+                            result.error.message ?: result.error.toString(),
+                        ),
+                    )
                 }
             }
         }
-        appPreferences.edit().putBoolean(KEY_PRESETS_DOWNLOADED, true).apply()
     }
 
     fun toggleScript(identifier: ScriptIdentifier, enabled: Boolean) {
@@ -197,14 +222,36 @@ class LauncherViewModel(
     }
 
     private fun refreshScriptList() {
-        val scripts = scriptStorage.getAll()
-        val enabledIdentifiers = scripts.filter { it.enabled }.map { it.identifier }.toSet()
-        val nameByIdentifier = scripts.associate { it.identifier to it.header.name }
+        val storedScripts = scriptStorage.getAll()
+        val enabledIdentifiers = storedScripts.filter { it.enabled }.map { it.identifier }.toSet()
+        val nameByIdentifier = storedScripts.associate { it.identifier to it.header.name }
 
-        val items = scripts.map { script ->
-            buildScriptUiItem(script, enabledIdentifiers, nameByIdentifier)
+        val presetItems = PresetScripts.ALL.map { preset ->
+            val script = storedScripts.find { it.identifier == preset.identifier }
+            if (script != null) {
+                buildScriptUiItem(script, enabledIdentifiers, nameByIdentifier)
+            } else {
+                ScriptUiItem(
+                    identifier = preset.identifier,
+                    name = preset.displayName,
+                    version = null,
+                    author = null,
+                    enabled = false,
+                    isPreset = true,
+                    conflictNames = emptyList(),
+                    sourceUrl = preset.downloadUrl,
+                    isDownloaded = false,
+                    downloadProgress = downloadProgressMap[preset.identifier],
+                    isUpToDate = false,
+                )
+            }
         }
-        _uiState.value = LauncherUiState(isLoading = false, scripts = items)
+
+        val customItems = storedScripts
+            .filter { !it.isPreset }
+            .map { buildScriptUiItem(it, enabledIdentifiers, nameByIdentifier) }
+
+        _uiState.value = LauncherUiState(isLoading = false, scripts = presetItems + customItems)
     }
 
     private fun buildScriptUiItem(
@@ -234,6 +281,10 @@ class LauncherViewModel(
             isPreset = script.isPreset,
             conflictNames = conflictNames,
             sourceUrl = script.sourceUrl,
+            isDownloaded = true,
+            downloadProgress = downloadProgressMap[script.identifier],
+            isJustInstalled = script.identifier in justInstalledIdentifiers,
+            isUpToDate = script.identifier in upToDateIdentifiers,
         )
     }
 
@@ -243,7 +294,6 @@ class LauncherViewModel(
         private val downloader: ScriptDownloader,
         private val updateChecker: ScriptUpdateChecker,
         private val githubReleaseProvider: GithubReleaseProvider,
-        private val appPreferences: SharedPreferences,
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
@@ -253,13 +303,11 @@ class LauncherViewModel(
                 downloader,
                 updateChecker,
                 githubReleaseProvider,
-                appPreferences,
             ) as T
         }
     }
 
     companion object {
-        private const val KEY_PRESETS_DOWNLOADED = "presetsDownloaded"
         private const val LOG_TAG = "Launcher"
     }
 }

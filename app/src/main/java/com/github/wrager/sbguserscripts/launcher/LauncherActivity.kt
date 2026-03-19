@@ -3,6 +3,7 @@ package com.github.wrager.sbguserscripts.launcher
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -30,9 +31,8 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
-import kotlinx.coroutines.launch
 import java.io.File
-import android.widget.PopupMenu
+import kotlinx.coroutines.launch
 
 class LauncherActivity : AppCompatActivity() {
 
@@ -45,14 +45,12 @@ class LauncherActivity : AppCompatActivity() {
         val downloader = ScriptDownloader(httpFetcher, scriptStorage)
         val updateChecker = ScriptUpdateChecker(httpFetcher, scriptStorage)
         val githubReleaseProvider = GithubReleaseProvider(httpFetcher)
-        val appPreferences = getSharedPreferences("app", MODE_PRIVATE)
         LauncherViewModel.Factory(
             scriptStorage,
             conflictDetector,
             downloader,
             updateChecker,
             githubReleaseProvider,
-            appPreferences,
         )
     }
 
@@ -88,6 +86,9 @@ class LauncherActivity : AppCompatActivity() {
         scriptList.adapter = ScriptListAdapter(
             onToggleChanged = { identifier, enabled ->
                 viewModel.toggleScript(identifier, enabled)
+            },
+            onDownloadRequested = { identifier ->
+                viewModel.downloadScript(identifier)
             },
             onOverflowClick = { anchor, item ->
                 showScriptOverflowMenu(anchor, item)
