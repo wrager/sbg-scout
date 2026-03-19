@@ -19,7 +19,7 @@ data class ScriptUiItem(
     val sourceUrl: String?,
     val isDownloaded: Boolean = true,
     val downloadProgress: Int? = null,
-    val isJustInstalled: Boolean = false,
+    val isCheckingUpdate: Boolean = false,
     val isUpToDate: Boolean = false,
     val hasUpdateAvailable: Boolean = false,
 ) {

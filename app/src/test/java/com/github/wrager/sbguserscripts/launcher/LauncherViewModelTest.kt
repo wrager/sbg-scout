@@ -119,7 +119,6 @@ class LauncherViewModelTest {
 
         val svpItem = viewModel.uiState.value.scripts.first { it.identifier == PresetScripts.SVP.identifier }
         assertTrue(svpItem.isDownloaded)
-        assertTrue(svpItem.isJustInstalled)
     }
 
     @Test
