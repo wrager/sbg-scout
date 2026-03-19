@@ -59,13 +59,7 @@ class GameActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val isFullscreen = PreferenceManager.getDefaultSharedPreferences(this)
-            .getBoolean(KEY_FULLSCREEN_MODE, false)
-        if (isFullscreen) {
-            enableImmersiveMode()
-        }
-
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContentView(R.layout.activity_game)
         webView = findViewById(R.id.gameWebView)
 
@@ -88,23 +82,33 @@ class GameActivity : AppCompatActivity() {
         webView.restoreState(savedInstanceState)
     }
 
+    override fun onResume() {
+        super.onResume()
+        val isFullscreen = PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(KEY_FULLSCREEN_MODE, false)
+        applyFullscreen(isFullscreen)
+    }
+
     override fun onPause() {
         super.onPause()
         CookieManager.getInstance().flush()
+    }
+
+    private fun applyFullscreen(enabled: Boolean) {
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        if (enabled) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
     }
 
     private fun configureCookies() {
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
         cookieManager.setAcceptThirdPartyCookies(webView, true)
-    }
-
-    private fun enableImmersiveMode() {
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        val controller = WindowInsetsControllerCompat(window, window.decorView)
-        controller.hide(WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
     private fun setupWebView() {
