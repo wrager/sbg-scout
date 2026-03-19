@@ -27,7 +27,6 @@
     <string name="status_update_available">Доступно обновление</string>
     <string name="update">Обновить</string>
     <string name="download_script">Загрузить</string>
-    <string name="download_hint">Загрузка скриптов. Включение настраивается отдельно.</string>
     <string name="checking_updates">Проверка обновлений…</string>
     <string name="loading_versions">Загрузка версий…</string>
     <string name="version_load_failed">Не удалось загрузить версии: %s</string>
