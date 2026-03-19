@@ -448,6 +448,40 @@ class LauncherViewModelTest {
     }
 
     @Test
+    fun `installVersion with isLatest false shows update available instead of up to date`() = runTest {
+        val script = testScript(version = "2.0.0", enabled = true)
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpToDate(script.identifier),
+        )
+
+        val viewModel = createViewModel(autoUpdateEnabled = true)
+        advanceUntilIdle()
+
+        // Автопроверка пометила скрипт как upToDate
+        val itemBefore = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
+        assertTrue(itemBefore.isUpToDate)
+
+        val olderScript = testScript(version = "1.0.0", enabled = false)
+        coEvery {
+            downloader.download("https://example.com/v1/script.user.js", isPreset = false)
+        } returns ScriptDownloadResult.Success(olderScript)
+        every { scriptStorage.setEnabled(any(), any()) } just Runs
+        every { scriptStorage.getAll() } returns listOf(olderScript)
+
+        viewModel.installVersion(
+            script.identifier,
+            "https://example.com/v1/script.user.js",
+            isLatest = false,
+        )
+        advanceUntilIdle()
+
+        val itemAfter = viewModel.uiState.value.scripts.first { it.identifier == olderScript.identifier }
+        assertTrue(itemAfter.hasUpdateAvailable)
+        assertFalse(itemAfter.isUpToDate)
+    }
+
+    @Test
     fun `reinstallScript re-downloads from sourceUrl`() = runTest {
         val script = testScript(enabled = true)
         every { scriptStorage.getAll() } returns listOf(script)

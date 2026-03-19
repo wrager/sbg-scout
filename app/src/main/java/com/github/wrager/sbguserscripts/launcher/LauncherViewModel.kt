@@ -62,9 +62,11 @@ class LauncherViewModel(
             try {
                 val results = updateChecker.checkAllForUpdates()
                 results.filterIsInstance<ScriptUpdateResult.UpToDate>().forEach { result ->
+                    updateAvailableIdentifiers.remove(result.identifier)
                     upToDateIdentifiers.add(result.identifier)
                 }
                 results.filterIsInstance<ScriptUpdateResult.UpdateAvailable>().forEach { result ->
+                    upToDateIdentifiers.remove(result.identifier)
                     updateAvailableIdentifiers.add(result.identifier)
                 }
                 refreshScriptList()
@@ -86,6 +88,7 @@ class LauncherViewModel(
             downloadProgressMap.remove(identifier)
             when (result) {
                 is ScriptDownloadResult.Success -> {
+                    updateAvailableIdentifiers.remove(result.script.identifier)
                     upToDateIdentifiers.add(result.script.identifier)
                     refreshScriptList()
                     Log.i(LOG_TAG, "Загружен ${preset.displayName}: ${result.script.header.version}")
@@ -147,9 +150,11 @@ class LauncherViewModel(
                 val results = updateChecker.checkAllForUpdates()
                 checkingUpdateIdentifiers.clear()
                 results.filterIsInstance<ScriptUpdateResult.UpToDate>().forEach { result ->
+                    updateAvailableIdentifiers.remove(result.identifier)
                     upToDateIdentifiers.add(result.identifier)
                 }
                 results.filterIsInstance<ScriptUpdateResult.UpdateAvailable>().forEach { result ->
+                    upToDateIdentifiers.remove(result.identifier)
                     updateAvailableIdentifiers.add(result.identifier)
                 }
                 refreshScriptList()
@@ -225,6 +230,8 @@ class LauncherViewModel(
             when (result) {
                 is ScriptDownloadResult.Success -> {
                     scriptStorage.setEnabled(result.script.identifier, script.enabled)
+                    upToDateIdentifiers.remove(result.script.identifier)
+                    updateAvailableIdentifiers.remove(result.script.identifier)
                     if (isLatest) {
                         upToDateIdentifiers.add(result.script.identifier)
                     } else {
@@ -252,6 +259,7 @@ class LauncherViewModel(
             when (result) {
                 is ScriptDownloadResult.Success -> {
                     scriptStorage.setEnabled(result.script.identifier, script.enabled)
+                    updateAvailableIdentifiers.remove(result.script.identifier)
                     upToDateIdentifiers.add(result.script.identifier)
                     refreshScriptList()
                     _events.send(LauncherEvent.ReinstallCompleted(result.script.header.name))
