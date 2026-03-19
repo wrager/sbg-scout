@@ -157,6 +157,27 @@ class LauncherViewModelTest {
 
         val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
         assertTrue(item.isUpToDate)
+        assertFalse(item.hasUpdateAvailable)
+    }
+
+    @Test
+    fun `checkUpdatesInBackground marks scripts with update available`() = runTest {
+        val script = testScript(version = "1.0.0")
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpdateAvailable(
+                script.identifier,
+                com.github.wrager.sbguserscripts.script.model.ScriptVersion("1.0.0"),
+                com.github.wrager.sbguserscripts.script.model.ScriptVersion("2.0.0"),
+            ),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
+        assertTrue(item.hasUpdateAvailable)
+        assertFalse(item.isUpToDate)
     }
 
     @Test

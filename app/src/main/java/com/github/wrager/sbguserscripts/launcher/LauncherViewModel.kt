@@ -39,6 +39,7 @@ class LauncherViewModel(
     private val downloadProgressMap = mutableMapOf<ScriptIdentifier, Int>()
     private val justInstalledIdentifiers = mutableSetOf<ScriptIdentifier>()
     private val upToDateIdentifiers = mutableSetOf<ScriptIdentifier>()
+    private val updateAvailableIdentifiers = mutableSetOf<ScriptIdentifier>()
 
     init {
         loadScripts()
@@ -57,6 +58,9 @@ class LauncherViewModel(
                 val results = updateChecker.checkAllForUpdates()
                 results.filterIsInstance<ScriptUpdateResult.UpToDate>().forEach { result ->
                     upToDateIdentifiers.add(result.identifier)
+                }
+                results.filterIsInstance<ScriptUpdateResult.UpdateAvailable>().forEach { result ->
+                    updateAvailableIdentifiers.add(result.identifier)
                 }
                 refreshScriptList()
             } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
@@ -221,16 +225,26 @@ class LauncherViewModel(
         return false
     }
 
+    private fun resolvePresetIdentifier(script: UserScript): ScriptIdentifier {
+        return PresetScripts.ALL.find { preset ->
+            preset.identifier == script.identifier ||
+                (script.isPreset && script.sourceUrl == preset.downloadUrl)
+        }?.identifier ?: script.identifier
+    }
+
     private fun refreshScriptList() {
         val storedScripts = scriptStorage.getAll()
-        val enabledIdentifiers = storedScripts.filter { it.enabled }.map { it.identifier }.toSet()
-        val nameByIdentifier = storedScripts.associate { it.identifier to it.header.name }
+        val canonicalEnabledIdentifiers = storedScripts
+            .filter { it.enabled }
+            .map { resolvePresetIdentifier(it) }
+            .toSet()
+        val nameByIdentifier = storedScripts.associate { resolvePresetIdentifier(it) to it.header.name }
 
         val presetItems = PresetScripts.ALL.map { preset ->
             val script = storedScripts.find { it.identifier == preset.identifier }
                 ?: storedScripts.find { it.isPreset && it.sourceUrl == preset.downloadUrl }
             if (script != null) {
-                buildScriptUiItem(script, enabledIdentifiers, nameByIdentifier)
+                buildScriptUiItem(script, canonicalEnabledIdentifiers, nameByIdentifier)
             } else {
                 ScriptUiItem(
                     identifier = preset.identifier,
@@ -250,20 +264,21 @@ class LauncherViewModel(
 
         val customItems = storedScripts
             .filter { !it.isPreset }
-            .map { buildScriptUiItem(it, enabledIdentifiers, nameByIdentifier) }
+            .map { buildScriptUiItem(it, canonicalEnabledIdentifiers, nameByIdentifier) }
 
         _uiState.value = LauncherUiState(isLoading = false, scripts = presetItems + customItems)
     }
 
     private fun buildScriptUiItem(
         script: UserScript,
-        enabledIdentifiers: Set<ScriptIdentifier>,
+        canonicalEnabledIdentifiers: Set<ScriptIdentifier>,
         nameByIdentifier: Map<ScriptIdentifier, String>,
     ): ScriptUiItem {
+        val canonicalIdentifier = resolvePresetIdentifier(script)
         val conflicts = if (script.enabled) {
             conflictDetector.detectConflicts(
-                script.identifier,
-                enabledIdentifiers - script.identifier,
+                canonicalIdentifier,
+                canonicalEnabledIdentifiers - canonicalIdentifier,
             )
         } else {
             emptyList()
@@ -286,6 +301,7 @@ class LauncherViewModel(
             downloadProgress = downloadProgressMap[script.identifier],
             isJustInstalled = script.identifier in justInstalledIdentifiers,
             isUpToDate = script.identifier in upToDateIdentifiers,
+            hasUpdateAvailable = script.identifier in updateAvailableIdentifiers,
         )
     }
 
