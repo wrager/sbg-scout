@@ -81,9 +81,9 @@ class LauncherViewModel(
             downloadProgressMap.remove(identifier)
             when (result) {
                 is ScriptDownloadResult.Success -> {
+                    upToDateIdentifiers.add(result.script.identifier)
                     refreshScriptList()
                     Log.i(LOG_TAG, "Загружен ${preset.displayName}: ${result.script.header.version}")
-                    checkSingleScriptUpdate(result.script.identifier)
                 }
                 is ScriptDownloadResult.Failure -> {
                     refreshScriptList()
@@ -159,11 +159,28 @@ class LauncherViewModel(
     fun updateAllScripts() {
         viewModelScope.launch {
             val results = updateChecker.checkAllForUpdates()
-            val updatedCount = results
-                .filterIsInstance<ScriptUpdateResult.UpdateAvailable>()
-                .count { updateResult -> applyUpdate(updateResult.identifier) }
+            var updatedCount = 0
+            results.filterIsInstance<ScriptUpdateResult.UpdateAvailable>().forEach { updateResult ->
+                val newIdentifier = applyUpdate(updateResult.identifier)
+                if (newIdentifier != null) {
+                    updateAvailableIdentifiers.remove(updateResult.identifier)
+                    upToDateIdentifiers.add(newIdentifier)
+                    updatedCount++
+                }
+            }
             refreshScriptList()
             _events.send(LauncherEvent.UpdatesCompleted(updatedCount))
+        }
+    }
+
+    fun updateScript(identifier: ScriptIdentifier) {
+        viewModelScope.launch {
+            val newIdentifier = applyUpdate(identifier)
+            if (newIdentifier != null) {
+                updateAvailableIdentifiers.remove(identifier)
+                upToDateIdentifiers.add(newIdentifier)
+            }
+            refreshScriptList()
         }
     }
 
@@ -205,7 +222,6 @@ class LauncherViewModel(
                     scriptStorage.setEnabled(result.script.identifier, script.enabled)
                     refreshScriptList()
                     _events.send(LauncherEvent.VersionInstallCompleted(result.script.header.name))
-                    checkSingleScriptUpdate(result.script.identifier)
                 }
                 is ScriptDownloadResult.Failure -> {
                     _events.send(
@@ -226,9 +242,9 @@ class LauncherViewModel(
             when (result) {
                 is ScriptDownloadResult.Success -> {
                     scriptStorage.setEnabled(result.script.identifier, script.enabled)
+                    upToDateIdentifiers.add(result.script.identifier)
                     refreshScriptList()
                     _events.send(LauncherEvent.ReinstallCompleted(result.script.header.name))
-                    checkSingleScriptUpdate(result.script.identifier)
                 }
                 is ScriptDownloadResult.Failure -> {
                     _events.send(
@@ -241,36 +257,15 @@ class LauncherViewModel(
         }
     }
 
-    private suspend fun checkSingleScriptUpdate(identifier: ScriptIdentifier) {
-        checkingUpdateIdentifiers.add(identifier)
-        refreshScriptList()
-        val script = scriptStorage.getAll().find { it.identifier == identifier }
-        if (script != null) {
-            try {
-                when (val result = updateChecker.checkForUpdate(script)) {
-                    is ScriptUpdateResult.UpToDate -> upToDateIdentifiers.add(result.identifier)
-                    is ScriptUpdateResult.UpdateAvailable ->
-                        updateAvailableIdentifiers.add(result.identifier)
-                    is ScriptUpdateResult.CheckFailed ->
-                        Log.w(LOG_TAG, "Проверка обновления завершилась с ошибкой", result.error)
-                }
-            } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
-                Log.w(LOG_TAG, "Проверка обновления завершилась с ошибкой", exception)
-            }
-        }
-        checkingUpdateIdentifiers.remove(identifier)
-        refreshScriptList()
-    }
-
-    private suspend fun applyUpdate(identifier: ScriptIdentifier): Boolean {
-        val script = scriptStorage.getAll().find { it.identifier == identifier } ?: return false
-        val downloadUrl = script.sourceUrl ?: return false
+    private suspend fun applyUpdate(identifier: ScriptIdentifier): ScriptIdentifier? {
+        val script = scriptStorage.getAll().find { it.identifier == identifier } ?: return null
+        val downloadUrl = script.sourceUrl ?: return null
         val downloadResult = downloader.download(downloadUrl, isPreset = script.isPreset)
         if (downloadResult is ScriptDownloadResult.Success) {
             scriptStorage.setEnabled(downloadResult.script.identifier, script.enabled)
-            return true
+            return downloadResult.script.identifier
         }
-        return false
+        return null
     }
 
     private fun resolvePresetIdentifier(script: UserScript): ScriptIdentifier {
