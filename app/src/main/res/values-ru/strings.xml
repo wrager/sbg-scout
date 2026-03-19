@@ -25,6 +25,7 @@
     <string name="status_downloaded">Загружен</string>
     <string name="status_up_to_date">Актуально</string>
     <string name="status_update_available">Доступно обновление</string>
+    <string name="update">Обновить</string>
     <string name="download_script">Загрузить</string>
     <string name="download_hint">Загрузка скриптов. Включение настраивается отдельно.</string>
     <string name="checking_updates">Проверка обновлений…</string>
@@ -47,6 +48,8 @@
     <string name="settings_version_value">%1$s (сборка %2$d)</string>
     <string name="settings_manage_scripts">Менеджер скриптов</string>
     <string name="settings_manage_scripts_summary">Управление установленными скриптами</string>
+    <string name="reload_game">Перезагрузить игру</string>
+    <string name="settings_reload_game_summary">Применить изменения скриптов к запущенной игре</string>
     <string name="settings_report_bug">Сообщить об ошибке</string>
     <string name="settings_report_bug_summary">Открыть GitHub Issues</string>
 </resources>

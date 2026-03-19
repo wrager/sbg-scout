@@ -1,21 +1,24 @@
 package com.github.wrager.sbguserscripts.launcher
 
+import android.graphics.Paint
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.appcompat.widget.SwitchCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.github.wrager.sbguserscripts.R
 import com.github.wrager.sbguserscripts.script.model.ScriptIdentifier
-import androidx.appcompat.widget.SwitchCompat
+import com.google.android.material.color.MaterialColors
 
 class ScriptListAdapter(
     private val onToggleChanged: (ScriptIdentifier, Boolean) -> Unit,
     private val onDownloadRequested: (ScriptIdentifier) -> Unit,
+    private val onUpdateRequested: (ScriptIdentifier) -> Unit,
     private val onOverflowClick: (View, ScriptUiItem) -> Unit,
 ) : ListAdapter<ScriptUiItem, ScriptListAdapter.ScriptViewHolder>(DIFF_CALLBACK) {
 
@@ -37,6 +40,7 @@ class ScriptListAdapter(
         private val actionButton: ImageButton = itemView.findViewById(R.id.actionButton)
         private val loadingProgress: ProgressBar = itemView.findViewById(R.id.loadingProgress)
         private val conflictWarning: TextView = itemView.findViewById(R.id.conflictWarning)
+        private val defaultStatusTextColor = downloadStatusText.currentTextColor
 
         fun bind(item: ScriptUiItem) {
             nameText.text = item.name
@@ -55,6 +59,10 @@ class ScriptListAdapter(
         }
 
         private fun bindDownloadStatus(item: ScriptUiItem) {
+            downloadStatusText.paintFlags = downloadStatusText.paintFlags and Paint.UNDERLINE_TEXT_FLAG.inv()
+            downloadStatusText.setTextColor(defaultStatusTextColor)
+            downloadStatusText.setOnClickListener(null)
+            downloadStatusText.isClickable = false
             when {
                 item.downloadProgress != null -> {
                     downloadStatusText.text = itemView.context.getString(
@@ -73,8 +81,15 @@ class ScriptListAdapter(
                     downloadStatusText.visibility = View.VISIBLE
                 }
                 item.hasUpdateAvailable -> {
-                    downloadStatusText.text =
-                        itemView.context.getString(R.string.status_update_available)
+                    val primaryColor = MaterialColors.getColor(
+                        itemView.context, com.google.android.material.R.attr.colorPrimary, 0,
+                    )
+                    downloadStatusText.text = itemView.context.getString(R.string.update)
+                    downloadStatusText.setTextColor(primaryColor)
+                    downloadStatusText.paintFlags =
+                        downloadStatusText.paintFlags or Paint.UNDERLINE_TEXT_FLAG
+                    downloadStatusText.setOnClickListener { onUpdateRequested(item.identifier) }
+                    downloadStatusText.isClickable = true
                     downloadStatusText.visibility = View.VISIBLE
                 }
                 else -> {

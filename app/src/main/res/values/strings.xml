@@ -25,6 +25,7 @@
     <string name="status_downloaded">Downloaded</string>
     <string name="status_up_to_date">Up to date</string>
     <string name="status_update_available">Update available</string>
+    <string name="update">Update</string>
     <string name="download_script">Download</string>
     <string name="download_hint">Script download. Enabling is configured separately.</string>
     <string name="checking_updates">Checking for updates\u2026</string>
@@ -47,6 +48,8 @@
     <string name="settings_version_value">%1$s (build %2$d)</string>
     <string name="settings_manage_scripts">Script manager</string>
     <string name="settings_manage_scripts_summary">Manage installed userscripts</string>
+    <string name="reload_game">Reload game</string>
+    <string name="settings_reload_game_summary">Apply script changes to the running game</string>
     <string name="settings_report_bug">Report a bug</string>
     <string name="settings_report_bug_summary">Open GitHub Issues</string>
 </resources>

@@ -22,6 +22,7 @@ import com.github.wrager.sbguserscripts.script.preset.ConflictDetector
 import com.github.wrager.sbguserscripts.script.preset.StaticConflictRules
 import com.github.wrager.sbguserscripts.script.storage.ScriptFileStorageImpl
 import com.github.wrager.sbguserscripts.script.storage.ScriptStorageImpl
+import com.github.wrager.sbguserscripts.script.injector.InjectionStateStorage
 import com.github.wrager.sbguserscripts.script.updater.DefaultHttpFetcher
 import com.github.wrager.sbguserscripts.script.updater.GithubReleaseProvider
 import com.github.wrager.sbguserscripts.script.updater.ScriptDownloader
@@ -46,12 +47,14 @@ class LauncherActivity : AppCompatActivity() {
         val downloader = ScriptDownloader(httpFetcher, scriptStorage)
         val updateChecker = ScriptUpdateChecker(httpFetcher, scriptStorage)
         val githubReleaseProvider = GithubReleaseProvider(httpFetcher)
+        val injectionStateStorage = InjectionStateStorage(preferences)
         LauncherViewModel.Factory(
             scriptStorage,
             conflictDetector,
             downloader,
             updateChecker,
             githubReleaseProvider,
+            injectionStateStorage,
         )
     }
 
@@ -110,6 +113,9 @@ class LauncherActivity : AppCompatActivity() {
             onDownloadRequested = { identifier ->
                 viewModel.downloadScript(identifier)
             },
+            onUpdateRequested = { identifier ->
+                viewModel.updateScript(identifier)
+            },
             onOverflowClick = { anchor, item ->
                 showScriptOverflowMenu(anchor, item)
             },
@@ -137,7 +143,17 @@ class LauncherActivity : AppCompatActivity() {
         val progressBar = findViewById<ProgressBar>(R.id.progressBar)
         val emptyText = findViewById<TextView>(R.id.emptyText)
         val launchButton = findViewById<MaterialButton>(R.id.launchButton)
+        val reloadButton = findViewById<MaterialButton>(R.id.reloadButton)
         val adapter = scriptList.adapter as ScriptListAdapter
+
+        reloadButton.setOnClickListener {
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit().putBoolean(KEY_RELOAD_REQUESTED, true).apply()
+            startActivity(
+                Intent(this, GameActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            )
+        }
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -145,6 +161,7 @@ class LauncherActivity : AppCompatActivity() {
                     progressBar.visibility = if (state.isLoading) View.VISIBLE else View.GONE
                     scriptList.visibility = if (state.isLoading) View.GONE else View.VISIBLE
                     launchButton.isEnabled = !state.isLoading
+                    reloadButton.visibility = if (state.reloadNeeded) View.VISIBLE else View.GONE
 
                     if (!state.isLoading) {
                         adapter.submitList(state.scripts)
@@ -283,5 +300,6 @@ class LauncherActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_FROM_SETTINGS = "from_settings"
         private const val KEY_SETUP_COMPLETED = "setup_completed"
+        internal const val KEY_RELOAD_REQUESTED = "reload_requested"
     }
 }
