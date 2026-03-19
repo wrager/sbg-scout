@@ -49,7 +49,7 @@
     <string name="settings_manage_scripts">Script manager</string>
     <string name="settings_manage_scripts_summary">Manage installed userscripts</string>
     <string name="reload_game">Reload game</string>
-    <string name="settings_reload_game_summary">Apply script changes to the running game</string>
+    <string name="settings_reload_game_summary">Reload the game page in the browser</string>
     <string name="settings_report_bug">Report a bug</string>
     <string name="settings_report_bug_summary">Open GitHub Issues</string>
 </resources>

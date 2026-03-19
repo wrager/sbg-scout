@@ -49,7 +49,7 @@
     <string name="settings_manage_scripts">Менеджер скриптов</string>
     <string name="settings_manage_scripts_summary">Управление установленными скриптами</string>
     <string name="reload_game">Перезагрузить игру</string>
-    <string name="settings_reload_game_summary">Применить изменения скриптов к запущенной игре</string>
+    <string name="settings_reload_game_summary">Перезагрузить страницу игры в браузере</string>
     <string name="settings_report_bug">Сообщить об ошибке</string>
     <string name="settings_report_bug_summary">Открыть GitHub Issues</string>
 </resources>
