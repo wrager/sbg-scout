@@ -45,7 +45,7 @@ class ScriptListAdapter(
         fun bind(item: ScriptUiItem) {
             nameText.text = item.name
 
-            val details = item.version?.let { "v$it" } ?: ""
+            val details = formatVersion(item.version, item.releaseTag)
             detailsText.text = details
             detailsText.visibility = if (details.isNotEmpty()) View.VISIBLE else View.GONE
 
@@ -53,6 +53,20 @@ class ScriptListAdapter(
             bindLoadingProgress(item)
             bindControls(item)
             bindConflictWarning(item)
+        }
+
+        /**
+         * Формирует строку версии для карточки скрипта.
+         * Если releaseTag задан и отличается от @version (например, CUI в репо EUI),
+         * показывает оба: "v26.1.7 (v6.14.0)".
+         */
+        private fun formatVersion(version: String?, releaseTag: String?): String {
+            if (version == null) return ""
+            val versionText = "v$version"
+            if (releaseTag == null) return versionText
+            val tagVersion = releaseTag.removePrefix("v")
+            if (tagVersion == version) return versionText
+            return "$versionText ($releaseTag)"
         }
 
         private fun bindDownloadStatus(item: ScriptUiItem) {

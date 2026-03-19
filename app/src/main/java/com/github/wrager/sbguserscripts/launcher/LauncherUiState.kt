@@ -13,6 +13,7 @@ data class ScriptUiItem(
     val identifier: ScriptIdentifier,
     val name: String,
     val version: String?,
+    val releaseTag: String?,
     val author: String?,
     val enabled: Boolean,
     val isPreset: Boolean,
