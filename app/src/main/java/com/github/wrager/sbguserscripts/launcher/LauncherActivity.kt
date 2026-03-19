@@ -230,6 +230,12 @@ class LauncherActivity : AppCompatActivity() {
                 )
             is LauncherEvent.ReinstallFailed ->
                 getString(R.string.reinstall_failed, event.errorMessage)
+            is LauncherEvent.CheckCompleted ->
+                if (event.availableCount > 0) {
+                    getString(R.string.updates_available, event.availableCount)
+                } else {
+                    getString(R.string.no_updates)
+                }
         }
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }

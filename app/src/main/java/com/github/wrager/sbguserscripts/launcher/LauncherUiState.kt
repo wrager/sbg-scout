@@ -48,4 +48,5 @@ sealed class LauncherEvent {
     data class VersionInstallFailed(val errorMessage: String) : LauncherEvent()
     data class ReinstallCompleted(val scriptName: String, val scriptVersion: String?) : LauncherEvent()
     data class ReinstallFailed(val errorMessage: String) : LauncherEvent()
+    data class CheckCompleted(val availableCount: Int) : LauncherEvent()
 }

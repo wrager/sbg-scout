@@ -92,6 +92,12 @@ class LauncherViewModel(
                     upToDateIdentifiers.add(result.script.identifier)
                     refreshScriptList()
                     Log.i(LOG_TAG, "Загружен ${preset.displayName}: ${result.script.header.version}")
+                    _events.send(
+                        LauncherEvent.ScriptAdded(
+                            result.script.header.name,
+                            result.script.header.version,
+                        ),
+                    )
                 }
                 is ScriptDownloadResult.Failure -> {
                     refreshScriptList()
@@ -163,6 +169,7 @@ class LauncherViewModel(
                     updateAvailableIdentifiers.add(result.identifier)
                 }
                 refreshScriptList()
+                _events.send(LauncherEvent.CheckCompleted(updateAvailableIdentifiers.size))
             } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
                 checkingUpdateIdentifiers.clear()
                 Log.w(LOG_TAG, "Проверка обновлений завершилась с ошибкой", exception)
@@ -203,11 +210,15 @@ class LauncherViewModel(
                 refreshScriptList()
             }
             downloadProgressMap.remove(identifier)
-            if (newIdentifier != null) {
+            val updatedCount = if (newIdentifier != null) {
                 updateAvailableIdentifiers.remove(identifier)
                 upToDateIdentifiers.add(newIdentifier)
+                1
+            } else {
+                0
             }
             refreshScriptList()
+            _events.send(LauncherEvent.UpdatesCompleted(updatedCount))
         }
     }
 

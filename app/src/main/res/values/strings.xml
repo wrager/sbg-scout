@@ -21,6 +21,7 @@
     <string name="script_deleted">Script %s deleted</string>
     <string name="updates_applied">Scripts updated: %d</string>
     <string name="no_updates">No updates available</string>
+    <string name="updates_available">Updates available: %d</string>
     <string name="downloading_progress">Downloading %d%%</string>
     <string name="status_downloaded">Downloaded</string>
     <string name="status_up_to_date">Latest version</string>

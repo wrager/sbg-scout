@@ -21,6 +21,7 @@
     <string name="script_deleted">Скрипт %s удалён</string>
     <string name="updates_applied">Обновлено скриптов: %d</string>
     <string name="no_updates">Обновлений нет</string>
+    <string name="updates_available">Доступно обновлений: %d</string>
     <string name="downloading_progress">Загружается %d%%</string>
     <string name="status_downloaded">Загружен</string>
     <string name="status_up_to_date">Последняя версия</string>
