@@ -10,8 +10,10 @@ class InjectionStateStorage(private val preferences: SharedPreferences) {
         preferences.edit().putStringSet(KEY_LAST_INJECTED, entries).apply()
     }
 
-    fun getSnapshot(): Set<String> {
-        return preferences.getStringSet(KEY_LAST_INJECTED, null) ?: emptySet()
+    // null — игра ни разу не загружалась (ключ отсутствует)
+    // emptySet() — игра загружалась, но скрипты не были включены
+    fun getSnapshot(): Set<String>? {
+        return preferences.getStringSet(KEY_LAST_INJECTED, null)
     }
 
     companion object {

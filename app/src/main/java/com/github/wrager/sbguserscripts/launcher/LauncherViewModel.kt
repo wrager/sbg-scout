@@ -320,8 +320,9 @@ class LauncherViewModel(
             .filter { it.enabled }
             .map { "${it.identifier.value}::${it.header.version ?: ""}" }
             .toSet()
+        // null — игра не загружалась, ничего перезагружать незачем
         val lastInjectedSnapshot = injectionStateStorage.getSnapshot()
-        val reloadNeeded = lastInjectedSnapshot.isNotEmpty() &&
+        val reloadNeeded = lastInjectedSnapshot != null &&
             currentEnabledSnapshot != lastInjectedSnapshot
 
         _uiState.value = LauncherUiState(

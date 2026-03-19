@@ -59,7 +59,7 @@ class LauncherViewModelTest {
         injectionStateStorage = mockk()
 
         coEvery { updateChecker.checkAllForUpdates() } returns emptyList()
-        every { injectionStateStorage.getSnapshot() } returns emptySet()
+        every { injectionStateStorage.getSnapshot() } returns null
     }
 
     @After
@@ -402,6 +402,49 @@ class LauncherViewModelTest {
         verify { scriptStorage.setEnabled(updatedScript.identifier, true) }
         val item = viewModel.uiState.value.scripts.first { it.identifier == updatedScript.identifier }
         assertTrue(item.isUpToDate)
+    }
+
+    @Test
+    fun `updateScript sets reloadNeeded when game was previously loaded`() = runTest {
+        val script = testScript(version = "1.0.0", enabled = true)
+        val updatedScript = testScript(version = "2.0.0", enabled = false)
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { downloader.download(script.sourceUrl!!, isPreset = false) } answers {
+            every { scriptStorage.getAll() } returns listOf(updatedScript)
+            ScriptDownloadResult.Success(updatedScript)
+        }
+        every { scriptStorage.setEnabled(any(), any()) } just Runs
+        // Снимок не пуст — игра уже загружалась
+        every { injectionStateStorage.getSnapshot() } returns setOf("test/script::1.0.0")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.updateScript(script.identifier)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.reloadNeeded)
+    }
+
+    @Test
+    fun `updateScript does not set reloadNeeded when game was never loaded`() = runTest {
+        val script = testScript(version = "1.0.0", enabled = true)
+        val updatedScript = testScript(version = "2.0.0", enabled = false)
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { downloader.download(script.sourceUrl!!, isPreset = false) } answers {
+            every { scriptStorage.getAll() } returns listOf(updatedScript)
+            ScriptDownloadResult.Success(updatedScript)
+        }
+        every { scriptStorage.setEnabled(any(), any()) } just Runs
+        every { injectionStateStorage.getSnapshot() } returns null  // игра не загружалась
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.updateScript(script.identifier)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.reloadNeeded)
     }
 
     @Test
