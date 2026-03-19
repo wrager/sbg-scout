@@ -45,10 +45,7 @@ class ScriptListAdapter(
         fun bind(item: ScriptUiItem) {
             nameText.text = item.name
 
-            val details = buildList {
-                item.version?.let { add("v$it") }
-                item.author?.let { add(it) }
-            }.joinToString(" \u00b7 ")
+            val details = item.version?.let { "v$it" } ?: ""
             detailsText.text = details
             detailsText.visibility = if (details.isNotEmpty()) View.VISIBLE else View.GONE
 
