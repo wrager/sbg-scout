@@ -241,6 +241,7 @@ class LauncherViewModel(
             val result = downloader.download(downloadUrl, isPreset = script.isPreset)
             when (result) {
                 is ScriptDownloadResult.Success -> {
+                    cleanupOldIdentifier(identifier, result.script.identifier)
                     scriptStorage.setEnabled(result.script.identifier, script.enabled)
                     upToDateIdentifiers.remove(result.script.identifier)
                     updateAvailableIdentifiers.remove(result.script.identifier)
@@ -270,6 +271,7 @@ class LauncherViewModel(
             val result = downloader.download(sourceUrl, isPreset = script.isPreset)
             when (result) {
                 is ScriptDownloadResult.Success -> {
+                    cleanupOldIdentifier(identifier, result.script.identifier)
                     scriptStorage.setEnabled(result.script.identifier, script.enabled)
                     updateAvailableIdentifiers.remove(result.script.identifier)
                     upToDateIdentifiers.add(result.script.identifier)
@@ -295,10 +297,28 @@ class LauncherViewModel(
         val downloadUrl = script.sourceUrl ?: return null
         val downloadResult = downloader.download(downloadUrl, isPreset = script.isPreset, onProgress)
         if (downloadResult is ScriptDownloadResult.Success) {
+            cleanupOldIdentifier(identifier, downloadResult.script.identifier)
             scriptStorage.setEnabled(downloadResult.script.identifier, script.enabled)
             return downloadResult.script.identifier
         }
         return null
+    }
+
+    /**
+     * Если идентификатор скрипта изменился после загрузки новой версии
+     * (например, изменился @name или @namespace в заголовке),
+     * удаляет старую запись из хранилища и множеств статусов.
+     */
+    private fun cleanupOldIdentifier(
+        oldIdentifier: ScriptIdentifier,
+        newIdentifier: ScriptIdentifier,
+    ) {
+        if (newIdentifier != oldIdentifier) {
+            scriptStorage.delete(oldIdentifier)
+            upToDateIdentifiers.remove(oldIdentifier)
+            updateAvailableIdentifiers.remove(oldIdentifier)
+            checkingUpdateIdentifiers.remove(oldIdentifier)
+        }
     }
 
     private fun resolvePresetIdentifier(script: UserScript): ScriptIdentifier {
