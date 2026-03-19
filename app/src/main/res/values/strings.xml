@@ -20,6 +20,11 @@
     <string name="script_deleted">Script %s deleted</string>
     <string name="updates_applied">Scripts updated: %d</string>
     <string name="no_updates">All scripts are up to date</string>
+    <string name="downloading_progress">Downloading %d%%</string>
+    <string name="status_downloaded">Downloaded</string>
+    <string name="status_up_to_date">Up to date</string>
+    <string name="download_script">Download</string>
+    <string name="download_hint">Script download. Enabling is configured separately.</string>
     <string name="checking_updates">Checking for updates\u2026</string>
     <string name="loading_versions">Loading versions\u2026</string>
     <string name="version_load_failed">Failed to load versions: %s</string>

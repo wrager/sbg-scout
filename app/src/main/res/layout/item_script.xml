@@ -8,67 +8,77 @@
     app:cardCornerRadius="8dp"
     app:cardElevation="2dp">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:padding="16dp">
 
-        <TextView
-            android:id="@+id/scriptName"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="16dp"
-            android:textAppearance="?attr/textAppearanceSubtitle1"
-            app:layout_constraintEnd_toStartOf="@id/scriptToggle"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/scriptDetails"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:layout_marginEnd="16dp"
-            android:textAppearance="?attr/textAppearanceCaption"
-            app:layout_constraintEnd_toStartOf="@id/scriptToggle"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/scriptName" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-        <ImageButton
-            android:id="@+id/overflowButton"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/script_menu"
-            android:src="@drawable/ic_more_vert"
-            app:layout_constraintBottom_toBottomOf="@id/scriptToggle"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@id/scriptToggle"
-            app:tint="?attr/colorControlNormal" />
+                <TextView
+                    android:id="@+id/scriptName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceSubtitle1" />
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/scriptToggle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:textOff=""
-            android:textOn=""
-            app:layout_constraintBottom_toBottomOf="@id/scriptDetails"
-            app:layout_constraintEnd_toStartOf="@id/overflowButton"
-            app:layout_constraintTop_toTopOf="@id/scriptName" />
+                <TextView
+                    android:id="@+id/scriptDetails"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textAppearance="?attr/textAppearanceCaption"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/downloadStatusText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textAppearance="?attr/textAppearanceCaption"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/scriptToggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:showText="false" />
+
+            <ImageButton
+                android:id="@+id/actionButton"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/script_menu"
+                android:src="@drawable/ic_more_vert"
+                android:visibility="gone"
+                app:tint="?attr/colorControlNormal" />
+
+        </LinearLayout>
 
         <TextView
             android:id="@+id/conflictWarning"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:textAppearance="?attr/textAppearanceCaption"
             android:textColor="#FFFFA000"
-            android:visibility="gone"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/scriptDetails" />
+            android:visibility="gone" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
+    </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>

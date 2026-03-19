@@ -10,10 +10,11 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.github.wrager.sbguserscripts.R
 import com.github.wrager.sbguserscripts.script.model.ScriptIdentifier
-import com.google.android.material.materialswitch.MaterialSwitch
+import androidx.appcompat.widget.SwitchCompat
 
 class ScriptListAdapter(
     private val onToggleChanged: (ScriptIdentifier, Boolean) -> Unit,
+    private val onDownloadRequested: (ScriptIdentifier) -> Unit,
     private val onOverflowClick: (View, ScriptUiItem) -> Unit,
 ) : ListAdapter<ScriptUiItem, ScriptListAdapter.ScriptViewHolder>(DIFF_CALLBACK) {
 
@@ -30,8 +31,9 @@ class ScriptListAdapter(
     inner class ScriptViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val nameText: TextView = itemView.findViewById(R.id.scriptName)
         private val detailsText: TextView = itemView.findViewById(R.id.scriptDetails)
-        private val toggle: MaterialSwitch = itemView.findViewById(R.id.scriptToggle)
-        private val overflowButton: ImageButton = itemView.findViewById(R.id.overflowButton)
+        private val downloadStatusText: TextView = itemView.findViewById(R.id.downloadStatusText)
+        private val toggle: SwitchCompat = itemView.findViewById(R.id.scriptToggle)
+        private val actionButton: ImageButton = itemView.findViewById(R.id.actionButton)
         private val conflictWarning: TextView = itemView.findViewById(R.id.conflictWarning)
 
         fun bind(item: ScriptUiItem) {
@@ -44,16 +46,75 @@ class ScriptListAdapter(
             detailsText.text = details
             detailsText.visibility = if (details.isNotEmpty()) View.VISIBLE else View.GONE
 
+            bindDownloadStatus(item)
+            bindControls(item)
+            bindConflictWarning(item)
+        }
+
+        private fun bindDownloadStatus(item: ScriptUiItem) {
+            when {
+                item.downloadProgress != null -> {
+                    downloadStatusText.text = itemView.context.getString(
+                        R.string.downloading_progress,
+                        item.downloadProgress,
+                    )
+                    downloadStatusText.visibility = View.VISIBLE
+                }
+                item.isUpToDate -> {
+                    downloadStatusText.text = itemView.context.getString(R.string.status_up_to_date)
+                    downloadStatusText.visibility = View.VISIBLE
+                }
+                item.isJustInstalled -> {
+                    downloadStatusText.text = itemView.context.getString(R.string.status_downloaded)
+                    downloadStatusText.visibility = View.VISIBLE
+                }
+                else -> {
+                    downloadStatusText.visibility = View.GONE
+                }
+            }
+        }
+
+        private fun bindControls(item: ScriptUiItem) {
+            val isDownloading = item.downloadProgress != null
+            val isInteractive = item.isDownloaded && !isDownloading
+
+            toggle.visibility = View.VISIBLE
             toggle.setOnCheckedChangeListener(null)
             toggle.isChecked = item.enabled
-            toggle.setOnCheckedChangeListener { _, isChecked ->
-                onToggleChanged(item.identifier, isChecked)
+            if (isInteractive) {
+                toggle.alpha = 1.0f
+                toggle.setOnTouchListener(null)
+                toggle.setOnCheckedChangeListener { _, isChecked ->
+                    onToggleChanged(item.identifier, isChecked)
+                }
+            } else {
+                toggle.alpha = 0.4f
+                toggle.setOnTouchListener { _, _ -> true }
             }
 
-            overflowButton.setOnClickListener { view ->
-                onOverflowClick(view, item)
+            when {
+                isDownloading -> {
+                    actionButton.visibility = View.INVISIBLE
+                    actionButton.isClickable = false
+                }
+                item.isDownloaded -> {
+                    actionButton.setImageResource(R.drawable.ic_more_vert)
+                    actionButton.contentDescription = itemView.context.getString(R.string.script_menu)
+                    actionButton.isClickable = true
+                    actionButton.setOnClickListener { view -> onOverflowClick(view, item) }
+                    actionButton.visibility = View.VISIBLE
+                }
+                else -> {
+                    actionButton.setImageResource(R.drawable.ic_download)
+                    actionButton.contentDescription = itemView.context.getString(R.string.download_script)
+                    actionButton.isClickable = true
+                    actionButton.setOnClickListener { onDownloadRequested(item.identifier) }
+                    actionButton.visibility = View.VISIBLE
+                }
             }
+        }
 
+        private fun bindConflictWarning(item: ScriptUiItem) {
             if (item.conflictNames.isNotEmpty()) {
                 conflictWarning.text = itemView.context.getString(
                     R.string.conflict_warning,

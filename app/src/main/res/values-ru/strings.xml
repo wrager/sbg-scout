@@ -20,6 +20,11 @@
     <string name="script_deleted">Скрипт %s удалён</string>
     <string name="updates_applied">Обновлено скриптов: %d</string>
     <string name="no_updates">Все скрипты актуальны</string>
+    <string name="downloading_progress">Загружается %d%%</string>
+    <string name="status_downloaded">Загружен</string>
+    <string name="status_up_to_date">Актуально</string>
+    <string name="download_script">Загрузить</string>
+    <string name="download_hint">Загрузка скриптов. Включение настраивается отдельно.</string>
     <string name="checking_updates">Проверка обновлений…</string>
     <string name="loading_versions">Загрузка версий…</string>
     <string name="version_load_failed">Не удалось загрузить версии: %s</string>

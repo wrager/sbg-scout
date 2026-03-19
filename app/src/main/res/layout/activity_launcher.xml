@@ -12,6 +12,16 @@
         app:menu="@menu/menu_launcher"
         app:title="@string/app_name" />
 
+    <TextView
+        android:id="@+id/downloadHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="4dp"
+        android:text="@string/download_hint"
+        android:textAppearance="?attr/textAppearanceCaption" />
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
