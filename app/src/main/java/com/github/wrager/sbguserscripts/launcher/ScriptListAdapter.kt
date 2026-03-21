@@ -116,13 +116,6 @@ class ScriptListAdapter(
             downloadStatusText.setOnClickListener(null)
             downloadStatusText.isClickable = false
             when {
-                item.downloadProgress != null -> {
-                    downloadStatusText.text = itemView.context.getString(
-                        R.string.downloading_progress,
-                        item.downloadProgress,
-                    )
-                    downloadStatusText.visibility = View.VISIBLE
-                }
                 item.hasUpdateAvailable -> {
                     val primaryColor = MaterialColors.getColor(
                         itemView.context, com.google.android.material.R.attr.colorPrimary, 0,
