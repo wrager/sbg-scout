@@ -108,7 +108,6 @@ class ScriptListFragment : Fragment() {
 
         view.findViewById<MaterialButton>(R.id.checkUpdatesButton).setOnClickListener {
             viewModel.checkUpdates()
-            Toast.makeText(requireContext(), R.string.checking_updates, Toast.LENGTH_SHORT).show()
         }
     }
 

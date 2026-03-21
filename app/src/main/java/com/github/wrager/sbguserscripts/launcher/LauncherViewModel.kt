@@ -139,6 +139,7 @@ class LauncherViewModel(
     }
 
     fun checkUpdates() {
+        if (checkingUpdateIdentifiers.isNotEmpty()) return
         viewModelScope.launch {
             try {
                 upToDateIdentifiers.clear()

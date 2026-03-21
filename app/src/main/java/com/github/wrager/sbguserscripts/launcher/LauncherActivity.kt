@@ -120,7 +120,6 @@ class LauncherActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.checkUpdatesButton).setOnClickListener {
             viewModel.checkUpdates()
-            Toast.makeText(this, R.string.checking_updates, Toast.LENGTH_SHORT).show()
         }
     }
 
