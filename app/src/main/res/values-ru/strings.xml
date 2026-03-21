@@ -41,8 +41,8 @@
     <string name="settings_fullscreen">Полноэкранный режим</string>
     <string name="settings_fullscreen_summary">Скрывать статус-бар и кнопки навигации</string>
     <string name="settings_category_scripts">Скрипты</string>
-    <string name="settings_auto_update">Автообновление скриптов</string>
-    <string name="settings_auto_update_summary">Проверять обновления при запуске</string>
+    <string name="settings_auto_update">Автопроверка обновлений</string>
+    <string name="settings_auto_update_summary">Раз в день при загрузке игры</string>
     <string name="settings_category_about">О приложении</string>
     <string name="settings_version">Версия</string>
     <string name="settings_manage_scripts">Менеджер скриптов</string>
