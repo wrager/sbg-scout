@@ -88,19 +88,20 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
                 android:layout_weight="1"
+                android:gravity="end"
                 android:orientation="vertical"
                 android:visibility="gone">
 
                 <TextView
                     android:id="@+id/conflictLabel"
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textAppearance="?attr/textAppearanceCaption"
                     android:textColor="#FFFFA000" />
 
                 <TextView
                     android:id="@+id/conflictNames"
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fadingEdgeLength="24dp"
                     android:maxLines="1"
