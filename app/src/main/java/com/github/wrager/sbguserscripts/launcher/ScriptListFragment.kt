@@ -56,8 +56,6 @@ class ScriptListFragment : Fragment() {
         val updateChecker = ScriptUpdateChecker(httpFetcher, scriptStorage)
         val githubReleaseProvider = GithubReleaseProvider(httpFetcher)
         val injectionStateStorage = InjectionStateStorage(preferences)
-        val autoUpdateEnabled = PreferenceManager.getDefaultSharedPreferences(context)
-            .getBoolean("auto_update_scripts", true)
         LauncherViewModel.Factory(
             scriptStorage,
             conflictDetector,
@@ -65,7 +63,6 @@ class ScriptListFragment : Fragment() {
             updateChecker,
             githubReleaseProvider,
             injectionStateStorage,
-            autoUpdateEnabled,
         )
     }
 

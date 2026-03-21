@@ -148,42 +148,6 @@ class LauncherViewModelTest {
     }
 
     @Test
-    fun `checkUpdatesInBackground marks scripts as up to date`() = runTest {
-        val script = testScript()
-        every { scriptStorage.getAll() } returns listOf(script)
-        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
-            ScriptUpdateResult.UpToDate(script.identifier),
-        )
-
-        val viewModel = createViewModel(autoUpdateEnabled = true)
-        advanceUntilIdle()
-
-        val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
-        assertTrue(item.isUpToDate)
-        assertFalse(item.hasUpdateAvailable)
-    }
-
-    @Test
-    fun `checkUpdatesInBackground marks scripts with update available`() = runTest {
-        val script = testScript(version = "1.0.0")
-        every { scriptStorage.getAll() } returns listOf(script)
-        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
-            ScriptUpdateResult.UpdateAvailable(
-                script.identifier,
-                com.github.wrager.sbguserscripts.script.model.ScriptVersion("1.0.0"),
-                com.github.wrager.sbguserscripts.script.model.ScriptVersion("2.0.0"),
-            ),
-        )
-
-        val viewModel = createViewModel(autoUpdateEnabled = true)
-        advanceUntilIdle()
-
-        val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
-        assertTrue(item.hasUpdateAvailable)
-        assertFalse(item.isUpToDate)
-    }
-
-    @Test
     fun `toggles script enabled state`() = runTest {
         val script = testScript()
         every { scriptStorage.getAll() } returns listOf(script)
@@ -499,10 +463,13 @@ class LauncherViewModelTest {
             ScriptUpdateResult.UpToDate(script.identifier),
         )
 
-        val viewModel = createViewModel(autoUpdateEnabled = true)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
-        // Автопроверка пометила скрипт как upToDate
+        // Явная проверка помечает скрипт как upToDate
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
         val itemBefore = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
         assertTrue(itemBefore.isUpToDate)
 
@@ -547,14 +514,13 @@ class LauncherViewModelTest {
         verify { scriptStorage.setEnabled(script.identifier, true) }
     }
 
-    private fun createViewModel(autoUpdateEnabled: Boolean = false) = LauncherViewModel(
+    private fun createViewModel() = LauncherViewModel(
         scriptStorage,
         conflictDetector,
         downloader,
         updateChecker,
         githubReleaseProvider,
         injectionStateStorage,
-        autoUpdateEnabled,
     )
 
     private fun testScript(

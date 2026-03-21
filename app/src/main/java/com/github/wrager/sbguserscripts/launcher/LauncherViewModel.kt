@@ -31,7 +31,6 @@ class LauncherViewModel(
     private val updateChecker: ScriptUpdateChecker,
     private val githubReleaseProvider: GithubReleaseProvider,
     private val injectionStateStorage: InjectionStateStorage,
-    private val autoUpdateEnabled: Boolean,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LauncherUiState())
@@ -53,28 +52,6 @@ class LauncherViewModel(
     private fun loadScripts() {
         viewModelScope.launch {
             refreshScriptList()
-            if (autoUpdateEnabled) {
-                checkUpdatesInBackground()
-            }
-        }
-    }
-
-    private fun checkUpdatesInBackground() {
-        viewModelScope.launch {
-            try {
-                val results = updateChecker.checkAllForUpdates()
-                results.filterIsInstance<ScriptUpdateResult.UpToDate>().forEach { result ->
-                    updateAvailableIdentifiers.remove(result.identifier)
-                    upToDateIdentifiers.add(result.identifier)
-                }
-                results.filterIsInstance<ScriptUpdateResult.UpdateAvailable>().forEach { result ->
-                    upToDateIdentifiers.remove(result.identifier)
-                    updateAvailableIdentifiers.add(result.identifier)
-                }
-                refreshScriptList()
-            } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
-                Log.w(LOG_TAG, "Фоновая проверка обновлений завершилась с ошибкой", exception)
-            }
         }
     }
 
@@ -469,7 +446,6 @@ class LauncherViewModel(
         private val updateChecker: ScriptUpdateChecker,
         private val githubReleaseProvider: GithubReleaseProvider,
         private val injectionStateStorage: InjectionStateStorage,
-        private val autoUpdateEnabled: Boolean,
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
@@ -480,7 +456,6 @@ class LauncherViewModel(
                 updateChecker,
                 githubReleaseProvider,
                 injectionStateStorage,
-                autoUpdateEnabled,
             ) as T
         }
     }
