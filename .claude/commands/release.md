@@ -1,4 +1,4 @@
-Выпустить релиз версии $ARGUMENTS (например: `/release 1.1`).
+Выпустить релиз версии $ARGUMENTS (например: `/release 1.1.0`).
 
 ## Процесс
 
@@ -9,7 +9,7 @@
    - Перечислить новые фичи и изменения с кратким описанием
    - Фиксы упоминать только если они исправляют баги предыдущих версий
    - Группировать по категориям если применимо
-4. Обновить `versionCode` (инкрементировать на 1) и `versionName` (новая версия) в `app/build.gradle.kts`.
+4. Обновить `versionMajor`/`versionMinor`/`versionPatch` в `app/build.gradle.kts` на новую версию. `versionCode` и `versionName` вычисляются автоматически.
 5. Запустить полную проверку: `./gradlew ktlintCheck detekt testDebugUnitTest assembleDebug`
 6. Закоммитить все изменения (RELEASE_NOTES.md, build.gradle.kts).
 7. Создать тег `v<версия>`.
