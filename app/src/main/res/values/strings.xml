@@ -3,6 +3,7 @@
     <string name="location_permission_denied">Location is disabled. Grant access in settings.</string>
     <string name="script_injection_error">Script loading error: %s</string>
 
+    <string name="loading_scripts">Loading scripts\u2026</string>
     <string name="no_scripts">No scripts installed</string>
     <string name="conflict_label">Incompatible with:</string>
     <string name="add_script">Add script</string>

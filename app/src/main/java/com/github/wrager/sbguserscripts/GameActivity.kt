@@ -22,6 +22,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.preference.PreferenceManager
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.view.View
 import androidx.core.view.doOnLayout
 import androidx.drawerlayout.widget.DrawerLayout
@@ -88,8 +89,15 @@ class GameActivity : AppCompatActivity() {
         if (savedInstanceState == null) {
             // Загрузить enabledByDefault-скрипты ДО открытия страницы,
             // чтобы они были доступны для инъекции при onPageStarted
-            lifecycleScope.launch {
-                scriptProvisioner.provision()
+            val overlay = findViewById<LinearLayout>(R.id.provisioningOverlay)
+            if (scriptProvisioner.hasPendingScripts()) {
+                overlay.visibility = View.VISIBLE
+                lifecycleScope.launch {
+                    scriptProvisioner.provision()
+                    overlay.visibility = View.GONE
+                    webView.loadUrl(GAME_URL)
+                }
+            } else {
                 webView.loadUrl(GAME_URL)
             }
         }

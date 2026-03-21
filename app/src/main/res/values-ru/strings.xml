@@ -3,6 +3,7 @@
     <string name="location_permission_denied">Геолокация отключена. Разрешите доступ в настройках.</string>
     <string name="script_injection_error">Ошибка загрузки скриптов: %s</string>
 
+    <string name="loading_scripts">Загрузка скриптов…</string>
     <string name="no_scripts">Нет установленных скриптов</string>
     <string name="conflict_label">Несовместимо с:</string>
     <string name="add_script">Добавить скрипт</string>

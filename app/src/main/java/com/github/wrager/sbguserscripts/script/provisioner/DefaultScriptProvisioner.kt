@@ -22,6 +22,15 @@ class DefaultScriptProvisioner(
     private val downloader: ScriptDownloader,
     private val preferences: SharedPreferences,
 ) {
+    /** Есть ли пресеты, которые нужно загрузить. */
+    fun hasPendingScripts(): Boolean {
+        val provisioned = preferences.getStringSet(KEY_PROVISIONED_DEFAULTS, emptySet())
+            ?: emptySet()
+        return PresetScripts.ALL.any { preset ->
+            preset.enabledByDefault && preset.identifier.value !in provisioned
+        }
+    }
+
     /**
      * Загружает все enabledByDefault-пресеты, которые ещё не были обработаны.
      */
