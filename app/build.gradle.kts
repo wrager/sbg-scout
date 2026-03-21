@@ -14,8 +14,11 @@ android {
         applicationId = "com.github.wrager.sbguserscripts"
         minSdk = 24
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.8"
+        val versionMajor = 0
+        val versionMinor = 8
+        val versionPatch = 0
+        versionCode = versionMajor * 10000 + versionMinor * 100 + versionPatch
+        versionName = "$versionMajor.$versionMinor.$versionPatch"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
