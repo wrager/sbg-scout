@@ -15,6 +15,7 @@ import com.github.wrager.sbguserscripts.script.updater.ScriptDownloadResult
 import com.github.wrager.sbguserscripts.script.updater.ScriptDownloader
 import com.github.wrager.sbguserscripts.script.updater.ScriptUpdateChecker
 import com.github.wrager.sbguserscripts.script.updater.ScriptUpdateResult
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,7 @@ class LauncherViewModel(
     val events: Flow<LauncherEvent> = _events.receiveAsFlow()
 
     private val downloadProgressMap = mutableMapOf<ScriptIdentifier, Int>()
+    private val activeDownloadJobs = mutableMapOf<ScriptIdentifier, Job>()
     private val checkingUpdateIdentifiers = mutableSetOf<ScriptIdentifier>()
     private val upToDateIdentifiers = mutableSetOf<ScriptIdentifier>()
     private val updateAvailableIdentifiers = mutableSetOf<ScriptIdentifier>()
@@ -77,39 +79,49 @@ class LauncherViewModel(
     }
 
     fun downloadScript(identifier: ScriptIdentifier) {
-        viewModelScope.launch {
+        if (identifier in downloadProgressMap) return
+        val alreadyDownloaded = _uiState.value.scripts.any {
+            it.identifier == identifier && it.isDownloaded
+        }
+        if (alreadyDownloaded) return
+        val job = viewModelScope.launch {
             val preset = PresetScripts.ALL.find { it.identifier == identifier } ?: return@launch
             downloadProgressMap[identifier] = 0
             refreshScriptList()
-            val result = downloader.download(preset.downloadUrl, isPreset = true) { progress ->
-                downloadProgressMap[identifier] = progress
+            try {
+                val result = downloader.download(preset.downloadUrl, isPreset = true) { progress ->
+                    downloadProgressMap[identifier] = progress
+                    refreshScriptList()
+                }
+                when (result) {
+                    is ScriptDownloadResult.Success -> {
+                        updateAvailableIdentifiers.remove(result.script.identifier)
+                        upToDateIdentifiers.add(result.script.identifier)
+                        refreshScriptList()
+                        Log.i(LOG_TAG, "Загружен ${preset.displayName}: ${result.script.header.version}")
+                        _events.send(
+                            LauncherEvent.ScriptAdded(
+                                result.script.header.name,
+                                result.script.header.version,
+                            ),
+                        )
+                    }
+                    is ScriptDownloadResult.Failure -> {
+                        Log.e(LOG_TAG, "Не удалось загрузить ${preset.displayName}: ${result.error}")
+                        _events.send(
+                            LauncherEvent.ScriptAddFailed(
+                                result.error.message ?: result.error.toString(),
+                            ),
+                        )
+                    }
+                }
+            } finally {
+                downloadProgressMap.remove(identifier)
+                activeDownloadJobs.remove(identifier)
                 refreshScriptList()
             }
-            downloadProgressMap.remove(identifier)
-            when (result) {
-                is ScriptDownloadResult.Success -> {
-                    updateAvailableIdentifiers.remove(result.script.identifier)
-                    upToDateIdentifiers.add(result.script.identifier)
-                    refreshScriptList()
-                    Log.i(LOG_TAG, "Загружен ${preset.displayName}: ${result.script.header.version}")
-                    _events.send(
-                        LauncherEvent.ScriptAdded(
-                            result.script.header.name,
-                            result.script.header.version,
-                        ),
-                    )
-                }
-                is ScriptDownloadResult.Failure -> {
-                    refreshScriptList()
-                    Log.e(LOG_TAG, "Не удалось загрузить ${preset.displayName}: ${result.error}")
-                    _events.send(
-                        LauncherEvent.ScriptAddFailed(
-                            result.error.message ?: result.error.toString(),
-                        ),
-                    )
-                }
-            }
         }
+        activeDownloadJobs[identifier] = job
     }
 
     fun toggleScript(identifier: ScriptIdentifier, enabled: Boolean) {
@@ -142,6 +154,9 @@ class LauncherViewModel(
     }
 
     fun deleteScript(identifier: ScriptIdentifier) {
+        activeDownloadJobs[identifier]?.cancel()
+        activeDownloadJobs.remove(identifier)
+        downloadProgressMap.remove(identifier)
         val script = scriptStorage.getAll().find { it.identifier == identifier } ?: return
         scriptStorage.delete(identifier)
         refreshScriptList()

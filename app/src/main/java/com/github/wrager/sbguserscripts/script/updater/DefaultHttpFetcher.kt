@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 class DefaultHttpFetcher : HttpFetcher {
@@ -27,6 +28,7 @@ class DefaultHttpFetcher : HttpFetcher {
             connection.inputStream.use { inputStream ->
                 var bytesThisRead: Int
                 while (inputStream.read(buffer).also { bytesThisRead = it } != -1) {
+                    ensureActive()
                     outputStream.write(buffer, 0, bytesThisRead)
                     totalBytesRead += bytesThisRead
                     if (onProgress != null && contentLength > 0) {

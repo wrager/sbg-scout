@@ -4,6 +4,7 @@ import com.github.wrager.sbguserscripts.script.model.ScriptIdentifier
 import com.github.wrager.sbguserscripts.script.model.UserScript
 import com.github.wrager.sbguserscripts.script.parser.HeaderParser
 import com.github.wrager.sbguserscripts.script.storage.ScriptStorage
+import kotlin.coroutines.cancellation.CancellationException
 
 class ScriptDownloader(
     private val httpFetcher: HttpFetcher,
@@ -36,6 +37,8 @@ class ScriptDownloader(
 
             scriptStorage.save(script)
             ScriptDownloadResult.Success(script)
+        } catch (exception: CancellationException) {
+            throw exception
         } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
             ScriptDownloadResult.Failure(url, exception)
         }

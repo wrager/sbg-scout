@@ -192,6 +192,10 @@ class ScriptListAdapter(
                     actionButton.setOnClickListener { view -> onOverflowClick(view, item) }
                     actionButton.visibility = View.VISIBLE
                 }
+                isDownloading -> {
+                    actionButton.isClickable = false
+                    actionButton.visibility = View.INVISIBLE
+                }
                 else -> {
                     actionButton.setImageResource(R.drawable.ic_download)
                     actionButton.contentDescription = itemView.context.getString(R.string.download_script)
