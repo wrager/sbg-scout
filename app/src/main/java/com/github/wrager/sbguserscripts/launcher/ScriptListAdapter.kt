@@ -5,7 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
-import android.widget.ProgressBar
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import android.widget.TextView
 import androidx.appcompat.widget.SwitchCompat
 import androidx.recyclerview.widget.DiffUtil
@@ -43,7 +43,7 @@ class ScriptListAdapter(
         private val downloadStatusText: TextView = itemView.findViewById(R.id.downloadStatusText)
         private val toggle: SwitchCompat = itemView.findViewById(R.id.scriptToggle)
         private val actionButton: ImageButton = itemView.findViewById(R.id.actionButton)
-        private val loadingProgress: ProgressBar = itemView.findViewById(R.id.loadingProgress)
+        private val loadingProgress: LinearProgressIndicator = itemView.findViewById(R.id.loadingProgress)
         private val defaultStatusTextColor = downloadStatusText.currentTextColor
 
         init {
@@ -123,11 +123,6 @@ class ScriptListAdapter(
                     )
                     downloadStatusText.visibility = View.VISIBLE
                 }
-                item.isCheckingUpdate -> {
-                    downloadStatusText.text =
-                        itemView.context.getString(R.string.checking_updates)
-                    downloadStatusText.visibility = View.VISIBLE
-                }
                 item.hasUpdateAvailable -> {
                     val primaryColor = MaterialColors.getColor(
                         itemView.context, com.google.android.material.R.attr.colorPrimary, 0,
@@ -149,12 +144,19 @@ class ScriptListAdapter(
         private fun bindLoadingProgress(item: ScriptUiItem) {
             when {
                 item.downloadProgress != null -> {
-                    loadingProgress.isIndeterminate = false
+                    if (loadingProgress.isIndeterminate) {
+                        // LinearProgressIndicator требует скрытия перед сменой режима
+                        loadingProgress.visibility = View.INVISIBLE
+                        loadingProgress.isIndeterminate = false
+                    }
                     loadingProgress.progress = item.downloadProgress
                     loadingProgress.visibility = View.VISIBLE
                 }
                 item.isCheckingUpdate -> {
-                    loadingProgress.isIndeterminate = true
+                    if (!loadingProgress.isIndeterminate) {
+                        loadingProgress.visibility = View.INVISIBLE
+                        loadingProgress.isIndeterminate = true
+                    }
                     loadingProgress.visibility = View.VISIBLE
                 }
                 else -> {
