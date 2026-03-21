@@ -45,7 +45,6 @@
     <string name="settings_auto_update_summary">Проверять обновления при запуске</string>
     <string name="settings_category_about">О приложении</string>
     <string name="settings_version">Версия</string>
-    <string name="settings_version_value">%1$s (сборка %2$d)</string>
     <string name="settings_manage_scripts">Менеджер скриптов</string>
     <string name="settings_manage_scripts_summary">Управление установленными скриптами</string>
     <string name="reload_game">Перезагрузить игру</string>

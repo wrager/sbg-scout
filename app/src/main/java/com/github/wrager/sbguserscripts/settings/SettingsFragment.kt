@@ -17,8 +17,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.preferences, rootKey)
 
-        findPreference<Preference>("app_version")?.summary =
-            getString(R.string.settings_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
+        findPreference<Preference>("app_version")?.summary = BuildConfig.VERSION_NAME
 
         findPreference<Preference>("manage_scripts")?.setOnPreferenceClickListener {
             if (activity is GameActivity) {
