@@ -81,6 +81,7 @@ class ScriptListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupToolbar(view)
+        setupUpdateControls(view)
         setupScriptList(view)
         setupButtons(view)
         observeViewModel(view)
@@ -94,24 +95,27 @@ class ScriptListFragment : Fragment() {
                 parentFragmentManager.popBackStack()
             }
             // В drawer не показываем пункт «Настройки» — мы уже в настройках
-            toolbar.menu.clear()
         } else {
             toolbar.inflateMenu(R.menu.menu_launcher)
         }
-        toolbar.setOnMenuItemClickListener { menuItem ->
-            when (menuItem.itemId) {
-                R.id.action_check_updates -> {
-                    viewModel.checkUpdates()
-                    Toast.makeText(requireContext(), R.string.checking_updates, Toast.LENGTH_SHORT).show()
-                    true
-                }
-                R.id.action_update_all -> {
-                    viewModel.updateAllScripts()
-                    Toast.makeText(requireContext(), R.string.checking_updates, Toast.LENGTH_SHORT).show()
-                    true
-                }
-                else -> false
-            }
+    }
+
+    private fun setupUpdateControls(view: View) {
+        val autoUpdateCheckbox = view.findViewById<android.widget.CheckBox>(R.id.autoUpdateCheckbox)
+        autoUpdateCheckbox.isChecked = PreferenceManager.getDefaultSharedPreferences(requireContext())
+            .getBoolean("auto_update_scripts", true)
+        autoUpdateCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            PreferenceManager.getDefaultSharedPreferences(requireContext())
+                .edit().putBoolean("auto_update_scripts", isChecked).apply()
+        }
+
+        view.findViewById<MaterialButton>(R.id.checkUpdatesButton).setOnClickListener {
+            viewModel.checkUpdates()
+            Toast.makeText(requireContext(), R.string.checking_updates, Toast.LENGTH_SHORT).show()
+        }
+        view.findViewById<MaterialButton>(R.id.updateAllButton).setOnClickListener {
+            viewModel.updateAllScripts()
+            Toast.makeText(requireContext(), R.string.checking_updates, Toast.LENGTH_SHORT).show()
         }
     }
 

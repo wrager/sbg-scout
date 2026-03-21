@@ -80,6 +80,7 @@ class LauncherActivity : AppCompatActivity() {
         setContentView(R.layout.activity_launcher)
         setupEdgeToEdge()
         setupToolbar()
+        setupUpdateControls()
         setupScriptList()
         setupButtons(showLaunchButton = !openedFromSettings)
         observeViewModel()
@@ -102,22 +103,31 @@ class LauncherActivity : AppCompatActivity() {
         }
         toolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
-                R.id.action_check_updates -> {
-                    viewModel.checkUpdates()
-                    Toast.makeText(this, R.string.checking_updates, Toast.LENGTH_SHORT).show()
-                    true
-                }
-                R.id.action_update_all -> {
-                    viewModel.updateAllScripts()
-                    Toast.makeText(this, R.string.checking_updates, Toast.LENGTH_SHORT).show()
-                    true
-                }
                 R.id.action_settings -> {
                     startActivity(Intent(this, SettingsActivity::class.java))
                     true
                 }
                 else -> false
             }
+        }
+    }
+
+    private fun setupUpdateControls() {
+        val autoUpdateCheckbox = findViewById<android.widget.CheckBox>(R.id.autoUpdateCheckbox)
+        autoUpdateCheckbox.isChecked = PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean("auto_update_scripts", true)
+        autoUpdateCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit().putBoolean("auto_update_scripts", isChecked).apply()
+        }
+
+        findViewById<MaterialButton>(R.id.checkUpdatesButton).setOnClickListener {
+            viewModel.checkUpdates()
+            Toast.makeText(this, R.string.checking_updates, Toast.LENGTH_SHORT).show()
+        }
+        findViewById<MaterialButton>(R.id.updateAllButton).setOnClickListener {
+            viewModel.updateAllScripts()
+            Toast.makeText(this, R.string.checking_updates, Toast.LENGTH_SHORT).show()
         }
     }
 

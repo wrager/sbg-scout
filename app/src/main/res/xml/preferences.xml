@@ -14,12 +14,6 @@
 
     <PreferenceCategory android:title="@string/settings_category_scripts">
 
-        <SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:key="auto_update_scripts"
-            android:summary="@string/settings_auto_update_summary"
-            android:title="@string/settings_auto_update" />
-
         <Preference
             android:key="manage_scripts"
             android:summary="@string/settings_manage_scripts_summary"

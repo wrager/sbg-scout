@@ -3,16 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/action_check_updates"
-        android:title="@string/check_updates"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_update_all"
-        android:title="@string/update_all"
-        app:showAsAction="never" />
-
-    <item
         android:id="@+id/action_settings"
         android:title="@string/settings"
         app:showAsAction="never" />
