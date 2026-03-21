@@ -128,6 +128,18 @@ class ScriptListAdapter(
                         itemView.context.getString(R.string.checking_updates)
                     downloadStatusText.visibility = View.VISIBLE
                 }
+                !item.isDownloaded -> {
+                    val primaryColor = MaterialColors.getColor(
+                        itemView.context, com.google.android.material.R.attr.colorPrimary, 0,
+                    )
+                    downloadStatusText.text = itemView.context.getString(R.string.download_script)
+                    downloadStatusText.setTextColor(primaryColor)
+                    downloadStatusText.paintFlags =
+                        downloadStatusText.paintFlags or Paint.UNDERLINE_TEXT_FLAG
+                    downloadStatusText.setOnClickListener { onDownloadRequested(item.identifier) }
+                    downloadStatusText.isClickable = true
+                    downloadStatusText.visibility = View.VISIBLE
+                }
                 item.hasUpdateAvailable -> {
                     val primaryColor = MaterialColors.getColor(
                         itemView.context, com.google.android.material.R.attr.colorPrimary, 0,
@@ -165,39 +177,40 @@ class ScriptListAdapter(
 
         private fun bindControls(item: ScriptUiItem) {
             val isDownloading = item.downloadProgress != null
-            val isInteractive = item.isDownloaded && !isDownloading
 
-            toggle.visibility = View.VISIBLE
-            toggle.setOnCheckedChangeListener(null)
-            toggle.isChecked = item.enabled
-            if (isInteractive) {
-                toggle.alpha = 1.0f
-                toggle.setOnTouchListener(null)
-                toggle.setOnCheckedChangeListener { _, isChecked ->
-                    onToggleChanged(item.identifier, isChecked)
+            if (item.isDownloaded) {
+                toggle.visibility = View.VISIBLE
+                toggle.setOnCheckedChangeListener(null)
+                toggle.isChecked = item.enabled
+                if (isDownloading) {
+                    toggle.alpha = 0.4f
+                    toggle.setOnTouchListener { _, _ -> true }
+                } else {
+                    toggle.alpha = 1.0f
+                    toggle.setOnTouchListener(null)
+                    toggle.setOnCheckedChangeListener { _, isChecked ->
+                        onToggleChanged(item.identifier, isChecked)
+                    }
                 }
             } else {
-                toggle.alpha = 0.4f
-                toggle.setOnTouchListener { _, _ -> true }
+                toggle.visibility = View.GONE
             }
 
+            // Кнопка-меню только для загруженных скриптов;
+            // действие загрузки — через ссылку в downloadStatusText
             when {
+                !item.isDownloaded -> {
+                    actionButton.visibility = View.GONE
+                }
                 isDownloading -> {
                     actionButton.visibility = View.INVISIBLE
                     actionButton.isClickable = false
                 }
-                item.isDownloaded -> {
+                else -> {
                     actionButton.setImageResource(R.drawable.ic_more_vert)
                     actionButton.contentDescription = itemView.context.getString(R.string.script_menu)
                     actionButton.isClickable = true
                     actionButton.setOnClickListener { view -> onOverflowClick(view, item) }
-                    actionButton.visibility = View.VISIBLE
-                }
-                else -> {
-                    actionButton.setImageResource(R.drawable.ic_download)
-                    actionButton.contentDescription = itemView.context.getString(R.string.download_script)
-                    actionButton.isClickable = true
-                    actionButton.setOnClickListener { onDownloadRequested(item.identifier) }
                     actionButton.visibility = View.VISIBLE
                 }
             }
