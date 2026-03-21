@@ -10,6 +10,7 @@ import com.github.wrager.sbguserscripts.BuildConfig
 import com.github.wrager.sbguserscripts.GameActivity
 import com.github.wrager.sbguserscripts.R
 import com.github.wrager.sbguserscripts.launcher.LauncherActivity
+import com.github.wrager.sbguserscripts.launcher.ScriptListFragment
 
 class SettingsFragment : PreferenceFragmentCompat() {
 
@@ -20,19 +21,33 @@ class SettingsFragment : PreferenceFragmentCompat() {
             getString(R.string.settings_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 
         findPreference<Preference>("manage_scripts")?.setOnPreferenceClickListener {
-            val intent = Intent(requireContext(), LauncherActivity::class.java)
-            intent.putExtra(LauncherActivity.EXTRA_FROM_SETTINGS, true)
-            startActivity(intent)
+            if (activity is GameActivity) {
+                // В drawer: навигация внутри того же контейнера
+                parentFragmentManager.beginTransaction()
+                    .replace(R.id.settingsContainer, ScriptListFragment.newEmbeddedInstance())
+                    .addToBackStack(null)
+                    .commit()
+            } else {
+                // Из standalone SettingsActivity: как раньше
+                val intent = Intent(requireContext(), LauncherActivity::class.java)
+                intent.putExtra(LauncherActivity.EXTRA_FROM_SETTINGS, true)
+                startActivity(intent)
+            }
             true
         }
 
         findPreference<Preference>("reload_game")?.setOnPreferenceClickListener {
             PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .edit().putBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, true).apply()
-            startActivity(
-                Intent(requireContext(), GameActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            )
+            if (activity is GameActivity) {
+                // В drawer: закрываем drawer, reload произойдёт в applySettingsAfterDrawerClose
+                (activity as GameActivity).closeSettingsDrawer()
+            } else {
+                startActivity(
+                    Intent(requireContext(), GameActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                )
+            }
             true
         }
 

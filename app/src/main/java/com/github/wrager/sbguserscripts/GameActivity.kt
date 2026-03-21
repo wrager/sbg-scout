@@ -1,7 +1,6 @@
 package com.github.wrager.sbguserscripts
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -22,8 +21,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.preference.PreferenceManager
 import android.widget.FrameLayout
-import android.widget.ImageButton
-import com.github.wrager.sbguserscripts.settings.SettingsActivity
+import android.view.View
+import androidx.core.view.doOnLayout
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.fragment.app.FragmentManager
+import com.github.wrager.sbguserscripts.game.SettingsDrawerLayout
+import com.github.wrager.sbguserscripts.game.SettingsPullTab
+import com.github.wrager.sbguserscripts.settings.SettingsFragment
 import com.github.wrager.sbguserscripts.bridge.ClipboardBridge
 import com.github.wrager.sbguserscripts.bridge.ShareBridge
 import com.github.wrager.sbguserscripts.launcher.LauncherActivity
@@ -73,7 +77,7 @@ class GameActivity : AppCompatActivity() {
 
         setupWebView()
         setupBackPressHandling()
-        setupSettingsButton()
+        setupSettingsDrawer()
 
         if (savedInstanceState == null) {
             webView.loadUrl(GAME_URL)
@@ -216,9 +220,69 @@ class GameActivity : AppCompatActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
-    private fun setupSettingsButton() {
-        findViewById<ImageButton>(R.id.settingsButton).setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
+    private fun setupSettingsDrawer() {
+        val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
+        val pullTab = findViewById<SettingsPullTab>(R.id.settingsPullTab)
+        val settingsContainer = findViewById<View>(R.id.settingsContainer)
+
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.settingsContainer, SettingsFragment())
+            .commit()
+
+        // Ширина drawer: видимая область за ним = 1/3 от стандартной (300dp)
+        drawerLayout.doOnLayout {
+            val screenWidth = drawerLayout.width
+            val defaultDrawerWidth = (DEFAULT_DRAWER_WIDTH_DP * resources.displayMetrics.density).toInt()
+            val defaultGap = screenWidth - defaultDrawerWidth
+            val narrowGap = defaultGap / DRAWER_GAP_DIVISOR
+            settingsContainer.layoutParams = settingsContainer.layoutParams.apply {
+                width = screenWidth - narrowGap
+            }
+        }
+
+        pullTab.doOnLayout {
+            val tabY = rootLayout.height * PULL_TAB_VERTICAL_POSITION
+            pullTab.y = tabY - pullTab.height / 2f
+            drawerLayout.tabCenterY = tabY
+        }
+
+        drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
+                pullTab.translationX = slideOffset * drawerView.width
+            }
+
+            override fun onDrawerOpened(drawerView: View) {
+                pullTab.isOpen = true
+            }
+
+            override fun onDrawerClosed(drawerView: View) {
+                pullTab.isOpen = false
+                // При закрытии сбрасываем back stack (ScriptListFragment → SettingsFragment)
+                val fragmentManager = supportFragmentManager
+                if (fragmentManager.backStackEntryCount > 0) {
+                    fragmentManager.popBackStackImmediate(
+                        null,
+                        FragmentManager.POP_BACK_STACK_INCLUSIVE,
+                    )
+                }
+                applySettingsAfterDrawerClose()
+            }
+        })
+    }
+
+    /** Закрыть drawer настроек (вызывается из фрагментов внутри drawer). */
+    fun closeSettingsDrawer() {
+        findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
+            .closeDrawer(androidx.core.view.GravityCompat.START)
+    }
+
+    /** Применить настройки, изменённые через drawer (аналог onWindowFocusChanged). */
+    private fun applySettingsAfterDrawerClose() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        applyFullscreen(prefs.getBoolean(KEY_FULLSCREEN_MODE, false))
+        if (prefs.getBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, false)) {
+            prefs.edit().remove(LauncherActivity.KEY_RELOAD_REQUESTED).apply()
+            webView.reload()
         }
     }
 
@@ -245,5 +309,8 @@ class GameActivity : AppCompatActivity() {
         private const val GAME_URL = "https://sbg-game.ru/app"
         private const val LOG_TAG = "SbgWebView"
         private const val KEY_FULLSCREEN_MODE = "fullscreen_mode"
+        private const val PULL_TAB_VERTICAL_POSITION = 0.25f
+        private const val DEFAULT_DRAWER_WIDTH_DP = 300f
+        private const val DRAWER_GAP_DIVISOR = 3
     }
 }

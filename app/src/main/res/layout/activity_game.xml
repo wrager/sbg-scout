@@ -1,25 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <WebView
-        android:id="@+id/gameWebView"
+    <com.github.wrager.sbguserscripts.game.SettingsDrawerLayout
+        android:id="@+id/settingsDrawer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent">
 
-    <ImageButton
-        android:id="@+id/settingsButton"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_gravity="bottom|end"
-        android:layout_marginBottom="52dp"
-        android:layout_marginEnd="8dp"
-        android:background="@drawable/bg_settings_button"
-        android:contentDescription="@string/settings"
-        android:src="@drawable/ic_settings"
-        app:tint="@android:color/white" />
+        <WebView
+            android:id="@+id/gameWebView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <FrameLayout
+            android:id="@+id/settingsContainer"
+            android:layout_width="300dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="start"
+            android:background="?android:colorBackground" />
+
+    </com.github.wrager.sbguserscripts.game.SettingsDrawerLayout>
+
+    <com.github.wrager.sbguserscripts.game.SettingsPullTab
+        android:id="@+id/settingsPullTab"
+        android:layout_width="13dp"
+        android:layout_height="48dp"
+        android:layout_gravity="start|top"
+        android:contentDescription="@string/settings" />
 
 </FrameLayout>

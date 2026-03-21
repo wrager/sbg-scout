@@ -9,8 +9,8 @@ Android-приложение с WebView, загружающее игру SBG (`s
 | Activity | Назначение |
 |---|---|
 | `LauncherActivity` | LAUNCHER. Список скриптов с тогглами, конфликты, кнопка «Запустить» |
-| `GameActivity` | WebView с игрой, инжекция скриптов, immersive mode |
-| `SettingsActivity` | Экран настроек (PreferenceFragmentCompat) |
+| `GameActivity` | WebView с игрой, инжекция скриптов, immersive mode, выдвижная панель настроек |
+| `SettingsActivity` | Экран настроек из LauncherActivity (PreferenceFragmentCompat) |
 
 ## UI-архитектура
 
@@ -42,6 +42,13 @@ Android-приложение с WebView, загружающее игру SBG (`s
 - JS-бриджи: `ClipboardBridge` (полифил `navigator.clipboard`), `ShareBridge` (открытие URL)
 - Инжекция только на `sbg-game.ru/app*`
 - Geolocation permissions — запрос и выдача runtime-разрешений
+
+### Настройки в GameActivity
+
+- `SettingsDrawerLayout` — DrawerLayout с ограничением зоны свайпа областью pull-tab
+- `SettingsPullTab` — кастомный View (сегмент эллипса с шевроном) на левом краю, 25% от верха
+- `SettingsFragment` встроен в drawer панель, выезжает слева при свайпе от таба
+- Свайп из других точек левого края не открывает drawer (не мешает WebView)
 
 ## Менеджер скриптов
 
@@ -100,7 +107,7 @@ Android-приложение с WebView, загружающее игру SBG (`s
 
 ```
 app/src/main/java/com/github/wrager/sbguserscripts/
-├── GameActivity.kt          WebView, immersive mode, geolocation
+├── GameActivity.kt          WebView, immersive mode, geolocation, drawer настроек
 ├── bridge/
 │   ├── ClipboardBridge.kt   Полифил navigator.clipboard
 │   └── ShareBridge.kt       Открытие URL
@@ -109,6 +116,9 @@ app/src/main/java/com/github/wrager/sbguserscripts/
 │   ├── LauncherViewModel.kt   Состояние, бизнес-логика
 │   ├── LauncherUiState.kt     Модели UI-состояния и событий
 │   └── ScriptListAdapter.kt   RecyclerView-адаптер
+├── game/
+│   ├── SettingsDrawerLayout.kt  DrawerLayout с ограничением зоны свайпа
+│   └── SettingsPullTab.kt       Визуальный pull-tab (сегмент эллипса)
 ├── script/
 │   ├── injector/
 │   │   ├── ScriptInjector.kt      Генерация JS для инжекции
