@@ -185,10 +185,6 @@ class ScriptListAdapter(
             }
 
             when {
-                isDownloading -> {
-                    actionButton.visibility = View.INVISIBLE
-                    actionButton.isClickable = false
-                }
                 item.isDownloaded -> {
                     actionButton.setImageResource(R.drawable.ic_more_vert)
                     actionButton.contentDescription = itemView.context.getString(R.string.script_menu)
