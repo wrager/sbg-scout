@@ -20,16 +20,35 @@ class ScriptListAdapter(
     private val onDownloadRequested: (ScriptIdentifier) -> Unit,
     private val onUpdateRequested: (ScriptIdentifier) -> Unit,
     private val onOverflowClick: (View, ScriptUiItem) -> Unit,
-) : ListAdapter<ScriptUiItem, ScriptListAdapter.ScriptViewHolder>(DIFF_CALLBACK) {
+    private val onAddScriptClick: () -> Unit,
+) : ListAdapter<ScriptUiItem, RecyclerView.ViewHolder>(DIFF_CALLBACK) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ScriptViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_script, parent, false)
-        return ScriptViewHolder(view)
+    override fun getItemCount(): Int = super.getItemCount() + 1
+
+    override fun getItemViewType(position: Int): Int =
+        if (position < super.getItemCount()) VIEW_TYPE_SCRIPT else VIEW_TYPE_ADD_BUTTON
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return if (viewType == VIEW_TYPE_ADD_BUTTON) {
+            val view = inflater.inflate(R.layout.item_add_script, parent, false)
+            AddScriptViewHolder(view)
+        } else {
+            val view = inflater.inflate(R.layout.item_script, parent, false)
+            ScriptViewHolder(view)
+        }
     }
 
-    override fun onBindViewHolder(holder: ScriptViewHolder, position: Int) {
-        holder.bind(getItem(position))
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        if (holder is ScriptViewHolder) {
+            holder.bind(getItem(position))
+        }
+    }
+
+    inner class AddScriptViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        init {
+            itemView.setOnClickListener { onAddScriptClick() }
+        }
     }
 
     inner class ScriptViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -206,6 +225,9 @@ class ScriptListAdapter(
     }
 
     companion object {
+        private const val VIEW_TYPE_SCRIPT = 0
+        private const val VIEW_TYPE_ADD_BUTTON = 1
+
         private val DIFF_CALLBACK = object : DiffUtil.ItemCallback<ScriptUiItem>() {
             override fun areItemsTheSame(oldItem: ScriptUiItem, newItem: ScriptUiItem): Boolean =
                 oldItem.identifier == newItem.identifier

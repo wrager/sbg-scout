@@ -128,9 +128,9 @@ class ScriptListFragment : Fragment() {
             onOverflowClick = { anchor, item ->
                 showScriptOverflowMenu(anchor, item)
             },
+            onAddScriptClick = { showAddScriptDialog() },
         )
-        val addScriptAdapter = AddScriptAdapter { showAddScriptDialog() }
-        scriptList.adapter = androidx.recyclerview.widget.ConcatAdapter(scriptAdapter, addScriptAdapter)
+        scriptList.adapter = scriptAdapter
     }
 
     private fun setupButtons(view: View) {
