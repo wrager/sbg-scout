@@ -120,12 +120,14 @@
 
     </LinearLayout>
 
-    <com.google.android.material.progressindicator.LinearProgressIndicator
+    <ProgressBar
         android:id="@+id/loadingProgress"
+        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="4dp"
         android:layout_gravity="bottom"
-        app:trackThickness="4dp"
+        android:maxHeight="4dp"
+        android:minHeight="4dp"
         android:visibility="invisible" />
 
 </com.google.android.material.card.MaterialCardView>
