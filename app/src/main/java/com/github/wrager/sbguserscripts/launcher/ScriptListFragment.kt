@@ -31,7 +31,6 @@ import com.github.wrager.sbguserscripts.script.updater.ScriptUpdateChecker
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import java.io.File
 import kotlinx.coroutines.launch
@@ -44,6 +43,8 @@ import kotlinx.coroutines.launch
  * - Внутри drawer в GameActivity (embedded mode, без кнопки запуска)
  */
 class ScriptListFragment : Fragment() {
+
+    private lateinit var scriptAdapter: ScriptListAdapter
 
     private val viewModel: LauncherViewModel by viewModels {
         val context = requireContext()
@@ -114,7 +115,7 @@ class ScriptListFragment : Fragment() {
     private fun setupScriptList(view: View) {
         val scriptList = view.findViewById<RecyclerView>(R.id.scriptList)
         scriptList.layoutManager = LinearLayoutManager(requireContext())
-        scriptList.adapter = ScriptListAdapter(
+        scriptAdapter = ScriptListAdapter(
             onToggleChanged = { identifier, enabled ->
                 viewModel.toggleScript(identifier, enabled)
             },
@@ -128,6 +129,8 @@ class ScriptListFragment : Fragment() {
                 showScriptOverflowMenu(anchor, item)
             },
         )
+        val addScriptAdapter = AddScriptAdapter { showAddScriptDialog() }
+        scriptList.adapter = androidx.recyclerview.widget.ConcatAdapter(scriptAdapter, addScriptAdapter)
     }
 
     private fun setupButtons(view: View) {
@@ -141,9 +144,6 @@ class ScriptListFragment : Fragment() {
             }
         }
 
-        view.findViewById<FloatingActionButton>(R.id.addScriptButton).setOnClickListener {
-            showAddScriptDialog()
-        }
     }
 
     private fun observeViewModel(view: View) {
@@ -151,7 +151,7 @@ class ScriptListFragment : Fragment() {
         val progressBar = view.findViewById<ProgressBar>(R.id.progressBar)
         val emptyText = view.findViewById<TextView>(R.id.emptyText)
         val reloadButton = view.findViewById<MaterialButton>(R.id.reloadButton)
-        val adapter = scriptList.adapter as ScriptListAdapter
+        val adapter = scriptAdapter
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {

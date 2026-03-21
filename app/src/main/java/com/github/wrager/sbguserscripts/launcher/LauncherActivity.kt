@@ -35,12 +35,13 @@ import com.github.wrager.sbguserscripts.settings.SettingsActivity
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import java.io.File
 import kotlinx.coroutines.launch
 
 class LauncherActivity : AppCompatActivity() {
+
+    private lateinit var scriptAdapter: ScriptListAdapter
 
     private val viewModel: LauncherViewModel by viewModels {
         val preferences = getSharedPreferences("scripts", MODE_PRIVATE)
@@ -126,7 +127,7 @@ class LauncherActivity : AppCompatActivity() {
     private fun setupScriptList() {
         val scriptList = findViewById<RecyclerView>(R.id.scriptList)
         scriptList.layoutManager = LinearLayoutManager(this)
-        scriptList.adapter = ScriptListAdapter(
+        scriptAdapter = ScriptListAdapter(
             onToggleChanged = { identifier, enabled ->
                 viewModel.toggleScript(identifier, enabled)
             },
@@ -140,6 +141,8 @@ class LauncherActivity : AppCompatActivity() {
                 showScriptOverflowMenu(anchor, item)
             },
         )
+        val addScriptAdapter = AddScriptAdapter { showAddScriptDialog() }
+        scriptList.adapter = androidx.recyclerview.widget.ConcatAdapter(scriptAdapter, addScriptAdapter)
     }
 
     private fun setupButtons(showLaunchButton: Boolean) {
@@ -153,9 +156,6 @@ class LauncherActivity : AppCompatActivity() {
         } else {
             launchButton.visibility = View.GONE
         }
-        findViewById<FloatingActionButton>(R.id.addScriptButton).setOnClickListener {
-            showAddScriptDialog()
-        }
     }
 
     private fun observeViewModel() {
@@ -164,7 +164,7 @@ class LauncherActivity : AppCompatActivity() {
         val emptyText = findViewById<TextView>(R.id.emptyText)
         val launchButton = findViewById<MaterialButton>(R.id.launchButton)
         val reloadButton = findViewById<MaterialButton>(R.id.reloadButton)
-        val adapter = scriptList.adapter as ScriptListAdapter
+        val adapter = scriptAdapter
 
         reloadButton.setOnClickListener {
             PreferenceManager.getDefaultSharedPreferences(this)

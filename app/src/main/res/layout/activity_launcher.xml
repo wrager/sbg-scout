@@ -64,15 +64,6 @@
             android:text="@string/no_scripts"
             android:visibility="gone" />
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/addScriptButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_margin="16dp"
-            android:contentDescription="@string/add_script"
-            app:srcCompat="@drawable/ic_add" />
-
     </FrameLayout>
 
     <com.google.android.material.button.MaterialButton
