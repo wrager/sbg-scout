@@ -16,14 +16,13 @@ class StaticConflictRulesTest {
     }
 
     @Test
-    fun `SVP conflicts with EUI, CUI, and Anmiles`() {
+    fun `SVP conflicts with EUI and CUI`() {
         val conflicts = rules.conflictsFor(PresetScripts.SVP.identifier)
 
-        assertEquals(3, conflicts.size)
+        assertEquals(2, conflicts.size)
         val conflictingIds = conflicts.map { it.conflictsWith }.toSet()
         assertTrue(conflictingIds.contains(PresetScripts.EUI.identifier))
         assertTrue(conflictingIds.contains(PresetScripts.CUI.identifier))
-        assertTrue(conflictingIds.contains(PresetScripts.ANMILES.identifier))
     }
 
     @Test
@@ -37,14 +36,6 @@ class StaticConflictRulesTest {
     @Test
     fun `CUI conflicts only with SVP`() {
         val conflicts = rules.conflictsFor(PresetScripts.CUI.identifier)
-
-        assertEquals(1, conflicts.size)
-        assertEquals(PresetScripts.SVP.identifier, conflicts[0].conflictsWith)
-    }
-
-    @Test
-    fun `Anmiles conflicts only with SVP`() {
-        val conflicts = rules.conflictsFor(PresetScripts.ANMILES.identifier)
 
         assertEquals(1, conflicts.size)
         assertEquals(PresetScripts.SVP.identifier, conflicts[0].conflictsWith)

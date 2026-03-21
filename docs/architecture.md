@@ -65,12 +65,11 @@ Android-приложение с WebView, загружающее игру SBG (`s
 1. **SVP** (SBG Vanilla+) — `wrager/sbg-vanilla-plus`
 2. **EUI** (Enhanced UI) — `egorantonov/sbg-enhanced`
 3. **CUI** (Custom UI) — `nicko-v/sbg-cui`
-4. **Anmiles script** (sbg.plus) — `anmiles/userscripts`
 
 ### Правила конфликтов
 
-- SVP конфликтует с: EUI, CUI, Anmiles script (модификация UI)
-- EUI, CUI, Anmiles script — совместимы между собой
+- SVP конфликтует с: EUI, CUI (модификация UI)
+- EUI, CUI — совместимы между собой
 - `ConflictDetector` проверяет кандидата против включённых скриптов
 - `StaticConflictRules` — жёстко заданные правила
 

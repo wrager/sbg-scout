@@ -1,15 +1,14 @@
 package com.github.wrager.sbguserscripts.script.preset
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PresetScriptsTest {
 
     @Test
-    fun `ALL contains exactly four preset scripts`() {
-        assertEquals(4, PresetScripts.ALL.size)
+    fun `ALL contains exactly three preset scripts`() {
+        assertEquals(3, PresetScripts.ALL.size)
     }
 
     @Test
@@ -41,22 +40,16 @@ class PresetScriptsTest {
     }
 
     @Test
-    fun `ANMILES has fallback download URL`() {
-        assertNotNull(PresetScripts.ANMILES.fallbackDownloadUrl)
-    }
-
-    @Test
     fun `display names match script names`() {
         assertEquals("SBG Vanilla+", PresetScripts.SVP.displayName)
         assertEquals("SBG Enhanced UI", PresetScripts.EUI.displayName)
         assertEquals("SBG CUI", PresetScripts.CUI.displayName)
-        assertEquals("SBG plus", PresetScripts.ANMILES.displayName)
     }
 
     @Test
-    fun `ALL order is SVP then CUI then EUI then ANMILES`() {
+    fun `ALL order is SVP then CUI then EUI`() {
         assertEquals(
-            listOf(PresetScripts.SVP, PresetScripts.CUI, PresetScripts.EUI, PresetScripts.ANMILES),
+            listOf(PresetScripts.SVP, PresetScripts.CUI, PresetScripts.EUI),
             PresetScripts.ALL,
         )
     }

@@ -16,11 +16,6 @@ class StaticConflictRules : ConflictRuleProvider {
             conflictsWith = PresetScripts.CUI.identifier,
             reason = "SVP and CUI both modify the game UI and are incompatible",
         ),
-        ScriptConflict(
-            scriptIdentifier = PresetScripts.SVP.identifier,
-            conflictsWith = PresetScripts.ANMILES.identifier,
-            reason = "SVP and SBG plus both modify the game UI and are incompatible",
-        ),
     )
 
     override fun conflictsFor(identifier: ScriptIdentifier): List<ScriptConflict> {
