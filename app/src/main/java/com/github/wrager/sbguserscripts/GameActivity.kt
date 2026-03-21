@@ -121,7 +121,7 @@ class GameActivity : AppCompatActivity() {
             applyFullscreen(prefs.getBoolean(KEY_FULLSCREEN_MODE, false))
             if (prefs.getBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, false)) {
                 prefs.edit().remove(LauncherActivity.KEY_RELOAD_REQUESTED).apply()
-                webView.reload()
+                webView.loadUrl(GAME_URL)
             }
         }
     }
@@ -321,7 +321,7 @@ class GameActivity : AppCompatActivity() {
         applyFullscreen(prefs.getBoolean(KEY_FULLSCREEN_MODE, false))
         if (prefs.getBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, false)) {
             prefs.edit().remove(LauncherActivity.KEY_RELOAD_REQUESTED).apply()
-            webView.reload()
+            webView.loadUrl(GAME_URL)
         }
     }
 
