@@ -16,6 +16,8 @@ class DefaultHttpFetcher : HttpFetcher {
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
             connection.useCaches = false
+            connection.setRequestProperty("Cache-Control", "no-cache, no-store")
+            connection.setRequestProperty("Pragma", "no-cache")
             headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
             val contentLength = connection.contentLengthLong
             val outputStream = ByteArrayOutputStream()
