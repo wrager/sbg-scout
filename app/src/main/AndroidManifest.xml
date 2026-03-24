@@ -14,7 +14,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.SBGUserscripts"
+        android:theme="@style/Theme.SBGScout"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".GameActivity"
@@ -32,7 +32,7 @@
             android:name=".launcher.LauncherActivity"
             android:exported="false"
             android:label="@string/app_name"
-            android:theme="@style/Theme.SBGUserscripts" />
+            android:theme="@style/Theme.SBGScout" />
         <activity
             android:name=".settings.SettingsActivity"
             android:exported="false"

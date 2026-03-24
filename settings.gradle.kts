@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SBG Userscripts"
+rootProject.name = "SBG Scout"
 include(":app")
