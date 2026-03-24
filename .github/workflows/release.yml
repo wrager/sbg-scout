@@ -27,8 +27,11 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
+      - name: Rename APK
+        run: mv app/build/outputs/apk/release/*.apk app/build/outputs/apk/release/sbg-scout.apk
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           body_path: RELEASE_NOTES.md
-          files: app/build/outputs/apk/release/*.apk
+          files: app/build/outputs/apk/release/sbg-scout.apk
