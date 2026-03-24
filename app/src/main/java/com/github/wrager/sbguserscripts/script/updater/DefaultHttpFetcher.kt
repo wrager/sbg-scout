@@ -16,6 +16,8 @@ class DefaultHttpFetcher : HttpFetcher {
     ): String = withContext(Dispatchers.IO) {
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
+            connection.connectTimeout = CONNECT_TIMEOUT_MS
+            connection.readTimeout = READ_TIMEOUT_MS
             connection.useCaches = false
             connection.setRequestProperty("Cache-Control", "no-cache, no-store")
             connection.setRequestProperty("Pragma", "no-cache")
@@ -49,5 +51,7 @@ class DefaultHttpFetcher : HttpFetcher {
 
     companion object {
         private const val CHUNK_SIZE = 8192
+        private const val CONNECT_TIMEOUT_MS = 15_000
+        private const val READ_TIMEOUT_MS = 30_000
     }
 }
