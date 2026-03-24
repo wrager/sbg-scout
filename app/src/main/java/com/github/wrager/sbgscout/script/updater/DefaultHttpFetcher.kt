@@ -33,9 +33,16 @@ class DefaultHttpFetcher : HttpFetcher {
                     ensureActive()
                     outputStream.write(buffer, 0, bytesThisRead)
                     totalBytesRead += bytesThisRead
-                    if (onProgress != null && contentLength > 0) {
-                        val progress = ((totalBytesRead * 100) / contentLength).toInt()
-                            .coerceIn(0, 100)
+                    if (onProgress != null) {
+                        val progress = if (contentLength > 0) {
+                            ((totalBytesRead * 100) / contentLength).toInt()
+                                .coerceIn(0, 100)
+                        } else {
+                            // Content-Length неизвестен (chunked transfer, redirect) —
+                            // сигнализируем 0 %, чтобы вызывающий код узнал,
+                            // что соединение установлено и данные пошли
+                            0
+                        }
                         if (progress != lastReportedProgress) {
                             lastReportedProgress = progress
                             onProgress(progress)

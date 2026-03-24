@@ -366,18 +366,22 @@ class GameActivity : AppCompatActivity() {
                     progress.isIndeterminate = true
                     status.text = getString(R.string.loading_default_script, scriptName)
                 },
+                // Callback вызывается из Dispatchers.IO (внутри DefaultHttpFetcher),
+                // поэтому UI-операции выполняем через runOnUiThread
                 onDownloadProgress = { percent ->
-                    if (progress.isIndeterminate) {
-                        progress.isIndeterminate = false
-                        // Соединение установлено — перезапустить таймер на 5 секунд
-                        skipTimerJob.cancel()
-                        skipTimerJob = lifecycleScope.launch {
-                            delay(SKIP_BUTTON_DOWNLOAD_DELAY_MS)
-                            skipButton.visibility = View.VISIBLE
-                            skipButton.setOnClickListener { finishProvisioning() }
+                    runOnUiThread {
+                        if (progress.isIndeterminate) {
+                            progress.isIndeterminate = false
+                            // Соединение установлено — перезапустить таймер на 5 секунд
+                            skipTimerJob.cancel()
+                            skipTimerJob = lifecycleScope.launch {
+                                delay(SKIP_BUTTON_DOWNLOAD_DELAY_MS)
+                                skipButton.visibility = View.VISIBLE
+                                skipButton.setOnClickListener { finishProvisioning() }
+                            }
                         }
+                        progress.setProgressCompat(percent, true)
                     }
-                    progress.setProgressCompat(percent, true)
                 },
             )
             skipTimerJob.cancel()
