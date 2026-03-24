@@ -25,7 +25,7 @@
 
     <com.github.wrager.sbgscout.game.SettingsPullTab
         android:id="@+id/settingsPullTab"
-        android:layout_width="13dp"
+        android:layout_width="20dp"
         android:layout_height="48dp"
         android:layout_gravity="start|top"
         android:contentDescription="@string/settings" />
