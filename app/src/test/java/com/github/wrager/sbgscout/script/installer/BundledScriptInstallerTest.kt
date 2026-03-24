@@ -27,6 +27,7 @@ class BundledScriptInstallerTest {
         scriptStorage = mockk()
         scriptProvisioner = mockk()
         every { scriptProvisioner.markProvisioned(any()) } just Runs
+        every { scriptProvisioner.isProvisioned(any()) } returns false
         every { scriptStorage.setEnabled(any(), any()) } just Runs
     }
 
@@ -75,6 +76,18 @@ class BundledScriptInstallerTest {
         createInstaller().installBundled()
 
         verify { scriptProvisioner.markProvisioned(PresetScripts.SVP.identifier) }
+    }
+
+    @Test
+    fun `skips already provisioned preset even if deleted from storage`() {
+        every { scriptStorage.getAll() } returns emptyList()
+        every { scriptProvisioner.isProvisioned(PresetScripts.SVP.identifier) } returns true
+        assetContents["scripts/sbg-vanilla-plus.user.js"] = SVP_CONTENT
+
+        createInstaller().installBundled()
+
+        verify(exactly = 0) { scriptInstaller.parse(any()) }
+        verify(exactly = 0) { scriptInstaller.save(any()) }
     }
 
     @Test

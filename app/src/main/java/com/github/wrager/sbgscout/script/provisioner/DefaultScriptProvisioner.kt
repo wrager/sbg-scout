@@ -85,6 +85,13 @@ class DefaultScriptProvisioner(
         }
     }
 
+    /** Был ли пресет уже обработан (установлен или пропущен пользователем). */
+    fun isProvisioned(identifier: ScriptIdentifier): Boolean {
+        val provisioned = preferences.getStringSet(KEY_PROVISIONED_DEFAULTS, emptySet())
+            ?: emptySet()
+        return identifier.value in provisioned
+    }
+
     /**
      * Помечает пресет как обработанный — provisioning больше не будет его загружать,
      * даже если пользователь удалит скрипт из хранилища.

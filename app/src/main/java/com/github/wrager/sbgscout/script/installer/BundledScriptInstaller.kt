@@ -10,9 +10,8 @@ import com.github.wrager.sbgscout.script.storage.ScriptStorage
 /**
  * Устанавливает юзерскрипты, бандлированные в APK (assets), при первом запуске.
  *
- * Проверка «уже установлен» идёт **только по sourceUrl**, а не по identifier:
- * идентификатор пресета (namespace без @name) не совпадает с идентификатором
- * сохранённого скрипта (namespace + "/" + @name).
+ * Пресет пропускается, если он уже помечен как provisioned (пользователь
+ * мог удалить скрипт вручную) **или** уже есть в хранилище по sourceUrl.
  *
  * @param assetReader абстракция чтения из assets для тестируемости
  */
@@ -36,7 +35,9 @@ class BundledScriptInstaller(
         for ((presetIdentifier, assetPath) in ASSET_MAP) {
             val preset = PresetScripts.ALL.find { it.identifier == presetIdentifier }
                 ?: continue
-            if (preset.downloadUrl !in installedSourceUrls) {
+            val alreadyHandled = scriptProvisioner.isProvisioned(preset.identifier) ||
+                preset.downloadUrl in installedSourceUrls
+            if (!alreadyHandled) {
                 installPreset(preset, assetPath)
             }
         }
