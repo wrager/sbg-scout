@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         app:menu="@menu/menu_launcher"
-        app:title="@string/app_name" />
+        app:title="@string/settings_manage_scripts" />
 
     <LinearLayout
         android:layout_width="match_parent"
