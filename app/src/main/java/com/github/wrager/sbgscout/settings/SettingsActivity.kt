@@ -3,8 +3,8 @@ package com.github.wrager.sbgscout.settings
 import android.os.Bundle
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.github.wrager.sbgscout.R
 import com.google.android.material.appbar.MaterialToolbar
@@ -13,7 +13,7 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        enableEdgeToEdge()
         setContentView(R.layout.activity_settings)
         setupEdgeToEdge()
 
