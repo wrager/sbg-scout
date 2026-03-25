@@ -75,5 +75,6 @@
     <string name="reload_game">Перезагрузить игру</string>
     <string name="settings_reload_game_summary">Перезагрузить страницу игры в браузере</string>
     <string name="settings_report_bug">Сообщить об ошибке</string>
-    <string name="settings_report_bug_summary">Открыть GitHub Issues</string>
+    <string name="settings_report_bug_summary">Скопировать диагностику и открыть GitHub Issues</string>
+    <string name="bug_report_copied">Скопировано! Открываю\u2026</string>
 </resources>

@@ -1,5 +1,8 @@
 package com.github.wrager.sbgscout.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -11,8 +14,12 @@ import androidx.preference.PreferenceManager
 import com.github.wrager.sbgscout.BuildConfig
 import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.R
+import com.github.wrager.sbgscout.diagnostic.BugReportCollector
 import com.github.wrager.sbgscout.launcher.LauncherActivity
 import com.github.wrager.sbgscout.launcher.ScriptListFragment
+import com.github.wrager.sbgscout.script.model.UserScript
+import com.github.wrager.sbgscout.script.storage.ScriptFileStorageImpl
+import com.github.wrager.sbgscout.script.storage.ScriptStorageImpl
 import com.github.wrager.sbgscout.script.updater.DefaultHttpFetcher
 import com.github.wrager.sbgscout.script.updater.GithubReleaseProvider
 import com.github.wrager.sbgscout.updater.AppUpdateChecker
@@ -20,6 +27,7 @@ import com.github.wrager.sbgscout.updater.AppUpdateInstaller
 import com.github.wrager.sbgscout.updater.AppUpdateResult
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.launch
+import java.io.File
 
 class SettingsFragment : PreferenceFragmentCompat() {
 
@@ -72,9 +80,39 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         findPreference<Preference>("report_bug")?.setOnPreferenceClickListener {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ISSUES_URL)))
+            reportBug()
             true
         }
+    }
+
+    /**
+     * Собирает диагностику, копирует в буфер обмена, показывает Toast и открывает GitHub Issues.
+     *
+     * В контексте GameActivity доступен лог консоли и список включённых скриптов.
+     * В контексте SettingsActivity (без WebView) — только информация об устройстве и скриптах.
+     */
+    private fun reportBug() {
+        val gameActivity = activity as? GameActivity
+        val consoleLogBuffer = gameActivity?.consoleLogBuffer
+        val enabledScripts = gameActivity?.getEnabledScripts() ?: getEnabledScriptsFromStorage()
+
+        val collector = BugReportCollector(BuildConfig.VERSION_NAME, consoleLogBuffer)
+        val report = collector.collect(enabledScripts)
+
+        val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("SBG Scout diagnostics", report.clipboardText))
+
+        Toast.makeText(requireContext(), R.string.bug_report_copied, Toast.LENGTH_SHORT).show()
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(report.issueUrl)))
+    }
+
+    /** Получает список включённых скриптов напрямую из хранилища (для контекста без GameActivity). */
+    private fun getEnabledScriptsFromStorage(): List<UserScript> {
+        val context = requireContext()
+        val preferences = context.getSharedPreferences("scripts", Context.MODE_PRIVATE)
+        val fileStorage = ScriptFileStorageImpl(File(context.filesDir, "scripts"))
+        val storage = ScriptStorageImpl(preferences, fileStorage)
+        return storage.getEnabled()
     }
 
     private fun checkAppUpdate() {
@@ -136,7 +174,4 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
     }
 
-    companion object {
-        private const val ISSUES_URL = "https://github.com/wrager/sbg-scout/issues"
-    }
 }

@@ -41,6 +41,7 @@ import androidx.core.os.LocaleListCompat
 import com.github.wrager.sbgscout.bridge.ClipboardBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
 import com.github.wrager.sbgscout.bridge.ShareBridge
+import com.github.wrager.sbgscout.diagnostic.ConsoleLogBuffer
 import com.github.wrager.sbgscout.game.GameSettingsReader
 import com.github.wrager.sbgscout.launcher.LauncherActivity
 import com.github.wrager.sbgscout.launcher.ScriptListFragment
@@ -71,6 +72,7 @@ class GameActivity : AppCompatActivity() {
     private lateinit var rootLayout: FrameLayout
     private lateinit var webView: WebView
     private lateinit var scriptStorage: ScriptStorage
+    val consoleLogBuffer = ConsoleLogBuffer()
     private lateinit var scriptProvisioner: DefaultScriptProvisioner
     private var isFullscreen = false
     private val gameSettingsReader = GameSettingsReader()
@@ -361,6 +363,7 @@ class GameActivity : AppCompatActivity() {
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                consoleLogBuffer.add(consoleMessage)
                 val logLevel = when (consoleMessage.messageLevel()) {
                     ConsoleMessage.MessageLevel.ERROR -> Log.ERROR
                     ConsoleMessage.MessageLevel.WARNING -> Log.WARN
@@ -459,6 +462,9 @@ class GameActivity : AppCompatActivity() {
             }
         })
     }
+
+    /** Список включённых скриптов (для диагностики баг-репортов). */
+    fun getEnabledScripts() = scriptStorage.getEnabled()
 
     /** Закрыть drawer настроек (вызывается из фрагментов внутри drawer). */
     fun closeSettingsDrawer() {

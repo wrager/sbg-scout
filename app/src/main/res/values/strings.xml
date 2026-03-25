@@ -75,5 +75,6 @@
     <string name="reload_game">Reload game</string>
     <string name="settings_reload_game_summary">Reload the game page in the browser</string>
     <string name="settings_report_bug">Report a bug</string>
-    <string name="settings_report_bug_summary">Open GitHub Issues</string>
+    <string name="settings_report_bug_summary">Copy diagnostics and open GitHub Issues</string>
+    <string name="bug_report_copied">Copied! Opening\u2026</string>
 </resources>
