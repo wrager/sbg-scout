@@ -34,7 +34,7 @@ Android-приложение с WebView, загружающее игру SBG (`s
   - **Экран** — полноэкранный режим, не гасить экран
   - **Скрипты** — менеджер скриптов, перезагрузка игры
   - **Обновления** — авто-проверка, проверка обновлений приложения, проверка обновлений скриптов
-  - **О приложении** — версия, баг-репорт
+  - **О приложении** — версия, баг-репорт с автоматической диагностикой
 
 ### Локализация
 
@@ -121,6 +121,15 @@ Android-приложение с WebView, загружающее игру SBG (`s
 - Авто-проверка при запуске: если включена настройка и прошло > 24ч с последней проверки
 - Ручная проверка через кнопку в настройках (категория «Обновления»)
 
+## Диагностика баг-репортов
+
+- `ConsoleLogBuffer` — потокобезопасный кольцевой буфер последних 50 записей `console.error`/`console.warn` из WebView. Заполняется в `GameActivity` через `WebChromeClient.onConsoleMessage`
+- `BugReportCollector` — собирает диагностику (устройство, Android, WebView, версия APK, включённые скрипты с версиями, лог ошибок) и формирует:
+  - Текст для буфера обмена (полная диагностика)
+  - URL для GitHub issue с предзаполненными полями шаблона `bug_report.yml`
+- Кнопка «Сообщить об ошибке» в настройках: копирует диагностику → показывает Toast → открывает GitHub Issues
+- Работает из обоих контекстов: `GameActivity` (с логом консоли) и `SettingsActivity` (без лога)
+
 ## Флоу запуска
 
 1. `LauncherActivity` — список скриптов с тогглами и предупреждениями о конфликтах
@@ -138,6 +147,9 @@ app/src/main/java/com/github/wrager/sbgscout/
 │   ├── ClipboardBridge.kt   Полифил navigator.clipboard
 │   ├── GameSettingsBridge.kt  Уведомления об изменении настроек игры (localStorage)
 │   └── ShareBridge.kt       Открытие URL
+├── diagnostic/
+│   ├── ConsoleLogBuffer.kt  Кольцевой буфер console.error/warn (последние 50)
+│   └── BugReportCollector.kt  Сбор диагностики, формирование clipboard-текста и issue URL
 ├── game/
 │   ├── GameSettingsReader.kt   Парсинг JSON настроек игры (theme, lang)
 │   ├── SettingsDrawerLayout.kt  DrawerLayout с ограничением зоны свайпа
@@ -182,7 +194,7 @@ app/src/main/java/com/github/wrager/sbgscout/
 │       └── GithubReleaseProvider.kt  Загрузка релизов через GitHub API
 ├── settings/
 │   ├── SettingsActivity.kt  Экран настроек
-│   └── SettingsFragment.kt  PreferenceFragmentCompat, проверка обновлений приложения
+│   └── SettingsFragment.kt  PreferenceFragmentCompat, проверка обновлений приложения, баг-репорт
 ├── updater/
 │   ├── AppUpdateChecker.kt     Проверка обновлений через GitHub Releases
 │   ├── AppUpdateInstaller.kt   Скачивание и установка APK
