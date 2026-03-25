@@ -32,5 +32,5 @@ object PresetScripts {
             "https://github.com/egorantonov/sbg-enhanced/releases/latest/download/cui.user.js",
     )
 
-    val ALL: List<PresetScript> = listOf(SVP, CUI, EUI)
+    val ALL: List<PresetScript> = listOf(SVP, EUI, CUI)
 }

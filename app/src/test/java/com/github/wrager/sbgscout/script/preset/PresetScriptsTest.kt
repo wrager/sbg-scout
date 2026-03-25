@@ -47,9 +47,9 @@ class PresetScriptsTest {
     }
 
     @Test
-    fun `ALL order is SVP then CUI then EUI`() {
+    fun `ALL order is SVP then EUI then CUI`() {
         assertEquals(
-            listOf(PresetScripts.SVP, PresetScripts.CUI, PresetScripts.EUI),
+            listOf(PresetScripts.SVP, PresetScripts.EUI, PresetScripts.CUI),
             PresetScripts.ALL,
         )
     }
