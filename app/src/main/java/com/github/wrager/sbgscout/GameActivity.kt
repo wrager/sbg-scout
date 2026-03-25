@@ -36,8 +36,12 @@ import androidx.core.view.GravityCompat
 import com.github.wrager.sbgscout.game.SettingsDrawerLayout
 import com.github.wrager.sbgscout.game.SettingsPullTab
 import com.github.wrager.sbgscout.settings.SettingsFragment
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import com.github.wrager.sbgscout.bridge.ClipboardBridge
+import com.github.wrager.sbgscout.bridge.GameSettingsBridge
 import com.github.wrager.sbgscout.bridge.ShareBridge
+import com.github.wrager.sbgscout.game.GameSettingsReader
 import com.github.wrager.sbgscout.launcher.LauncherActivity
 import com.github.wrager.sbgscout.script.injector.InjectionStateStorage
 import com.github.wrager.sbgscout.script.injector.ScriptInjector
@@ -61,6 +65,9 @@ class GameActivity : AppCompatActivity() {
     private lateinit var scriptStorage: ScriptStorage
     private lateinit var scriptProvisioner: DefaultScriptProvisioner
     private var isFullscreen = false
+    private val gameSettingsReader = GameSettingsReader()
+    private var lastAppliedTheme: GameSettingsReader.ThemeMode? = null
+    private var lastAppliedLanguage: String? = null
 
     // Pending geolocation callback while waiting for Android permission result
     private var pendingGeolocationCallback: GeolocationPermissions.Callback? = null
@@ -93,6 +100,7 @@ class GameActivity : AppCompatActivity() {
 
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         applyKeepScreenOn(prefs.getBoolean(KEY_KEEP_SCREEN_ON, true))
+        restoreLastAppliedGameSettings(prefs)
 
         setupWebView()
         setupBackPressHandling()
@@ -160,6 +168,58 @@ class GameActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Восстанавливает последние применённые настройки игры из SharedPreferences.
+     *
+     * Необходимо для предотвращения recreation loop:
+     * setDefaultNightMode/setApplicationLocales вызывают recreation Activity,
+     * после чего onPageFinished снова прочитает те же настройки. Без этой
+     * инициализации lastAppliedTheme/lastAppliedLanguage будут null,
+     * и повторное чтение тех же значений вызовет бесконечный цикл recreation.
+     */
+    private fun restoreLastAppliedGameSettings(prefs: android.content.SharedPreferences) {
+        prefs.getString(KEY_APPLIED_GAME_THEME, null)?.let { themeName ->
+            lastAppliedTheme = try {
+                GameSettingsReader.ThemeMode.valueOf(themeName)
+            } catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+                null
+            }
+        }
+        lastAppliedLanguage = prefs.getString(KEY_APPLIED_GAME_LANGUAGE, null)
+    }
+
+    private fun applyGameSettings(json: String?) {
+        val settings = gameSettingsReader.parse(json) ?: return
+        applyGameTheme(settings.theme)
+        applyGameLanguage(settings.language)
+    }
+
+    private fun applyGameTheme(theme: GameSettingsReader.ThemeMode) {
+        if (theme == lastAppliedTheme) return
+        lastAppliedTheme = theme
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .edit().putString(KEY_APPLIED_GAME_THEME, theme.name).apply()
+        val nightMode = when (theme) {
+            GameSettingsReader.ThemeMode.AUTO -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            GameSettingsReader.ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+            GameSettingsReader.ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+        }
+        AppCompatDelegate.setDefaultNightMode(nightMode)
+    }
+
+    private fun applyGameLanguage(language: String) {
+        if (language == lastAppliedLanguage) return
+        lastAppliedLanguage = language
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .edit().putString(KEY_APPLIED_GAME_LANGUAGE, language).apply()
+        val locales = if (language == "sys") {
+            LocaleListCompat.getEmptyLocaleList()
+        } else {
+            LocaleListCompat.forLanguageTags(language)
+        }
+        AppCompatDelegate.setApplicationLocales(locales)
+    }
+
     private fun applyKeepScreenOn(enabled: Boolean) {
         if (enabled) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -204,6 +264,10 @@ class GameActivity : AppCompatActivity() {
 
         webView.addJavascriptInterface(ClipboardBridge(this), "Android")
         webView.addJavascriptInterface(ShareBridge(this), "__sbg_share")
+        val settingsBridge = GameSettingsBridge { json ->
+            runOnUiThread { applyGameSettings(json) }
+        }
+        webView.addJavascriptInterface(settingsBridge, GameSettingsBridge.JS_INTERFACE_NAME)
 
         val preferences = getSharedPreferences("scripts", MODE_PRIVATE)
         val fileStorage = ScriptFileStorageImpl(File(filesDir, "scripts"))
@@ -223,7 +287,9 @@ class GameActivity : AppCompatActivity() {
             versionName = BuildConfig.VERSION_NAME,
             injectionStateStorage = injectionStateStorage,
         )
-        webView.webViewClient = SbgWebViewClient(scriptInjector)
+        val webViewClient = SbgWebViewClient(scriptInjector)
+        webViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
+        webView.webViewClient = webViewClient
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
@@ -481,6 +547,8 @@ class GameActivity : AppCompatActivity() {
         private const val LOG_TAG = "SbgWebView"
         private const val KEY_FULLSCREEN_MODE = "fullscreen_mode"
         private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+        private const val KEY_APPLIED_GAME_THEME = "applied_game_theme"
+        private const val KEY_APPLIED_GAME_LANGUAGE = "applied_game_language"
         private const val PULL_TAB_VERTICAL_POSITION = 0.25f
         private const val DEFAULT_DRAWER_WIDTH_DP = 300f
         private const val DRAWER_GAP_DIVISOR = 3

@@ -7,6 +7,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import com.github.wrager.sbgscout.R
+import com.github.wrager.sbgscout.bridge.GameSettingsBridge
 import com.github.wrager.sbgscout.script.injector.InjectionResult
 import com.github.wrager.sbgscout.script.injector.ScriptInjector
 
@@ -14,11 +15,30 @@ class SbgWebViewClient(
     private val scriptInjector: ScriptInjector,
 ) : WebViewClient() {
 
+    /** Вызывается после загрузки страницы игры с текущим значением настроек. */
+    var onGameSettingsRead: ((String?) -> Unit)? = null
+
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
         if (url?.contains("sbg-game.ru/app") == true && view != null) {
+            // Перехват localStorage.setItem ПЕРЕД инжекцией скриптов,
+            // чтобы отловить любые записи в 'settings'
+            view.evaluateJavascript(GameSettingsBridge.LOCAL_STORAGE_WRAPPER) {}
             scriptInjector.inject(view) { results ->
                 handleInjectionResults(view, results)
+            }
+        }
+    }
+
+    override fun onPageFinished(view: WebView?, url: String?) {
+        super.onPageFinished(view, url)
+        if (url?.contains("sbg-game.ru/app") == true && view != null) {
+            // Начальное чтение настроек (на случай если localStorage уже заполнен
+            // до инжекции обёртки, например при навигации по истории)
+            onGameSettingsRead?.let { callback ->
+                view.evaluateJavascript("localStorage.getItem('settings')") { result ->
+                    callback(unescapeJsString(result))
+                }
             }
         }
     }
@@ -40,5 +60,21 @@ class SbgWebViewClient(
         }
         // Все URL (включая Telegram OAuth) загружаются в WebView
         return false
+    }
+
+    companion object {
+        /**
+         * evaluateJavascript возвращает JS-значение как строку в кавычках.
+         * Для `localStorage.getItem(...)` результат — JSON-строка в кавычках
+         * с экранированными внутренними кавычками, или литерал `"null"`.
+         */
+        internal fun unescapeJsString(raw: String?): String? {
+            if (raw.isNullOrBlank() || raw == "null") return null
+            return raw
+                .removeSurrounding("\"")
+                .replace("\\\"", "\"")
+                .replace("\\\\", "\\")
+                .takeIf { it != "null" }
+        }
     }
 }
