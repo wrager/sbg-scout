@@ -91,7 +91,7 @@ class ScriptListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupToolbar(view)
-        setupUpdateControls(view)
+        setupCheckUpdatesButton(view)
         setupScriptList(view)
         setupButtons(view)
         observeViewModel(view)
@@ -110,15 +110,7 @@ class ScriptListFragment : Fragment() {
         }
     }
 
-    private fun setupUpdateControls(view: View) {
-        val autoUpdateCheckbox = view.findViewById<android.widget.CheckBox>(R.id.autoUpdateCheckbox)
-        autoUpdateCheckbox.isChecked = PreferenceManager.getDefaultSharedPreferences(requireContext())
-            .getBoolean("auto_update_scripts", true)
-        autoUpdateCheckbox.setOnCheckedChangeListener { _, isChecked ->
-            PreferenceManager.getDefaultSharedPreferences(requireContext())
-                .edit().putBoolean("auto_update_scripts", isChecked).apply()
-        }
-
+    private fun setupCheckUpdatesButton(view: View) {
         view.findViewById<MaterialButton>(R.id.checkUpdatesButton).setOnClickListener {
             viewModel.checkUpdates()
         }

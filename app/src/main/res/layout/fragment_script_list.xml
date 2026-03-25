@@ -11,28 +11,14 @@
         android:layout_height="?attr/actionBarSize"
         app:title="@string/settings_manage_scripts" />
 
-    <LinearLayout
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/checkUpdatesButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="12dp"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
-
-        <CheckBox
-            android:id="@+id/autoUpdateCheckbox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_auto_update" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/checkUpdatesButton"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/check_updates" />
-
-    </LinearLayout>
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="4dp"
+        android:text="@string/check_updates" />
 
     <FrameLayout
         android:layout_width="match_parent"

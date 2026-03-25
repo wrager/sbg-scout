@@ -41,6 +41,31 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:title="@string/settings_category_updates"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="auto_check_updates"
+            android:summary="@string/settings_auto_check_updates_summary"
+            android:title="@string/settings_auto_check_updates"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="check_app_update"
+            android:summary="@string/settings_check_app_update_summary"
+            android:title="@string/settings_check_app_update"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            android:key="check_script_updates"
+            android:summary="@string/settings_check_script_updates_summary"
+            android:title="@string/settings_check_script_updates"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:title="@string/settings_category_about"
         app:iconSpaceReserved="false">
 
