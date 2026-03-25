@@ -36,6 +36,7 @@ class GithubReleaseProvider(private val httpFetcher: HttpFetcher) {
             }
             return GithubRelease(
                 tagName = getString("tag_name"),
+                body = optString("body", null),
                 assets = assets,
             )
         }

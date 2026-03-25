@@ -4,6 +4,7 @@ sealed class AppUpdateResult {
     data class UpdateAvailable(
         val tagName: String,
         val downloadUrl: String,
+        val releaseNotes: String?,
     ) : AppUpdateResult()
 
     data object UpToDate : AppUpdateResult()

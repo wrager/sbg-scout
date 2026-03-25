@@ -103,13 +103,19 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun showUpdateDialog(result: AppUpdateResult.UpdateAvailable, httpFetcher: DefaultHttpFetcher) {
         if (!isAdded) return
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(getString(R.string.app_update_available, result.tagName))
-            .setPositiveButton(R.string.app_update_download) { _, _ ->
-                downloadUpdate(result.downloadUrl, httpFetcher)
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        if (activity is GameActivity) {
+            (activity as GameActivity).showAppUpdateDialog(
+                result.tagName, result.downloadUrl, result.releaseNotes, httpFetcher,
+            )
+        } else {
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(getString(R.string.app_update_available, result.tagName))
+                .setPositiveButton(R.string.app_update_download) { _, _ ->
+                    downloadUpdate(result.downloadUrl, httpFetcher)
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
     }
 
     private fun downloadUpdate(downloadUrl: String, httpFetcher: DefaultHttpFetcher) {

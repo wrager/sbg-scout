@@ -583,7 +583,9 @@ class GameActivity : AppCompatActivity() {
                 when (val result = appChecker.check()) {
                     is AppUpdateResult.UpdateAvailable -> {
                         Log.i(LOG_TAG, "Доступно обновление приложения: ${result.tagName}")
-                        showAppUpdateDialog(result.tagName, result.downloadUrl, httpFetcher)
+                        showAppUpdateDialog(
+                            result.tagName, result.downloadUrl, result.releaseNotes, httpFetcher,
+                        )
                     }
                     is AppUpdateResult.UpToDate ->
                         Log.d(LOG_TAG, "Приложение актуально")
@@ -599,9 +601,28 @@ class GameActivity : AppCompatActivity() {
     }
 
     /** Показывает диалог обновления приложения (используется и авто-проверкой, и кнопкой в настройках). */
-    fun showAppUpdateDialog(tagName: String, downloadUrl: String, httpFetcher: DefaultHttpFetcher) {
-        MaterialAlertDialogBuilder(this)
+    fun showAppUpdateDialog(
+        tagName: String,
+        downloadUrl: String,
+        releaseNotes: String?,
+        httpFetcher: DefaultHttpFetcher,
+    ) {
+        val builder = MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.app_update_available, tagName))
+        if (!releaseNotes.isNullOrBlank()) {
+            val maxHeightPx = (RELEASE_NOTES_MAX_HEIGHT_DP * resources.displayMetrics.density).toInt()
+            val paddingPx = (RELEASE_NOTES_PADDING_DP * resources.displayMetrics.density).toInt()
+            val scrollView = android.widget.ScrollView(this)
+            scrollView.addView(TextView(this).apply {
+                text = releaseNotes.trim()
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                setTextIsSelectable(true)
+            })
+            // Ограничить высоту после layout, чтобы диалог не занимал весь экран
+            scrollView.post { if (scrollView.height > maxHeightPx) scrollView.layoutParams.height = maxHeightPx }
+            builder.setView(scrollView)
+        }
+        builder
             .setPositiveButton(R.string.app_update_download) { _, _ ->
                 Toast.makeText(this, R.string.app_update_downloading, Toast.LENGTH_SHORT).show()
                 val installer = AppUpdateInstaller(applicationContext, httpFetcher)
@@ -710,5 +731,7 @@ class GameActivity : AppCompatActivity() {
         private const val KEY_AUTO_CHECK_UPDATES = "auto_check_updates"
         private const val KEY_LAST_UPDATE_CHECK = "last_update_check"
         private const val UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
+        private const val RELEASE_NOTES_MAX_HEIGHT_DP = 200
+        private const val RELEASE_NOTES_PADDING_DP = 24
     }
 }

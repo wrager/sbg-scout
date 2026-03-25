@@ -26,7 +26,7 @@ class AppUpdateChecker(
                 ?: return AppUpdateResult.CheckFailed(
                     IllegalStateException("No APK asset in release ${latest.tagName}"),
                 )
-            AppUpdateResult.UpdateAvailable(latest.tagName, apkAsset.downloadUrl)
+            AppUpdateResult.UpdateAvailable(latest.tagName, apkAsset.downloadUrl, latest.body)
         } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
             AppUpdateResult.CheckFailed(exception)
         }
