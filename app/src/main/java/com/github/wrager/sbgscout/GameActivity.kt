@@ -447,14 +447,29 @@ class GameActivity : AppCompatActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    webView.evaluateJavascript(
-                        "document.dispatchEvent(new Event('backbutton'))",
-                    ) {}
-                    if (webView.canGoBack()) {
-                        webView.goBack()
-                    } else {
-                        isEnabled = false
-                        onBackPressedDispatcher.onBackPressed()
+                    val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
+                    val drawerOpen = drawerLayout.isDrawerOpen(GravityCompat.START)
+                    when {
+                        // ScriptListFragment открыт в drawer → вернуться к SettingsFragment
+                        drawerOpen && supportFragmentManager.backStackEntryCount > 0 -> {
+                            supportFragmentManager.popBackStack()
+                        }
+                        // Drawer открыт на SettingsFragment → закрыть drawer
+                        drawerOpen -> {
+                            drawerLayout.closeDrawer(GravityCompat.START)
+                        }
+                        // Drawer закрыт → стандартная обработка WebView
+                        else -> {
+                            webView.evaluateJavascript(
+                                "document.dispatchEvent(new Event('backbutton'))",
+                            ) {}
+                            if (webView.canGoBack()) {
+                                webView.goBack()
+                            } else {
+                                isEnabled = false
+                                onBackPressedDispatcher.onBackPressed()
+                            }
+                        }
                     }
                 }
             },
