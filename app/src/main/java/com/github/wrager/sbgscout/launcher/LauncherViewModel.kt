@@ -261,6 +261,58 @@ class LauncherViewModel(
         }
     }
 
+    /** Проверяет обновления и скачивает все доступные (одна операция). */
+    fun checkAndUpdateAll() {
+        val isAlreadyChecking = operationStateMap.values.any { it is ScriptOperationState.CheckingUpdate }
+        if (isAlreadyChecking) return
+        viewModelScope.launch {
+            // Фаза 1: проверка (аналог checkUpdates, но без отправки CheckCompleted)
+            val downloadedIdentifiers = scriptStorage.getAll().map { it.identifier }.toSet()
+            operationStateMap.entries.removeAll { (_, state) ->
+                state is ScriptOperationState.UpToDate || state is ScriptOperationState.UpdateAvailable
+            }
+            for (identifier in downloadedIdentifiers) {
+                if (operationStateMap[identifier] !is ScriptOperationState.Downloading) {
+                    operationStateMap[identifier] = ScriptOperationState.CheckingUpdate
+                }
+            }
+            refreshScriptList()
+            val results = updateChecker.checkAllForUpdates()
+            for (result in results) {
+                val (identifier, state) = when (result) {
+                    is ScriptUpdateResult.UpToDate ->
+                        result.identifier to ScriptOperationState.UpToDate
+                    is ScriptUpdateResult.UpdateAvailable ->
+                        result.identifier to ScriptOperationState.UpdateAvailable
+                    is ScriptUpdateResult.CheckFailed ->
+                        result.identifier to null
+                }
+                if (state != null) operationStateMap[identifier] = state
+                else operationStateMap.remove(identifier)
+            }
+            refreshScriptList()
+
+            // Фаза 2: обновление всех доступных
+            val toUpdate = operationStateMap
+                .filter { it.value is ScriptOperationState.UpdateAvailable }
+                .keys.toList()
+            var updatedCount = 0
+            for (identifier in toUpdate) {
+                setOperationState(identifier, ScriptOperationState.Downloading(0))
+                val newIdentifier = applyUpdate(identifier) { progress ->
+                    setOperationState(identifier, ScriptOperationState.Downloading(progress))
+                }
+                if (newIdentifier != null) {
+                    setOperationState(newIdentifier, ScriptOperationState.UpToDate)
+                    updatedCount++
+                } else {
+                    setOperationState(identifier, null)
+                }
+            }
+            _events.send(LauncherEvent.UpdatesCompleted(updatedCount))
+        }
+    }
+
     fun loadVersions(identifier: ScriptIdentifier) {
         viewModelScope.launch {
             try {

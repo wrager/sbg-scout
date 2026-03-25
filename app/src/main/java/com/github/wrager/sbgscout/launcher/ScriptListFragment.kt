@@ -88,6 +88,9 @@ class ScriptListFragment : Fragment() {
         savedInstanceState: Bundle?,
     ): View = inflater.inflate(R.layout.fragment_script_list, container, false)
 
+    private val shouldAutoUpdate: Boolean
+        get() = arguments?.getBoolean(ARG_AUTO_UPDATE, false) == true
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupToolbar(view)
@@ -95,6 +98,9 @@ class ScriptListFragment : Fragment() {
         setupScriptList(view)
         setupButtons(view)
         observeViewModel(view)
+        if (shouldAutoUpdate) {
+            viewModel.checkAndUpdateAll()
+        }
     }
 
     private fun setupToolbar(view: View) {
@@ -113,6 +119,9 @@ class ScriptListFragment : Fragment() {
     private fun setupCheckUpdatesButton(view: View) {
         view.findViewById<MaterialButton>(R.id.checkUpdatesButton).setOnClickListener {
             viewModel.checkUpdates()
+        }
+        view.findViewById<MaterialButton>(R.id.updateAllButton).setOnClickListener {
+            viewModel.checkAndUpdateAll()
         }
     }
 
@@ -157,6 +166,7 @@ class ScriptListFragment : Fragment() {
         val emptyText = view.findViewById<TextView>(R.id.emptyText)
         val reloadButton = view.findViewById<MaterialButton>(R.id.reloadButton)
         val checkUpdatesButton = view.findViewById<MaterialButton>(R.id.checkUpdatesButton)
+        val updateAllButton = view.findViewById<MaterialButton>(R.id.updateAllButton)
         val adapter = scriptAdapter
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -171,6 +181,10 @@ class ScriptListFragment : Fragment() {
                         emptyText.visibility =
                             if (state.scripts.isEmpty()) View.VISIBLE else View.GONE
                         checkUpdatesButton.isEnabled = state.scripts.any { it.isDownloaded }
+                        val hasUpdates = state.scripts.any {
+                            it.operationState is ScriptOperationState.UpdateAvailable
+                        }
+                        updateAllButton.visibility = if (hasUpdates) View.VISIBLE else View.GONE
                     }
                 }
             }
@@ -335,10 +349,16 @@ class ScriptListFragment : Fragment() {
 
     companion object {
         private const val ARG_EMBEDDED = "embedded"
+        private const val ARG_AUTO_UPDATE = "auto_update"
 
         /** Создать фрагмент для использования внутри drawer (embedded mode). */
         fun newEmbeddedInstance(): ScriptListFragment = ScriptListFragment().apply {
             arguments = bundleOf(ARG_EMBEDDED to true)
+        }
+
+        /** Создать embedded фрагмент, который автоматически проверит и обновит все скрипты. */
+        fun newEmbeddedAutoUpdateInstance(): ScriptListFragment = ScriptListFragment().apply {
+            arguments = bundleOf(ARG_EMBEDDED to true, ARG_AUTO_UPDATE to true)
         }
     }
 }

@@ -43,6 +43,7 @@ import com.github.wrager.sbgscout.bridge.GameSettingsBridge
 import com.github.wrager.sbgscout.bridge.ShareBridge
 import com.github.wrager.sbgscout.game.GameSettingsReader
 import com.github.wrager.sbgscout.launcher.LauncherActivity
+import com.github.wrager.sbgscout.launcher.ScriptListFragment
 import com.github.wrager.sbgscout.script.injector.InjectionStateStorage
 import com.github.wrager.sbgscout.script.injector.ScriptInjector
 import com.github.wrager.sbgscout.script.provisioner.DefaultScriptProvisioner
@@ -55,7 +56,6 @@ import com.github.wrager.sbgscout.script.updater.ScriptUpdateChecker
 import com.github.wrager.sbgscout.script.updater.ScriptUpdateResult
 import com.github.wrager.sbgscout.script.installer.BundledScriptInstaller
 import com.github.wrager.sbgscout.script.installer.ScriptInstaller
-import com.github.wrager.sbgscout.script.updater.ScriptDownloadResult
 import com.github.wrager.sbgscout.script.updater.ScriptDownloader
 import com.github.wrager.sbgscout.updater.AppUpdateChecker
 import com.github.wrager.sbgscout.updater.AppUpdateInstaller
@@ -595,8 +595,8 @@ class GameActivity : AppCompatActivity() {
             } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
                 Log.w(LOG_TAG, "Авто-проверка обновлений приложения: ошибка", exception)
             }
-            // Проверка и автоматическое обновление скриптов
-            autoUpdateScripts(httpFetcher)
+            // Проверка обновлений скриптов (без авто-загрузки, только уведомление)
+            checkScriptUpdates()
         }
     }
 
@@ -610,17 +610,29 @@ class GameActivity : AppCompatActivity() {
         val builder = MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.app_update_available, tagName))
         if (!releaseNotes.isNullOrBlank()) {
-            val maxHeightPx = (RELEASE_NOTES_MAX_HEIGHT_DP * resources.displayMetrics.density).toInt()
-            val paddingPx = (RELEASE_NOTES_PADDING_DP * resources.displayMetrics.density).toInt()
-            val scrollView = android.widget.ScrollView(this)
-            scrollView.addView(TextView(this).apply {
+            val density = resources.displayMetrics.density
+            val maxHeightPx = (RELEASE_NOTES_MAX_HEIGHT_DP * density).toInt()
+            val paddingPx = (RELEASE_NOTES_PADDING_DP * density).toInt()
+            val textView = TextView(this).apply {
                 text = releaseNotes.trim()
                 setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
                 setTextIsSelectable(true)
-            })
-            // Ограничить высоту после layout, чтобы диалог не занимал весь экран
-            scrollView.post { if (scrollView.height > maxHeightPx) scrollView.layoutParams.height = maxHeightPx }
-            builder.setView(scrollView)
+            }
+            val scrollView = android.widget.ScrollView(this).apply {
+                addView(textView)
+            }
+            // FrameLayout с ограничением максимальной высоты,
+            // чтобы короткие release notes не растягивали диалог
+            val container = object : FrameLayout(this@GameActivity) {
+                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                    val constrainedHeight = View.MeasureSpec.makeMeasureSpec(
+                        maxHeightPx, View.MeasureSpec.AT_MOST,
+                    )
+                    super.onMeasure(widthMeasureSpec, constrainedHeight)
+                }
+            }
+            container.addView(scrollView)
+            builder.setView(container)
         }
         builder
             .setPositiveButton(R.string.app_update_download) { _, _ ->
@@ -642,8 +654,9 @@ class GameActivity : AppCompatActivity() {
             .show()
     }
 
-    private suspend fun autoUpdateScripts(httpFetcher: DefaultHttpFetcher) {
+    private suspend fun checkScriptUpdates() {
         try {
+            val httpFetcher = DefaultHttpFetcher()
             val scriptChecker = ScriptUpdateChecker(httpFetcher, scriptStorage)
             val results = scriptChecker.checkAllForUpdates()
             val available = results.filterIsInstance<ScriptUpdateResult.UpdateAvailable>()
@@ -651,35 +664,30 @@ class GameActivity : AppCompatActivity() {
                 Log.d(LOG_TAG, "Все скрипты актуальны")
                 return
             }
-            Log.i(LOG_TAG, "Обновление скриптов: ${available.size}")
-            val scriptInstaller = ScriptInstaller(scriptStorage)
-            val downloader = ScriptDownloader(httpFetcher, scriptInstaller)
-            // Собираем скрипты с доступными обновлениями и URL для загрузки
-            val scriptsToUpdate = available.mapNotNull { update ->
-                val script = scriptStorage.getAll().find { it.identifier == update.identifier }
-                val downloadUrl = script?.sourceUrl
-                if (script != null && downloadUrl != null) script to downloadUrl else null
-            }
-            var updatedCount = 0
-            for ((script, downloadUrl) in scriptsToUpdate) {
-                val downloadResult = downloader.download(downloadUrl, isPreset = script.isPreset)
-                if (downloadResult is ScriptDownloadResult.Success) {
-                    scriptStorage.setEnabled(downloadResult.script.identifier, script.enabled)
-                    updatedCount++
-                }
-            }
-            if (updatedCount > 0) {
-                runOnUiThread {
-                    Toast.makeText(
-                        this@GameActivity,
-                        getString(R.string.updates_applied, updatedCount),
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
-            }
+            Log.i(LOG_TAG, "Доступны обновления скриптов: ${available.size}")
+            runOnUiThread { showScriptUpdatesDialog(available.size) }
         } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
-            Log.w(LOG_TAG, "Авто-обновление скриптов: ошибка", exception)
+            Log.w(LOG_TAG, "Авто-проверка обновлений скриптов: ошибка", exception)
         }
+    }
+
+    private fun showScriptUpdatesDialog(count: Int) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.updates_available, count))
+            .setPositiveButton(R.string.update) { _, _ ->
+                openScriptManagerWithAutoUpdate()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun openScriptManagerWithAutoUpdate() {
+        val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
+        drawerLayout.openDrawer(GravityCompat.START)
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.settingsContainer, ScriptListFragment.newEmbeddedAutoUpdateInstance())
+            .addToBackStack(null)
+            .commit()
     }
 
     private fun setupBackPressHandling() {

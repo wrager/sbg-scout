@@ -24,6 +24,7 @@
     <string name="delete_script">Удалить скрипт</string>
     <string name="delete_script_confirmation">Удалить %s?</string>
     <string name="check_updates">Проверить наличие обновлений</string>
+    <string name="update_all">Обновить все</string>
 
     <string name="script_added">Скрипт %s добавлен</string>
     <string name="script_add_failed">Не удалось добавить скрипт: %s</string>
