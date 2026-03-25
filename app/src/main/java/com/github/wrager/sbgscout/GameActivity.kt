@@ -574,29 +574,34 @@ class GameActivity : AppCompatActivity() {
         prefs.edit().putLong(KEY_LAST_UPDATE_CHECK, now).apply()
         val httpFetcher = DefaultHttpFetcher()
         lifecycleScope.launch {
-            // Проверка и предложение обновления приложения
+            // Параллельная проверка приложения и скриптов
+            var appResult: AppUpdateResult = AppUpdateResult.UpToDate
             try {
-                val appChecker = AppUpdateChecker(
+                appResult = AppUpdateChecker(
                     GithubReleaseProvider(httpFetcher),
                     BuildConfig.VERSION_NAME,
-                )
-                when (val result = appChecker.check()) {
-                    is AppUpdateResult.UpdateAvailable -> {
-                        Log.i(LOG_TAG, "Доступно обновление приложения: ${result.tagName}")
-                        showAppUpdateDialog(
-                            result.tagName, result.downloadUrl, result.releaseNotes, httpFetcher,
-                        )
-                    }
-                    is AppUpdateResult.UpToDate ->
-                        Log.d(LOG_TAG, "Приложение актуально")
-                    is AppUpdateResult.CheckFailed ->
-                        Log.w(LOG_TAG, "Не удалось проверить обновление приложения", result.error)
-                }
+                ).check()
             } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
                 Log.w(LOG_TAG, "Авто-проверка обновлений приложения: ошибка", exception)
             }
-            // Проверка обновлений скриптов (без авто-загрузки, только уведомление)
-            checkScriptUpdates()
+            val scriptUpdateCount = checkScriptUpdateCount()
+
+            // Показать диалоги: сначала приложение, при закрытии — скрипты
+            if (appResult is AppUpdateResult.UpdateAvailable) {
+                Log.i(LOG_TAG, "Доступно обновление приложения: ${appResult.tagName}")
+                showAppUpdateDialog(
+                    appResult.tagName, appResult.downloadUrl, appResult.releaseNotes, httpFetcher,
+                ) {
+                    // При закрытии диалога приложения показать диалог скриптов
+                    if (scriptUpdateCount > 0) showScriptUpdatesDialog(scriptUpdateCount)
+                }
+            } else {
+                if (appResult is AppUpdateResult.CheckFailed) {
+                    Log.w(LOG_TAG, "Не удалось проверить обновление приложения", appResult.error)
+                }
+                // Нет обновления приложения — показать диалог скриптов сразу
+                if (scriptUpdateCount > 0) showScriptUpdatesDialog(scriptUpdateCount)
+            }
         }
     }
 
@@ -606,6 +611,7 @@ class GameActivity : AppCompatActivity() {
         downloadUrl: String,
         releaseNotes: String?,
         httpFetcher: DefaultHttpFetcher,
+        onDismiss: (() -> Unit)? = null,
     ) {
         val builder = MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.app_update_available, tagName))
@@ -651,23 +657,26 @@ class GameActivity : AppCompatActivity() {
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
+            .setOnDismissListener { onDismiss?.invoke() }
             .show()
     }
 
-    private suspend fun checkScriptUpdates() {
-        try {
+    /** Проверяет обновления скриптов и возвращает количество доступных. */
+    private suspend fun checkScriptUpdateCount(): Int {
+        return try {
             val httpFetcher = DefaultHttpFetcher()
             val scriptChecker = ScriptUpdateChecker(httpFetcher, scriptStorage)
             val results = scriptChecker.checkAllForUpdates()
-            val available = results.filterIsInstance<ScriptUpdateResult.UpdateAvailable>()
-            if (available.isEmpty()) {
+            val count = results.count { it is ScriptUpdateResult.UpdateAvailable }
+            if (count > 0) {
+                Log.i(LOG_TAG, "Доступны обновления скриптов: $count")
+            } else {
                 Log.d(LOG_TAG, "Все скрипты актуальны")
-                return
             }
-            Log.i(LOG_TAG, "Доступны обновления скриптов: ${available.size}")
-            runOnUiThread { showScriptUpdatesDialog(available.size) }
+            count
         } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
             Log.w(LOG_TAG, "Авто-проверка обновлений скриптов: ошибка", exception)
+            0
         }
     }
 

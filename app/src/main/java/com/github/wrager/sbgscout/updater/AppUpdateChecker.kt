@@ -26,10 +26,31 @@ class AppUpdateChecker(
                 ?: return AppUpdateResult.CheckFailed(
                     IllegalStateException("No APK asset in release ${latest.tagName}"),
                 )
-            AppUpdateResult.UpdateAvailable(latest.tagName, apkAsset.downloadUrl, latest.body)
+            // Собираем release notes всех версий между текущей и последней
+            val releaseNotes = buildAggregatedReleaseNotes(releases, current)
+            AppUpdateResult.UpdateAvailable(latest.tagName, apkAsset.downloadUrl, releaseNotes)
         } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
             AppUpdateResult.CheckFailed(exception)
         }
+    }
+
+    /**
+     * Объединяет release notes всех релизов новее [currentVersion].
+     *
+     * GitHub API возвращает релизы в обратном хронологическом порядке,
+     * поэтому итоговый текст идёт от новейшего к старейшему.
+     */
+    private fun buildAggregatedReleaseNotes(
+        releases: List<com.github.wrager.sbgscout.script.updater.GithubRelease>,
+        currentVersion: ScriptVersion,
+    ): String? {
+        val notes = releases
+            .filter { ScriptVersion(it.tagName.removePrefix("v")) > currentVersion }
+            .mapNotNull { release ->
+                val body = release.body?.trim()
+                if (body.isNullOrEmpty()) null else "${release.tagName}\n$body"
+            }
+        return notes.joinToString("\n\n").ifEmpty { null }
     }
 
     companion object {
