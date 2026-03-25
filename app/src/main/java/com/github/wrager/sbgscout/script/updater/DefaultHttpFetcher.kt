@@ -1,10 +1,14 @@
 package com.github.wrager.sbgscout.script.updater
 
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -64,6 +68,64 @@ class DefaultHttpFetcher : HttpFetcher {
             connection.disconnect()
         }
     }
+
+    override suspend fun fetchToFile(
+        url: String,
+        destination: File,
+        headers: Map<String, String>,
+        onProgress: ((Int) -> Unit)?,
+    ): Unit = withContext(Dispatchers.IO) {
+        val connection = URL(url).openConnection() as HttpURLConnection
+        try {
+            connection.connectTimeout = CONNECT_TIMEOUT_MS
+            connection.readTimeout = READ_TIMEOUT_MS
+            connection.instanceFollowRedirects = true
+            headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
+
+            val inputStream = openInputStreamWithDeadline(connection)
+            val contentLength = connection.contentLengthLong
+
+            destination.parentFile?.mkdirs()
+            inputStream.use { input ->
+                FileOutputStream(destination).use { output ->
+                    readStream(input, output, contentLength, onProgress)
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private suspend fun readStream(
+        inputStream: InputStream,
+        outputStream: OutputStream,
+        contentLength: Long,
+        onProgress: ((Int) -> Unit)?,
+    ) {
+        val buffer = ByteArray(CHUNK_SIZE)
+        var totalBytesRead = 0L
+        var lastReportedProgress = -1
+        var bytesThisRead: Int
+        while (inputStream.read(buffer).also { bytesThisRead = it } != -1) {
+            coroutineContext.ensureActive()
+            outputStream.write(buffer, 0, bytesThisRead)
+            totalBytesRead += bytesThisRead
+            if (onProgress != null) {
+                val progress = computeProgress(totalBytesRead, contentLength)
+                if (progress != lastReportedProgress) {
+                    lastReportedProgress = progress
+                    onProgress(progress)
+                }
+            }
+        }
+    }
+
+    private fun computeProgress(bytesRead: Long, contentLength: Long): Int =
+        if (contentLength > 0) {
+            ((bytesRead * 100) / contentLength).toInt().coerceIn(0, 100)
+        } else {
+            0
+        }
 
     /**
      * Открывает [HttpURLConnection.getInputStream] с жёстким дедлайном [RESPONSE_DEADLINE_MS].
