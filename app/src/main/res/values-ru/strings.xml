@@ -62,7 +62,7 @@
     <string name="settings_check_app_update_summary">Проверить наличие новой версии на GitHub</string>
     <string name="settings_check_script_updates">Проверить обновления скриптов</string>
     <string name="settings_check_script_updates_summary">Проверить наличие новых версий скриптов</string>
-    <string name="app_update_available">Доступно обновление приложения: %s</string>
+    <string name="app_update_available">Доступно обновление приложения</string>
     <string name="app_update_download">Скачать</string>
     <string name="app_up_to_date">Приложение обновлено</string>
     <string name="app_update_check_failed">Не удалось проверить обновления</string>

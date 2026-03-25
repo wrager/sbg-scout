@@ -105,11 +105,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
         if (!isAdded) return
         if (activity is GameActivity) {
             (activity as GameActivity).showAppUpdateDialog(
-                result.tagName, result.downloadUrl, result.releaseNotes, httpFetcher,
+                result.downloadUrl, result.releaseNotes, httpFetcher,
             )
         } else {
             MaterialAlertDialogBuilder(requireContext())
-                .setTitle(getString(R.string.app_update_available, result.tagName))
+                .setTitle(R.string.app_update_available)
                 .setPositiveButton(R.string.app_update_download) { _, _ ->
                     downloadUpdate(result.downloadUrl, httpFetcher)
                 }

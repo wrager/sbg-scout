@@ -590,7 +590,7 @@ class GameActivity : AppCompatActivity() {
             if (appResult is AppUpdateResult.UpdateAvailable) {
                 Log.i(LOG_TAG, "Доступно обновление приложения: ${appResult.tagName}")
                 showAppUpdateDialog(
-                    appResult.tagName, appResult.downloadUrl, appResult.releaseNotes, httpFetcher,
+                    appResult.downloadUrl, appResult.releaseNotes, httpFetcher,
                 ) {
                     if (scriptUpdates.isNotEmpty()) showScriptUpdatesDialog(scriptUpdates)
                 }
@@ -605,14 +605,13 @@ class GameActivity : AppCompatActivity() {
 
     /** Показывает диалог обновления приложения (используется и авто-проверкой, и кнопкой в настройках). */
     fun showAppUpdateDialog(
-        tagName: String,
         downloadUrl: String,
         releaseNotes: String?,
         httpFetcher: DefaultHttpFetcher,
         onDismiss: (() -> Unit)? = null,
     ) {
         val builder = MaterialAlertDialogBuilder(this)
-            .setTitle(getString(R.string.app_update_available, tagName))
+            .setTitle(R.string.app_update_available)
         if (!releaseNotes.isNullOrBlank()) {
             val density = resources.displayMetrics.density
             val maxHeightPx = (RELEASE_NOTES_MAX_HEIGHT_DP * density).toInt()
