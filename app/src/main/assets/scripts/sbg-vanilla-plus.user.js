@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SBG Vanilla+
 // @namespace    https://github.com/wrager/sbg-vanilla-plus
-// @version      0.5.1
+// @version      0.6.0
 // @author       wrager
 // @description  UI/UX enhancements for SBG (SBG v0.6.0)
 // @license      MIT
@@ -255,7 +255,7 @@
   function buildBugReportUrl(modules) {
     const params = new URLSearchParams({
       template: "bug_report.yml",
-      version: "0.5.1",
+      version: "0.6.0",
       browser: navigator.userAgent,
       modules: buildModuleList(modules)
     });
@@ -729,7 +729,7 @@ ${errorLog}`);
     footer.className = "svp-settings-footer";
     const version = document.createElement("span");
     version.className = "svp-settings-version";
-    version.textContent = `SBG Vanilla+ v${"0.5.1"}`;
+    version.textContent = `SBG Vanilla+ v${"0.6.0"}`;
     const reportButton = document.createElement("button");
     reportButton.className = "svp-report-button";
     const reportLabel = { en: "Report a bug", ru: "Сообщить об ошибке" };
@@ -902,7 +902,7 @@ ${errorLog}`);
     setTimeout(logDiagnostics, DIAG_DELAY);
   }
   const FLAVOR_HEADER = "x-sbg-flavor";
-  const FLAVOR_VALUE = `VanillaPlus/${"0.5.1"}`;
+  const FLAVOR_VALUE = `VanillaPlus/${"0.6.0"}`;
   function installSbgFlavor() {
     const originalFetch = window.fetch;
     window.fetch = function(input, init) {
@@ -921,7 +921,7 @@ ${errorLog}`);
     };
   }
   const css$1 = ".topleft-container.svp-collapsed{display:flex;flex-direction:row;align-items:center;gap:4px;padding:4px 37px 4px 6px;margin:0;cursor:pointer;border:1px var(--border) solid!important;background:var(--background)!important;color:var(--text)}.topleft-container.svp-collapsed .self-info{display:flex;align-items:center;margin:0;padding:0}.topleft-container.svp-collapsed .game-menu{display:inline-flex;margin:0;padding:0}#svp-inv-summary{font-size:14px;white-space:nowrap}#svp-top-toggle,#svp-top-expand{position:fixed;z-index:1;font-size:10px;line-height:1;cursor:pointer;padding:4px 8px;color:var(--text);background:var(--background);border:1px var(--border) solid;border-radius:6px;opacity:.8;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}#svp-top-toggle:active,#svp-top-expand:active{opacity:1}#attack-menu{position:fixed;left:50%;transform:translate(-50%);height:27pt}";
-  const MODULE_ID$e = "enhancedMainScreen";
+  const MODULE_ID$f = "enhancedMainScreen";
   const SUMMARY_ID = "svp-inv-summary";
   const TOGGLE_ID = "svp-top-toggle";
   const EXPAND_ID = "svp-top-expand";
@@ -1044,7 +1044,7 @@ ${errorLog}`);
     };
   }
   const enhancedMainScreen = {
-    id: MODULE_ID$e,
+    id: MODULE_ID$f,
     name: { en: "Enhanced Main Screen", ru: "Улучшенный главный экран" },
     description: {
       en: "Collapses the top-left panel and centers the attack button on the map screen",
@@ -1055,21 +1055,21 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(css$1, MODULE_ID$e);
+      injectStyles(css$1, MODULE_ID$f);
       return setup().then((fn) => {
         cleanup = fn;
       });
     },
     disable() {
-      removeStyles(MODULE_ID$e);
+      removeStyles(MODULE_ID$f);
       cleanup == null ? void 0 : cleanup();
       cleanup = null;
     }
   };
   const styles$3 = ".info.popup .i-buttons button{min-height:72px;display:flex;align-items:center;justify-content:center}.i-stat__entry:not(.i-stat__cores){font-size:.7rem}.cores-list__level{font-size:1rem}#magic-deploy-btn{position:fixed;bottom:5px;left:5px;width:32px;height:32px;min-height:auto}";
-  const MODULE_ID$d = "enhancedPointPopupUi";
+  const MODULE_ID$e = "enhancedPointPopupUi";
   const enhancedPointPopupUi = {
-    id: MODULE_ID$d,
+    id: MODULE_ID$e,
     name: { en: "Enhanced Point Popup UI", ru: "Улучшенный UI попапа точки" },
     description: {
       en: "Larger buttons, smaller text, auto-deploy hidden from accidental taps",
@@ -1080,19 +1080,19 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(styles$3, MODULE_ID$d);
+      injectStyles(styles$3, MODULE_ID$e);
     },
     disable() {
-      removeStyles(MODULE_ID$d);
+      removeStyles(MODULE_ID$e);
     }
   };
-  const MODULE_ID$c = "shiftMapCenterDown";
+  const MODULE_ID$d = "shiftMapCenterDown";
   const PADDING_FACTOR = 0.35;
   let map$5 = null;
   let topPadding = 0;
   let inflateForPadding = false;
   const shiftMapCenterDown = {
-    id: MODULE_ID$c,
+    id: MODULE_ID$d,
     name: { en: "Shift Map Center Down", ru: "Сдвиг центра карты вниз" },
     description: {
       en: "Moves map center down so you see more ahead while moving",
@@ -1133,7 +1133,7 @@ ${errorLog}`);
       }
     }
   };
-  const MODULE_ID$b = "disableDoubleTapZoom";
+  const MODULE_ID$c = "disableDoubleTapZoom";
   let disabledInteractions$1 = [];
   let enabled$3 = false;
   function isDoubleClickZoom$1(interaction) {
@@ -1142,7 +1142,7 @@ ${errorLog}`);
     return DoubleClickZoom !== void 0 && interaction instanceof DoubleClickZoom;
   }
   const disableDoubleTapZoom = {
-    id: MODULE_ID$b,
+    id: MODULE_ID$c,
     name: { en: "Disable Double-Tap Zoom", ru: "Отключить зум по двойному тапу" },
     description: {
       en: "Disables double-tap zoom to prevent accidental zooming",
@@ -1171,7 +1171,7 @@ ${errorLog}`);
       disabledInteractions$1 = [];
     }
   };
-  const MODULE_ID$a = "doubleTapDragZoom";
+  const MODULE_ID$b = "ngrsZoom";
   const TAP_DURATION_THRESHOLD = 200;
   const MAX_TAP_GAP = 300;
   const MAX_TAP_DISTANCE = 30;
@@ -1349,11 +1349,11 @@ ${errorLog}`);
     }
     disabledInteractions = [];
   }
-  const doubleTapDragZoom = {
-    id: MODULE_ID$a,
+  const ngrsZoom = {
+    id: MODULE_ID$b,
     name: {
-      en: "Double-Tap Drag Zoom",
-      ru: "Зум перетаскиванием по двойному тапу"
+      en: "Ngrs Zoom",
+      ru: "Нгрс-зум"
     },
     description: {
       en: "Double-tap and drag up/down to zoom in/out smoothly",
@@ -1386,10 +1386,10 @@ ${errorLog}`);
       resetGesture$1();
     }
   };
-  const MODULE_ID$9 = "drawButtonFix";
-  let observer = null;
+  const MODULE_ID$a = "drawButtonFix";
+  let observer$1 = null;
   const drawButtonFix = {
-    id: MODULE_ID$9,
+    id: MODULE_ID$a,
     name: { en: "Draw Button Fix", ru: "Фикс кнопки рисования" },
     description: {
       en: "Draw button is always enabled — fixes a game bug where the button gets stuck in disabled state",
@@ -1400,25 +1400,25 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      observer = new MutationObserver((mutations) => {
+      observer$1 = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
           if (mutation.type === "attributes" && mutation.target instanceof Element && mutation.target.id === "draw") {
             mutation.target.removeAttribute("disabled");
           }
         }
       });
-      observer.observe(document.body, {
+      observer$1.observe(document.body, {
         subtree: true,
         attributes: true,
         attributeFilter: ["disabled"]
       });
     },
     disable() {
-      observer == null ? void 0 : observer.disconnect();
-      observer = null;
+      observer$1 == null ? void 0 : observer$1.disconnect();
+      observer$1 = null;
     }
   };
-  const MODULE_ID$8 = "groupErrorToasts";
+  const MODULE_ID$9 = "groupErrorToasts";
   const ERROR_TOAST_CLASS = "error-toast";
   let restorePatch = null;
   function getContainerIdentity(selector) {
@@ -1480,7 +1480,7 @@ ${errorLog}`);
     };
   }
   const groupErrorToasts = {
-    id: MODULE_ID$8,
+    id: MODULE_ID$9,
     name: { en: "Group Error Toasts", ru: "Группировка тостов ошибок" },
     description: {
       en: "Groups identical error toasts into one with a counter instead of stacking",
@@ -1498,7 +1498,7 @@ ${errorLog}`);
       restorePatch = null;
     }
   };
-  const MODULE_ID$7 = "keepScreenOn";
+  const MODULE_ID$8 = "keepScreenOn";
   let wakeLock = null;
   async function requestWakeLock() {
     wakeLock = await navigator.wakeLock.request("screen");
@@ -1513,7 +1513,7 @@ ${errorLog}`);
     }
   }
   const keepScreenOn = {
-    id: MODULE_ID$7,
+    id: MODULE_ID$8,
     name: { en: "Keep Screen On", ru: "Экран не гаснет" },
     description: {
       en: "Keeps screen awake during gameplay (Wake Lock API)",
@@ -1534,7 +1534,7 @@ ${errorLog}`);
       return released;
     }
   };
-  const MODULE_ID$6 = "keyCountOnPoints";
+  const MODULE_ID$7 = "keyCountOnPoints";
   const MIN_ZOOM = 15;
   const DEBOUNCE_MS = 100;
   function isInventoryRef(val) {
@@ -1617,7 +1617,7 @@ ${errorLog}`);
     return null;
   }
   const keyCountOnPoints = {
-    id: MODULE_ID$6,
+    id: MODULE_ID$7,
     name: { en: "Key count on points", ru: "Количество ключей на точках" },
     description: {
       en: "Shows the number of reference keys for each visible point on the map",
@@ -1687,12 +1687,12 @@ ${errorLog}`);
       labelsLayer = null;
     }
   };
-  const MODULE_ID$5 = "largerPointTapArea";
+  const MODULE_ID$6 = "largerPointTapArea";
   const HIT_TOLERANCE_PX = 15;
   let map$2 = null;
   let originalMethod = null;
   const largerPointTapArea = {
-    id: MODULE_ID$5,
+    id: MODULE_ID$6,
     name: { en: "Larger Point Tap Area", ru: "Увеличенная область нажатия" },
     description: {
       en: "Increases the tappable area of map points for easier selection on mobile",
@@ -1725,7 +1725,7 @@ ${errorLog}`);
     }
   };
   const styles$2 = ".info.popup .i-buttons .svp-next-point-button{position:fixed;bottom:5px;right:5px;width:32px;height:32px;min-height:auto}";
-  const MODULE_ID$4 = "nextPointNavigation";
+  const MODULE_ID$5 = "nextPointNavigation";
   const BUTTON_CLASS = "svp-next-point-button";
   let map$1 = null;
   let pointsSource = null;
@@ -1878,7 +1878,7 @@ ${errorLog}`);
     });
   }
   const nextPointNavigation = {
-    id: MODULE_ID$4,
+    id: MODULE_ID$5,
     name: { en: "Next point navigation", ru: "Переход к следующей точке" },
     description: {
       en: "Navigate sequentially to the nearest unvisited points from the popup",
@@ -1896,7 +1896,7 @@ ${errorLog}`);
         if (!source) return;
         map$1 = olMap2;
         pointsSource = source;
-        injectStyles(styles$2, MODULE_ID$4);
+        injectStyles(styles$2, MODULE_ID$5);
         observePopup();
       });
     },
@@ -1906,7 +1906,7 @@ ${errorLog}`);
         popupObserver$1 = null;
       }
       removeButton();
-      removeStyles(MODULE_ID$4);
+      removeStyles(MODULE_ID$5);
       map$1 = null;
       pointsSource = null;
       visited.clear();
@@ -1917,7 +1917,7 @@ ${errorLog}`);
     }
   };
   const css = ".svp-refs-on-map-button{background:none;border:1px solid var(--border-transp);color:var(--text);padding:4px 8px;font-size:14px;cursor:pointer}.svp-refs-on-map-close{position:fixed;bottom:8px;left:50%;transform:translate(-50%);z-index:1;font-size:1.5em;padding:0 .1em;align-self:center}.svp-refs-on-map-trash{position:fixed;bottom:100px;right:20px;z-index:10;background:var(--background-transp);border:1px solid var(--border-transp);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:var(--text);font-size:14px;padding:8px 12px;border-radius:8px;cursor:pointer;min-width:48px;text-align:center}";
-  const MODULE_ID$3 = "refsOnMap";
+  const MODULE_ID$4 = "refsOnMap";
   const REFS_TAB_INDEX = "3";
   const GAME_LAYER_NAMES = ["points", "lines", "regions"];
   const TEAM_BATCH_SIZE = 5;
@@ -2017,7 +2017,7 @@ ${errorLog}`);
   let teamLoadAborted = false;
   let overallRefsToDelete = 0;
   let uniqueRefsToDelete = 0;
-  let doubleTapDragZoomDisabledByViewer = false;
+  let ngrsZoomDisabledByViewer = false;
   function expandHexColor(color) {
     const match = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/.exec(color);
     if (match) return `#${match[1]}${match[1]}${match[2]}${match[2]}${match[3]}${match[3]}`;
@@ -2153,7 +2153,7 @@ ${errorLog}`);
     try {
       const response = await deleteRefsFromServer(items);
       if (response.error) {
-        console.error(`[SVP] ${MODULE_ID$3}: deletion error:`, response.error);
+        console.error(`[SVP] ${MODULE_ID$4}: deletion error:`, response.error);
         return;
       }
       for (const feature of selectedFeatures) {
@@ -2167,7 +2167,7 @@ ${errorLog}`);
       uniqueRefsToDelete = 0;
       updateTrashCounter();
     } catch (error) {
-      console.error(`[SVP] ${MODULE_ID$3}: deletion failed:`, error);
+      console.error(`[SVP] ${MODULE_ID$4}: deletion failed:`, error);
     }
   }
   async function loadTeamDataForRefs(refs) {
@@ -2275,9 +2275,9 @@ ${errorLog}`);
     hideGameUi();
     setGameLayersVisible(false);
     const settings = loadSettings();
-    if (isModuleEnabled(settings, doubleTapDragZoom.id, doubleTapDragZoom.defaultEnabled)) {
-      void doubleTapDragZoom.disable();
-      doubleTapDragZoomDisabledByViewer = true;
+    if (isModuleEnabled(settings, ngrsZoom.id, ngrsZoom.defaultEnabled)) {
+      void ngrsZoom.disable();
+      ngrsZoomDisabledByViewer = true;
     }
     for (const ref of refs) {
       const mapCoords = olProj.fromLonLat(ref.c);
@@ -2331,9 +2331,9 @@ ${errorLog}`);
       }
     }
     restoreFollowMode();
-    if (doubleTapDragZoomDisabledByViewer) {
-      void doubleTapDragZoom.enable();
-      doubleTapDragZoomDisabledByViewer = false;
+    if (ngrsZoomDisabledByViewer) {
+      void ngrsZoom.enable();
+      ngrsZoomDisabledByViewer = false;
     }
   }
   function updateButtonVisibility() {
@@ -2343,7 +2343,7 @@ ${errorLog}`);
     showButton.style.display = tabIndex === REFS_TAB_INDEX ? "" : "none";
   }
   const refsOnMap = {
-    id: MODULE_ID$3,
+    id: MODULE_ID$4,
     name: { en: "Refs on map", ru: "Ключи на карте" },
     description: {
       en: "View and manage points with collected keys on the map at any zoom level",
@@ -2354,7 +2354,7 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(css, MODULE_ID$3);
+      injectStyles(css, MODULE_ID$4);
       return getOlMap().then((map2) => {
         var _a, _b;
         const ol = window.ol;
@@ -2432,11 +2432,74 @@ ${errorLog}`);
         }
         tabClickHandler = null;
       }
-      removeStyles(MODULE_ID$3);
+      removeStyles(MODULE_ID$4);
       teamCache.clear();
       olMap = null;
       refsSource = null;
       refsLayer = null;
+    }
+  };
+  const ITEM_TYPE_CORE = 1;
+  const ITEM_TYPE_CATALYSER = 2;
+  const ITEM_TYPE_REFERENCE = 3;
+  const ITEM_TYPE_BROOM = 4;
+  const MODULE_ID$3 = "repairAtFullCharge";
+  let observer = null;
+  function extractTeamFromStyle(element) {
+    const style = (element == null ? void 0 : element.getAttribute("style")) ?? "";
+    const match = style.match(/--team-(\d+)/);
+    return match ? Number(match[1]) : null;
+  }
+  function isSameTeam() {
+    const playerTeam = extractTeamFromStyle(document.getElementById("self-info__name"));
+    const pointTeam = extractTeamFromStyle(document.getElementById("i-stat__owner"));
+    return playerTeam !== null && pointTeam !== null && playerTeam === pointTeam;
+  }
+  function hasKeysForPoint() {
+    var _a;
+    const pointGuid = (_a = document.querySelector(".info")) == null ? void 0 : _a.getAttribute("data-guid");
+    if (!pointGuid) return false;
+    try {
+      const raw = localStorage.getItem("inventory-cache");
+      if (!raw) return false;
+      const items = JSON.parse(raw);
+      return items.some(
+        (item) => typeof item === "object" && item !== null && item.t === ITEM_TYPE_REFERENCE && item.l === pointGuid
+      );
+    } catch {
+      return false;
+    }
+  }
+  const repairAtFullCharge = {
+    id: MODULE_ID$3,
+    name: { en: "Repair at Full Charge", ru: "Зарядка при полном заряде" },
+    description: {
+      en: "Repair button stays enabled even at 100% charge — allows recharging immediately without waiting for status update",
+      ru: "Кнопка «Починить» активна даже при 100% заряде — позволяет зарядить точку сразу, не дожидаясь обновления статуса"
+    },
+    defaultEnabled: true,
+    category: "feature",
+    init() {
+    },
+    enable() {
+      observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.type === "attributes" && mutation.target instanceof Element && mutation.target.id === "repair") {
+            if (isSameTeam() && hasKeysForPoint()) {
+              mutation.target.removeAttribute("disabled");
+            }
+          }
+        }
+      });
+      observer.observe(document.body, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["disabled"]
+      });
+    },
+    disable() {
+      observer == null ? void 0 : observer.disconnect();
+      observer = null;
     }
   };
   const MODULE_ID$2 = "singleFingerRotation";
@@ -2537,25 +2600,21 @@ ${errorLog}`);
     defaultEnabled: true,
     category: "map",
     init() {
-      return Promise.all([
-        waitForElement(".ol-viewport").then((element) => {
-          if (element instanceof HTMLElement) {
-            viewport = element;
+      return getOlMap().then((olMap2) => {
+        map = olMap2;
+        const viewportElement = $(".ol-viewport");
+        if (viewportElement instanceof HTMLElement) {
+          viewport = viewportElement;
+        }
+        const view = olMap2.getView();
+        const originalCalculateExtent = view.calculateExtent.bind(view);
+        view.calculateExtent = (size) => {
+          if (inflateExtent && size) {
+            const diagonal = Math.ceil(Math.sqrt(size[0] ** 2 + size[1] ** 2));
+            return originalCalculateExtent([diagonal, diagonal]);
           }
-        }),
-        getOlMap().then((olMap2) => {
-          map = olMap2;
-          const view = olMap2.getView();
-          const originalCalculateExtent = view.calculateExtent.bind(view);
-          view.calculateExtent = (size) => {
-            if (inflateExtent && size) {
-              const diagonal = Math.ceil(Math.sqrt(size[0] ** 2 + size[1] ** 2));
-              return originalCalculateExtent([diagonal, diagonal]);
-            }
-            return originalCalculateExtent(size);
-          };
-        })
-      ]).then(() => {
+          return originalCalculateExtent(size);
+        };
         if (enabled$1) {
           addListeners();
         }
@@ -2836,16 +2895,16 @@ ${errorLog}`);
     return typeof value === "object" && value !== null;
   }
   function isInventoryCore(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === 1 && typeof value.l === "number" && typeof value.a === "number";
+    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_CORE && typeof value.l === "number" && typeof value.a === "number";
   }
   function isInventoryCatalyser(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === 2 && typeof value.l === "number" && typeof value.a === "number";
+    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_CATALYSER && typeof value.l === "number" && typeof value.a === "number";
   }
   function isInventoryReference(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === 3 && typeof value.l === "string" && typeof value.a === "number";
+    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_REFERENCE && typeof value.l === "string" && typeof value.a === "number";
   }
   function isInventoryBroom(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === 4 && typeof value.l === "number" && typeof value.a === "number";
+    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_BROOM && typeof value.l === "number" && typeof value.a === "number";
   }
   function isInventoryItem(value) {
     return isInventoryCore(value) || isInventoryCatalyser(value) || isInventoryReference(value) || isInventoryBroom(value);
@@ -2869,19 +2928,19 @@ ${errorLog}`);
     return items;
   }
   const TYPE_LABELS = {
-    1: { en: "Co", ru: "Я" },
-    2: { en: "Ca", ru: "К" },
-    3: { en: "Ref", ru: "Кл" }
+    [ITEM_TYPE_CORE]: { en: "Co", ru: "Я" },
+    [ITEM_TYPE_CATALYSER]: { en: "Ca", ru: "К" },
+    [ITEM_TYPE_REFERENCE]: { en: "Ref", ru: "Кл" }
   };
   function shouldRunCleanup(currentCount, inventoryLimit, minFreeSlots) {
     return inventoryLimit - currentCount < minFreeSlots;
   }
   function calculateDeletions(items, limits) {
     const deletions = [];
-    const coresByLevel = groupByLevel(items, 1);
-    addLevelDeletions(coresByLevel, limits.cores, 1, deletions);
-    const catalysersByLevel = groupByLevel(items, 2);
-    addLevelDeletions(catalysersByLevel, limits.catalysers, 2, deletions);
+    const coresByLevel = groupByLevel(items, ITEM_TYPE_CORE);
+    addLevelDeletions(coresByLevel, limits.cores, ITEM_TYPE_CORE, deletions);
+    const catalysersByLevel = groupByLevel(items, ITEM_TYPE_CATALYSER);
+    addLevelDeletions(catalysersByLevel, limits.catalysers, ITEM_TYPE_CATALYSER, deletions);
     return deletions;
   }
   function groupByLevel(items, type) {
@@ -3191,7 +3250,13 @@ ${errorLog}`);
     }
     return grouped;
   }
+  const DELETABLE_TYPES = /* @__PURE__ */ new Set([ITEM_TYPE_CORE, ITEM_TYPE_CATALYSER]);
   async function deleteInventoryItems(deletions) {
+    for (const entry of deletions) {
+      if (!DELETABLE_TYPES.has(entry.type)) {
+        throw new Error(`Удаление предметов типа ${entry.type} запрещено`);
+      }
+    }
     const grouped = groupByType(deletions);
     let lastTotal = 0;
     for (const [type, selection] of grouped) {
@@ -3246,10 +3311,13 @@ ${errorLog}`);
     localStorage.setItem("inventory-cache", JSON.stringify(cache));
   }
   const MODULE_ID = "inventoryCleanup";
-  const ACTION_SELECTORS = "#discover";
+  const ACTION_SELECTORS = "#discover, .discover-mod";
+  const INVENTORY_CACHE_KEY = "inventory-cache";
   const TOAST_DURATION = 3e3;
   const DEBUG_INV_KEY = "svp_debug_inv";
   let cleanupInProgress = false;
+  let discoverPending = false;
+  let originalSetItem = null;
   function readDebugInvCount() {
     const match = /[#&]svp-inv=(\d+)/.exec(location.hash);
     if (match) {
@@ -3325,15 +3393,35 @@ ${errorLog}`);
       showCleanupToast(`Ошибка очистки: ${message}`);
     }
   }
-  function isDiscoverAvailable(target) {
+  function isDiscoverButton(target) {
     if (!(target instanceof Element)) return false;
     const button = target.closest(ACTION_SELECTORS);
     if (!(button instanceof HTMLButtonElement)) return false;
     return !button.disabled;
   }
   function onClickCapture(event) {
-    if (!isDiscoverAvailable(event.target)) return;
+    if (!isDiscoverButton(event.target)) return;
+    discoverPending = true;
+  }
+  function onInventoryCacheUpdated() {
+    discoverPending = false;
     void runCleanup();
+  }
+  function installSetItemInterceptor() {
+    originalSetItem = Storage.prototype.setItem;
+    const saved = originalSetItem;
+    Storage.prototype.setItem = (key, value) => {
+      saved.call(localStorage, key, value);
+      if (key === INVENTORY_CACHE_KEY && discoverPending) {
+        void Promise.resolve().then(onInventoryCacheUpdated);
+      }
+    };
+  }
+  function uninstallSetItemInterceptor() {
+    if (originalSetItem) {
+      Storage.prototype.setItem = originalSetItem;
+      originalSetItem = null;
+    }
   }
   const inventoryCleanup = {
     id: MODULE_ID,
@@ -3351,10 +3439,13 @@ ${errorLog}`);
     },
     enable() {
       document.addEventListener("click", onClickCapture, true);
+      installSetItemInterceptor();
       initCleanupSettingsUi();
     },
     disable() {
       document.removeEventListener("click", onClickCapture, true);
+      uninstallSetItemInterceptor();
+      discoverPending = false;
       destroyCleanupSettingsUi();
     }
   };
@@ -3369,13 +3460,14 @@ ${errorLog}`);
       shiftMapCenterDown,
       largerPointTapArea,
       disableDoubleTapZoom,
-      doubleTapDragZoom,
+      ngrsZoom,
       drawButtonFix,
       keepScreenOn,
       inventoryCleanup,
       keyCountOnPoints,
       nextPointNavigation,
       refsOnMap,
+      repairAtFullCharge,
       singleFingerRotation,
       mapTileLayers
     ]);
