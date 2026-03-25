@@ -32,6 +32,7 @@
     <string name="updates_applied">Scripts updated: %d</string>
     <string name="no_updates">No updates available</string>
     <string name="updates_available">Updates available: %d</string>
+    <string name="script_updates_available">Script updates available: %d</string>
 
     <string name="status_downloaded">Downloaded</string>
     <string name="status_up_to_date">latest</string>

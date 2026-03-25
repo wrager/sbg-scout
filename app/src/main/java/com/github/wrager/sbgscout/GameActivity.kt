@@ -584,7 +584,7 @@ class GameActivity : AppCompatActivity() {
             } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
                 Log.w(LOG_TAG, "Авто-проверка обновлений приложения: ошибка", exception)
             }
-            val scriptUpdateCount = checkScriptUpdateCount()
+            val scriptUpdates = checkScriptUpdates()
 
             // Показать диалоги: сначала приложение, при закрытии — скрипты
             if (appResult is AppUpdateResult.UpdateAvailable) {
@@ -592,15 +592,13 @@ class GameActivity : AppCompatActivity() {
                 showAppUpdateDialog(
                     appResult.tagName, appResult.downloadUrl, appResult.releaseNotes, httpFetcher,
                 ) {
-                    // При закрытии диалога приложения показать диалог скриптов
-                    if (scriptUpdateCount > 0) showScriptUpdatesDialog(scriptUpdateCount)
+                    if (scriptUpdates.isNotEmpty()) showScriptUpdatesDialog(scriptUpdates)
                 }
             } else {
                 if (appResult is AppUpdateResult.CheckFailed) {
                     Log.w(LOG_TAG, "Не удалось проверить обновление приложения", appResult.error)
                 }
-                // Нет обновления приложения — показать диалог скриптов сразу
-                if (scriptUpdateCount > 0) showScriptUpdatesDialog(scriptUpdateCount)
+                if (scriptUpdates.isNotEmpty()) showScriptUpdatesDialog(scriptUpdates)
             }
         }
     }
@@ -661,28 +659,35 @@ class GameActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Проверяет обновления скриптов и возвращает количество доступных. */
-    private suspend fun checkScriptUpdateCount(): Int {
+    /** Проверяет обновления скриптов и возвращает список доступных. */
+    private suspend fun checkScriptUpdates(): List<ScriptUpdateResult.UpdateAvailable> {
         return try {
             val httpFetcher = DefaultHttpFetcher()
             val scriptChecker = ScriptUpdateChecker(httpFetcher, scriptStorage)
             val results = scriptChecker.checkAllForUpdates()
-            val count = results.count { it is ScriptUpdateResult.UpdateAvailable }
-            if (count > 0) {
-                Log.i(LOG_TAG, "Доступны обновления скриптов: $count")
+            val available = results.filterIsInstance<ScriptUpdateResult.UpdateAvailable>()
+            if (available.isNotEmpty()) {
+                Log.i(LOG_TAG, "Доступны обновления скриптов: ${available.size}")
             } else {
                 Log.d(LOG_TAG, "Все скрипты актуальны")
             }
-            count
+            available
         } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
             Log.w(LOG_TAG, "Авто-проверка обновлений скриптов: ошибка", exception)
-            0
+            emptyList()
         }
     }
 
-    private fun showScriptUpdatesDialog(count: Int) {
+    private fun showScriptUpdatesDialog(updates: List<ScriptUpdateResult.UpdateAvailable>) {
+        val scripts = scriptStorage.getAll()
+        val details = updates.joinToString("\n") { update ->
+            val name = scripts.find { it.identifier == update.identifier }?.header?.name
+                ?: update.identifier.value
+            "$name ${update.currentVersion.value} \u2192 ${update.latestVersion.value}"
+        }
         MaterialAlertDialogBuilder(this)
-            .setTitle(getString(R.string.updates_available, count))
+            .setTitle(getString(R.string.script_updates_available, updates.size))
+            .setMessage(details)
             .setPositiveButton(R.string.update) { _, _ ->
                 openScriptManagerWithAutoUpdate()
             }

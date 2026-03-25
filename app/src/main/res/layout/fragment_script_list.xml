@@ -11,32 +11,14 @@
         android:layout_height="?attr/actionBarSize"
         app:title="@string/settings_manage_scripts" />
 
-    <LinearLayout
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/checkUpdatesButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="12dp"
         android:layout_marginTop="4dp"
-        android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/checkUpdatesButton"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/check_updates" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/updateAllButton"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:text="@string/update_all"
-            android:visibility="gone" />
-
-    </LinearLayout>
+        android:text="@string/check_updates" />
 
     <FrameLayout
         android:layout_width="match_parent"

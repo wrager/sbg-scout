@@ -117,11 +117,16 @@ class ScriptListFragment : Fragment() {
     }
 
     private fun setupCheckUpdatesButton(view: View) {
-        view.findViewById<MaterialButton>(R.id.checkUpdatesButton).setOnClickListener {
-            viewModel.checkUpdates()
-        }
-        view.findViewById<MaterialButton>(R.id.updateAllButton).setOnClickListener {
-            viewModel.checkAndUpdateAll()
+        val button = view.findViewById<MaterialButton>(R.id.checkUpdatesButton)
+        button.setOnClickListener {
+            val hasUpdates = viewModel.uiState.value.scripts.any {
+                it.operationState is ScriptOperationState.UpdateAvailable
+            }
+            if (hasUpdates) {
+                viewModel.checkAndUpdateAll()
+            } else {
+                viewModel.checkUpdates()
+            }
         }
     }
 
@@ -166,7 +171,6 @@ class ScriptListFragment : Fragment() {
         val emptyText = view.findViewById<TextView>(R.id.emptyText)
         val reloadButton = view.findViewById<MaterialButton>(R.id.reloadButton)
         val checkUpdatesButton = view.findViewById<MaterialButton>(R.id.checkUpdatesButton)
-        val updateAllButton = view.findViewById<MaterialButton>(R.id.updateAllButton)
         val adapter = scriptAdapter
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -184,7 +188,9 @@ class ScriptListFragment : Fragment() {
                         val hasUpdates = state.scripts.any {
                             it.operationState is ScriptOperationState.UpdateAvailable
                         }
-                        updateAllButton.visibility = if (hasUpdates) View.VISIBLE else View.GONE
+                        checkUpdatesButton.setText(
+                            if (hasUpdates) R.string.update_all else R.string.check_updates,
+                        )
                     }
                 }
             }

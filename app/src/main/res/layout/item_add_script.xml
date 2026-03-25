@@ -4,7 +4,20 @@
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="4dp"
     android:layout_marginVertical="4dp"
-    android:orientation="horizontal">
+    android:orientation="vertical">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:text="@string/add_script"
+        android:textAppearance="?attr/textAppearanceBody2"
+        android:textColor="?android:textColorSecondary" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
 
     <com.google.android.material.button.MaterialButton
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
@@ -23,5 +36,7 @@
         android:layout_weight="1"
         android:layout_marginStart="4dp"
         android:text="@string/add_script_from_file" />
+
+    </LinearLayout>
 
 </LinearLayout>
