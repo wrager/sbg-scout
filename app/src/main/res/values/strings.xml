@@ -61,7 +61,7 @@
     <string name="settings_check_app_update_summary">Check if a new version is available on GitHub</string>
     <string name="settings_check_script_updates">Check for script updates</string>
     <string name="settings_check_script_updates_summary">Check if scripts have new versions</string>
-    <string name="app_update_available">Update available: %s</string>
+    <string name="app_update_available">App update available: %s</string>
     <string name="app_update_download">Download</string>
     <string name="app_up_to_date">App is up to date</string>
     <string name="app_update_check_failed">Failed to check for updates</string>
