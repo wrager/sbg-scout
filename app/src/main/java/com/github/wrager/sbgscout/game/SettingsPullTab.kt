@@ -13,8 +13,8 @@ import android.view.View
 /**
  * Визуальный индикатор pull-tab для выдвижной панели настроек.
  *
- * Рисует сегмент эллипса (выпуклость вправо), торчащий из левого края экрана.
- * Внутри — шеврон «>». Не обрабатывает touch — жест свайпа перехватывает
+ * Рисует сегмент эллипса (выпуклость влево), торчащий из правого края экрана.
+ * Внутри — шеврон «<». Не обрабатывает touch — жест свайпа перехватывает
  * [SettingsDrawerLayout].
  *
  * Позиция по X обновляется извне через [translationX] при скольжении drawer.
@@ -55,26 +55,26 @@ class SettingsPullTab @JvmOverloads constructor(
     }
 
     /**
-     * Рисуем правую половину эллипса: овал смещён влево так, что видна только
-     * выпуклая правая часть шириной = ширине View.
+     * Рисуем левую половину эллипса: овал смещён вправо так, что видна только
+     * выпуклая левая часть шириной = ширине View.
      */
     private fun drawArc(canvas: Canvas) {
         val viewWidth = width.toFloat()
         val viewHeight = height.toFloat()
 
-        // Овал: ширина = viewWidth * 2 (чтобы правая половина = viewWidth),
-        // сдвинут влево на viewWidth
-        arcRect.set(-viewWidth, 0f, viewWidth, viewHeight)
+        // Овал: ширина = viewWidth * 2 (чтобы левая половина = viewWidth),
+        // сдвинут вправо на viewWidth
+        arcRect.set(0f, 0f, viewWidth * 2f, viewHeight)
         arcPath.reset()
-        arcPath.addArc(arcRect, -90f, 180f)
+        arcPath.addArc(arcRect, 90f, 180f)
         arcPath.close()
 
         canvas.drawPath(arcPath, arcPaint)
     }
 
     /**
-     * Направление шеврона: `false` → «>» (drawer закрыт),
-     * `true` → «<» (drawer открыт).
+     * Направление шеврона: `false` → «<» (drawer закрыт),
+     * `true` → «>» (drawer открыт).
      */
     var isOpen: Boolean = false
         set(value) {
@@ -84,14 +84,14 @@ class SettingsPullTab @JvmOverloads constructor(
             }
         }
 
-    /** Рисуем шеврон «>» или «<» по центру видимой области. */
+    /** Рисуем шеврон «<» или «>» по центру видимой области. */
     private fun drawChevron(canvas: Canvas) {
-        val centerX = width * CHEVRON_CENTER_X_FRACTION
+        val centerX = width * (1f - CHEVRON_CENTER_X_FRACTION)
         val centerY = height / 2f
         val armLength = CHEVRON_ARM_LENGTH_DP * resources.displayMetrics.density
 
-        // Направление: «>» — кончик вправо, «<» — кончик влево
-        val direction = if (isOpen) -1f else 1f
+        // Направление: «<» — кончик влево (закрыт), «>» — кончик вправо (открыт)
+        val direction = if (isOpen) 1f else -1f
 
         canvas.drawLine(
             centerX - direction * armLength / 2f,

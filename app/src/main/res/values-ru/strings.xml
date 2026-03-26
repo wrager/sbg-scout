@@ -55,6 +55,8 @@
     <string name="settings_fullscreen_summary">Скрывать статус-бар и кнопки навигации</string>
     <string name="settings_keep_screen_on">Не гасить экран</string>
     <string name="settings_keep_screen_on_summary">Не выключать экран во время игры</string>
+    <string name="settings_pull_tab_position">Положение язычка настроек</string>
+    <string name="settings_pull_tab_position_summary">Вертикальное положение язычка на краю экрана</string>
     <string name="settings_category_scripts">Скрипты</string>
     <string name="settings_auto_update">Проверять обновления раз в день при загрузке игры</string>
     <string name="settings_category_updates">Обновления</string>

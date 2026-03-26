@@ -18,7 +18,7 @@
             android:id="@+id/settingsContainer"
             android:layout_width="300dp"
             android:layout_height="match_parent"
-            android:layout_gravity="start"
+            android:layout_gravity="end"
             android:background="?android:colorBackground" />
 
     </com.github.wrager.sbgscout.game.SettingsDrawerLayout>
@@ -27,7 +27,7 @@
         android:id="@+id/settingsPullTab"
         android:layout_width="20dp"
         android:layout_height="48dp"
-        android:layout_gravity="start|top"
+        android:layout_gravity="end|top"
         android:contentDescription="@string/settings" />
 
     <LinearLayout

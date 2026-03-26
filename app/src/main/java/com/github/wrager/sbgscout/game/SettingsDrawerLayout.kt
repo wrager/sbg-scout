@@ -9,7 +9,7 @@ import androidx.drawerlayout.widget.DrawerLayout
 /**
  * DrawerLayout, ограничивающий зону свайпа областью вокруг pull-tab.
  *
- * Стандартный DrawerLayout перехватывает edge swipe по всей высоте левого края,
+ * Стандартный DrawerLayout перехватывает edge swipe по всей высоте правого края,
  * что мешает взаимодействию с WebView. Этот подкласс пропускает только касания
  * в вертикальной зоне ±[TAB_TOUCH_AREA_HALF_DP] dp от центра таба.
  *
@@ -43,7 +43,7 @@ class SettingsDrawerLayout @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 // Ограничиваем зону касания только при закрытом drawer.
                 // При открытом — закрытие свайпом работает из любой точки.
-                val drawerClosed = !isDrawerOpen(GravityCompat.START)
+                val drawerClosed = !isDrawerOpen(GravityCompat.END)
                 gestureRejected = drawerClosed && !isTouchInTabArea(event.y)
                 if (gestureRejected) return false
             }
@@ -85,15 +85,15 @@ class SettingsDrawerLayout @JvmOverloads constructor(
         override fun onDrawerStateChanged(newState: Int) {
             when (newState) {
                 STATE_DRAGGING -> {
-                    wasOpenOnDragStart = isDrawerOpen(GravityCompat.START)
+                    wasOpenOnDragStart = isDrawerOpen(GravityCompat.END)
                     isDragging = true
                     peakOffset = 0f
                 }
                 STATE_SETTLING -> {
                     // Принудительно открываем только если drawer был закрыт.
-                    // Если drawer уже открыт и пользователь тянет влево — не мешаем закрытию.
+                    // Если drawer уже открыт и пользователь тянет вправо — не мешаем закрытию.
                     if (isDragging && !wasOpenOnDragStart && peakOffset >= OPEN_SLIDE_THRESHOLD) {
-                        openDrawer(GravityCompat.START)
+                        openDrawer(GravityCompat.END)
                     }
                     isDragging = false
                 }

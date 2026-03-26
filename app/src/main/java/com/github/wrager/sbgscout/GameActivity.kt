@@ -90,6 +90,9 @@ class GameActivity : AppCompatActivity() {
             when (key) {
                 KEY_FULLSCREEN_MODE -> applyFullscreen(prefs.getBoolean(key, false))
                 KEY_KEEP_SCREEN_ON -> applyKeepScreenOn(prefs.getBoolean(key, true))
+                KEY_PULL_TAB_POSITION -> applyPullTabPosition(
+                    prefs.getInt(key, DEFAULT_PULL_TAB_POSITION),
+                )
             }
         }
 
@@ -317,6 +320,18 @@ class GameActivity : AppCompatActivity() {
         ViewCompat.requestApplyInsets(rootLayout)
     }
 
+    /**
+     * Применяет вертикальное положение pull-tab (0–100% высоты экрана).
+     * Обновляет позицию самого таба и зону касания drawer.
+     */
+    private fun applyPullTabPosition(percent: Int) {
+        val pullTab = findViewById<SettingsPullTab>(R.id.settingsPullTab) ?: return
+        val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer) ?: return
+        val tabY = rootLayout.height * (percent / 100f)
+        pullTab.y = tabY - pullTab.height / 2f
+        drawerLayout.tabCenterY = tabY
+    }
+
     private fun configureCookies() {
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
@@ -430,9 +445,8 @@ class GameActivity : AppCompatActivity() {
         }
 
         pullTab.doOnLayout {
-            val tabY = rootLayout.height * PULL_TAB_VERTICAL_POSITION
-            pullTab.y = tabY - pullTab.height / 2f
-            drawerLayout.tabCenterY = tabY
+            val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+            applyPullTabPosition(prefs.getInt(KEY_PULL_TAB_POSITION, DEFAULT_PULL_TAB_POSITION))
         }
 
         drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
@@ -446,7 +460,7 @@ class GameActivity : AppCompatActivity() {
             }
 
             override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
-                pullTab.translationX = slideOffset * drawerView.width
+                pullTab.translationX = -slideOffset * drawerView.width
             }
 
             override fun onDrawerOpened(drawerView: View) {
@@ -480,7 +494,7 @@ class GameActivity : AppCompatActivity() {
     /** Закрыть drawer настроек (вызывается из фрагментов внутри drawer). */
     fun closeSettingsDrawer() {
         findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
-            .closeDrawer(GravityCompat.START)
+            .closeDrawer(GravityCompat.END)
     }
 
     /** Выполнить отложенные действия при закрытии drawer (перезагрузка игры). */
@@ -511,7 +525,7 @@ class GameActivity : AppCompatActivity() {
 
         overlay.visibility = View.VISIBLE
         pullTab.visibility = View.GONE
-        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, GravityCompat.START)
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, GravityCompat.END)
 
         // Сброс в состояние загрузки (актуально при повторных попытках)
         progress.isIndeterminate = true
@@ -587,7 +601,7 @@ class GameActivity : AppCompatActivity() {
 
         overlay.visibility = View.GONE
         pullTab.visibility = View.VISIBLE
-        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.START)
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.END)
         webView.loadUrl(GAME_URL)
     }
 
@@ -777,7 +791,7 @@ class GameActivity : AppCompatActivity() {
 
     private fun openScriptManagerWithAutoUpdate() {
         val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
-        drawerLayout.openDrawer(GravityCompat.START)
+        drawerLayout.openDrawer(GravityCompat.END)
         supportFragmentManager.beginTransaction()
             .replace(R.id.settingsContainer, ScriptListFragment.newEmbeddedAutoUpdateInstance())
             .addToBackStack(null)
@@ -790,7 +804,7 @@ class GameActivity : AppCompatActivity() {
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
                     val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
-                    val drawerOpen = drawerLayout.isDrawerOpen(GravityCompat.START)
+                    val drawerOpen = drawerLayout.isDrawerOpen(GravityCompat.END)
                     when {
                         // ScriptListFragment открыт в drawer → вернуться к SettingsFragment
                         drawerOpen && supportFragmentManager.backStackEntryCount > 0 -> {
@@ -798,7 +812,7 @@ class GameActivity : AppCompatActivity() {
                         }
                         // Drawer открыт на SettingsFragment → закрыть drawer
                         drawerOpen -> {
-                            drawerLayout.closeDrawer(GravityCompat.START)
+                            drawerLayout.closeDrawer(GravityCompat.END)
                         }
                         // Drawer закрыт → стандартная обработка WebView
                         else -> {
@@ -830,7 +844,8 @@ class GameActivity : AppCompatActivity() {
         private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         private const val KEY_APPLIED_GAME_THEME = "applied_game_theme"
         private const val KEY_APPLIED_GAME_LANGUAGE = "applied_game_language"
-        private const val PULL_TAB_VERTICAL_POSITION = 0.25f
+        private const val KEY_PULL_TAB_POSITION = "pull_tab_position"
+        private const val DEFAULT_PULL_TAB_POSITION = 75
         private const val DEFAULT_DRAWER_WIDTH_DP = 300f
         private const val DRAWER_GAP_DIVISOR = 3
         private const val SKIP_BUTTON_CONNECT_DELAY_MS = 2_000L
