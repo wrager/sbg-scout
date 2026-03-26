@@ -684,23 +684,50 @@ class GameActivity : AppCompatActivity() {
         }
         builder
             .setPositiveButton(R.string.app_update_download) { _, _ ->
-                Toast.makeText(this, R.string.app_update_downloading, Toast.LENGTH_SHORT).show()
-                val installer = AppUpdateInstaller(applicationContext, httpFetcher)
-                lifecycleScope.launch {
-                    try {
-                        installer.downloadAndInstall(downloadUrl)
-                    } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
-                        Toast.makeText(
-                            this@GameActivity,
-                            getString(R.string.app_update_download_failed, exception.message),
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    }
-                }
+                showAppDownloadProgressDialog(downloadUrl, httpFetcher)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .setOnDismissListener { onDismiss?.invoke() }
             .show()
+    }
+
+    private fun showAppDownloadProgressDialog(
+        downloadUrl: String,
+        httpFetcher: DefaultHttpFetcher,
+    ) {
+        val density = resources.displayMetrics.density
+        val paddingPx = (RELEASE_NOTES_PADDING_DP * density).toInt()
+        val progressIndicator = LinearProgressIndicator(this).apply {
+            isIndeterminate = true
+            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.app_update_downloading)
+            .setView(progressIndicator)
+            .setCancelable(false)
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        val installer = AppUpdateInstaller(applicationContext, httpFetcher)
+        lifecycleScope.launch {
+            try {
+                installer.downloadAndInstall(downloadUrl) { progress ->
+                    runOnUiThread {
+                        if (progress > 0) {
+                            progressIndicator.isIndeterminate = false
+                            progressIndicator.progress = progress
+                        }
+                    }
+                }
+                dialog.dismiss()
+            } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
+                dialog.dismiss()
+                Toast.makeText(
+                    this@GameActivity,
+                    getString(R.string.app_update_download_failed, exception.message),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
     }
 
     /**
