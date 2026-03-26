@@ -791,6 +791,41 @@ class LauncherViewModelTest {
     }
 
     @Test
+    fun `addScriptFromContent does not match preset by namespace alone`() = runTest {
+        val existingSvp = testScript(
+            identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
+            name = "SBG Vanilla+",
+            sourceUrl = PresetScripts.SVP.downloadUrl,
+            isPreset = true,
+            enabled = true,
+        )
+        every { scriptStorage.getAll() } returns listOf(existingSvp)
+
+        // Скрипт с тем же namespace, но другим именем — не должен перезаписать SVP
+        val debugScript = testScript(
+            identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SVP Debug"),
+            name = "SVP Debug",
+            sourceUrl = null,
+        )
+        every { scriptInstaller.parse(any()) } returns ScriptInstallResult.Parsed(debugScript)
+        every { scriptInstaller.save(any()) } answers {
+            val saved = arg<UserScript>(0)
+            every { scriptStorage.getAll() } returns listOf(existingSvp, saved)
+        }
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.addScriptFromContent("script content")
+        advanceUntilIdle()
+
+        // Старый SVP не должен быть удалён
+        verify(exactly = 0) { scriptStorage.delete(existingSvp.identifier) }
+        // Новый скрипт сохранён как пользовательский, не как пресет
+        verify { scriptInstaller.save(match { !it.isPreset }) }
+    }
+
+    @Test
     fun `addScriptFromContent cleans up old preset entry when identifier changes`() = runTest {
         val oldSvp = testScript(
             identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/Old SVP Name"),

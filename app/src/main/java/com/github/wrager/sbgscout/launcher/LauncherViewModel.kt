@@ -181,13 +181,15 @@ class LauncherViewModel(
     /**
      * Определяет, соответствует ли скрипт одному из пресетов.
      *
-     * Матчит по @downloadURL в заголовке (приоритет) или по префиксу
-     * идентификатора (namespace пресета содержится в namespace/name скрипта).
+     * Матчит по @downloadURL в заголовке (приоритет) или по совпадению
+     * namespace-префикса И @name. Одного namespace недостаточно: в том же
+     * namespace могут быть другие скрипты (диагностические, форки и т.д.).
      */
     private fun findMatchingPreset(script: UserScript): PresetScript? {
         return PresetScripts.ALL.find { preset ->
             script.header.downloadUrl == preset.downloadUrl ||
-                script.identifier.value.startsWith(preset.identifier.value + "/")
+                (script.identifier.value.startsWith(preset.identifier.value + "/") &&
+                    script.header.name == preset.displayName)
         }
     }
 
