@@ -128,7 +128,7 @@ class ScriptInjector(
             return injectedScripts.map { script ->
                 val errorMessage = errorsByName[script.header.name]
                 if (errorMessage != null) {
-                    InjectionResult.ScriptError(script.identifier, errorMessage)
+                    InjectionResult.ScriptError(script.identifier, script.header.name, errorMessage)
                 } else {
                     InjectionResult.Success(script.identifier)
                 }

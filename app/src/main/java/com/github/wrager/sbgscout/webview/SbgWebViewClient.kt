@@ -54,8 +54,10 @@ class SbgWebViewClient(
     private fun handleInjectionResults(view: WebView, results: List<InjectionResult>) {
         val errors = results.filterIsInstance<InjectionResult.ScriptError>()
         if (errors.isEmpty()) return
-        val scriptNames = errors.joinToString(", ") { it.identifier.value }
-        val message = view.context.getString(R.string.script_injection_error, scriptNames)
+        val scriptNames = errors.joinToString(", ") {
+            it.scriptName.ifBlank { it.identifier.value }
+        }
+        val message = view.context.getString(R.string.script_execution_error, scriptNames)
         Toast.makeText(view.context, message, Toast.LENGTH_LONG).show()
     }
 

@@ -232,6 +232,7 @@ class ScriptInjectorTest {
             .filterIsInstance<InjectionResult.ScriptError>()
             .first()
         assertEquals(ScriptIdentifier("id-a"), errorResult.identifier)
+        assertEquals("Script A", errorResult.scriptName)
         assertEquals("ReferenceError: x is not defined", errorResult.errorMessage)
 
         val successResult = results

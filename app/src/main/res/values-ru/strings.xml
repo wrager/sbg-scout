@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="location_permission_denied">Геолокация отключена. Разрешите доступ в настройках.</string>
-    <string name="script_injection_error">Ошибка загрузки скриптов: %s</string>
+    <string name="script_execution_error">Ошибка выполнения скрипта: %s</string>
 
     <string name="loading_scripts">Загрузка скриптов…</string>
     <string name="loading_default_scripts">Загрузка стандартных скриптов…</string>
