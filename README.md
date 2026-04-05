@@ -17,6 +17,12 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 
 [Скачать последний APK][releases-latest]
 
+## Скриншоты
+
+![Настройки — экран и скрипты](.github/images/screenshots/settings-1.png) ![Настройки — обновления и о приложении](.github/images/screenshots/settings-2.png)
+
+![Менеджер скриптов](.github/images/screenshots/script-manager.png)
+
 ## Требования
 
 - Android 7.0+ (API 24)
