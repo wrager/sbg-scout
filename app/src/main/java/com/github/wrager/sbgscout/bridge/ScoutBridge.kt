@@ -3,22 +3,30 @@ package com.github.wrager.sbgscout.bridge
 import android.webkit.JavascriptInterface
 
 /**
- * JS-бридж для взаимодействия большой кнопки «Настройки SBG Scout» с игрой.
+ * JS-бридж для взаимодействия кнопки «Scout» с игрой.
  *
- * Bootstrap-скрипт, инжектируемый в onPageStarted, наблюдает за применением
- * переводов i18next и:
- * 1. Вызывает [onGameReady], чтобы Android скрыл большую нативную кнопку.
- * 2. Вставляет HTML-кнопку в игровую панель настроек; клик по ней вызывает
- *    [openScoutSettings], который открывает экран настроек приложения.
+ * Bootstrap-скрипт, инжектируемый в onPageStarted, ждёт инициализацию i18next и:
+ * 1. Вызывает [onGameReady] — игра готова, Android снимает подложку загрузки.
+ * 2. Пытается вставить HTML-кнопку в игровую панель настроек (`.settings-content`).
+ *    При успехе вызывает [onHtmlButtonInjected] — Android скрывает нативную «Scout».
+ *    Под скриптами, переделывающими UI (CUI), `.settings-content` может
+ *    отсутствовать — инжекция пропускается, нативная «Scout» остаётся.
+ * 3. Клик по HTML-кнопке вызывает [openScoutSettings] — открыть экран настроек.
  */
 class ScoutBridge(
     private val onReady: () -> Unit,
+    private val onHtmlInjected: () -> Unit,
     private val onOpenSettings: () -> Unit,
 ) {
 
     @JavascriptInterface
     fun onGameReady() {
         onReady()
+    }
+
+    @JavascriptInterface
+    fun onHtmlButtonInjected() {
+        onHtmlInjected()
     }
 
     @JavascriptInterface
@@ -30,23 +38,22 @@ class ScoutBridge(
         const val JS_INTERFACE_NAME = "__sbg_scout"
 
         /**
-         * Bootstrap-скрипт — MutationObserver на применение переводов i18next.
+         * Bootstrap-скрипт — polling за `window.i18next.isInitialized`.
          *
-         * Сигнал готовности: `#settings` (кнопка в .ol-control) получил перевод —
-         * его textContent перестал быть ключом `menu.settings`. К этому моменту
-         * `.settings-content` уже заполнен, и HTML-кнопку можно вставлять
-         * с локализованными строками.
+         * Сигнал готовности — инициализация i18next: универсален и не зависит от
+         * DOM-разметки, поэтому работает и под скриптами, переделывающими UI
+         * (CUI, EUI). Предыдущая версия смотрела на `#settings` textContent — не
+         * срабатывала под CUI, который меняет игровой интерфейс.
          *
          * Запуск откладывается до DOMContentLoaded: evaluateJavascript в
-         * onPageStarted выполняется до того как реальный documentElement создан,
-         * observer на несуществующем/временном documentElement мутаций не ловит.
+         * onPageStarted выполняется до того как реальный document создан.
          *
-         * Локализация строк: читается `localStorage['settings'].lang`; если язык
-         * начинается с "ru" — берутся русские строки, иначе английские.
+         * Локализация HTML-кнопки: читается `localStorage['settings'].lang`;
+         * если язык начинается с "ru" — русские строки, иначе английские.
          *
-         * Нет таймаута: если игра не загрузилась (нет сети) — HTML-кнопка не
-         * инжектируется, нативная кнопка остаётся единственным способом
-         * открыть настройки SBG Scout.
+         * Нет таймаута: polling продолжается пока i18next не инициализируется.
+         * Если этого не случится (нет сети) — подложка загрузки не снимается,
+         * нативная «Scout» остаётся единственным способом открыть настройки.
          */
         val BOOTSTRAP_SCRIPT = """
             (function() {
@@ -68,9 +75,9 @@ class ScoutBridge(
                 }
 
                 function injectButton() {
-                    if (document.getElementById('sbg-scout-section')) return;
+                    if (document.getElementById('sbg-scout-section')) return true;
                     var content = document.querySelector('.settings-content');
-                    if (!content) return;
+                    if (!content) return false;
                     var strings = pickStrings();
                     var section = document.createElement('div');
                     section.className = 'settings-section';
@@ -94,19 +101,18 @@ class ScoutBridge(
                     section.appendChild(header);
                     section.appendChild(item);
                     content.insertBefore(section, content.firstChild);
+                    return true;
                 }
 
                 function checkReady() {
-                    var settingsBtn = document.querySelector('#settings');
-                    if (!settingsBtn) return false;
-                    var text = (settingsBtn.textContent || '').trim();
-                    if (!text || text === 'menu.settings') return false;
-                    return true;
+                    return !!(window.i18next && window.i18next.isInitialized);
                 }
 
                 function onReady() {
                     if (window.__sbg_scout) window.__sbg_scout.onGameReady();
-                    injectButton();
+                    if (injectButton() && window.__sbg_scout) {
+                        window.__sbg_scout.onHtmlButtonInjected();
+                    }
                 }
 
                 function start() {
@@ -116,15 +122,12 @@ class ScoutBridge(
                         onReady();
                         return;
                     }
-                    var observer = new MutationObserver(function() {
+                    var interval = setInterval(function() {
                         if (checkReady()) {
-                            observer.disconnect();
+                            clearInterval(interval);
                             onReady();
                         }
-                    });
-                    observer.observe(document.documentElement, {
-                        childList: true, subtree: true, characterData: true
-                    });
+                    }, 100);
                 }
 
                 if (document.readyState === 'loading') {
