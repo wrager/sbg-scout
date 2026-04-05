@@ -197,6 +197,54 @@ class LauncherViewModelTest {
     }
 
     @Test
+    fun `SVP and EUI 8_2_0 have no conflict`() = runTest {
+        val svp = testScript(
+            identifier = PresetScripts.SVP.identifier,
+            name = "SVP",
+            enabled = true,
+        )
+        val eui = testScript(
+            identifier = PresetScripts.EUI.identifier,
+            name = "EUI",
+            version = "8.2.0",
+            enabled = true,
+        )
+        every { scriptStorage.getAll() } returns listOf(svp, eui)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        val svpItem = state.scripts.first { it.identifier == PresetScripts.SVP.identifier }
+        assertTrue(svpItem.conflictNames.isEmpty())
+        val euiItem = state.scripts.first { it.identifier == PresetScripts.EUI.identifier }
+        assertTrue(euiItem.conflictNames.isEmpty())
+    }
+
+    @Test
+    fun `SVP and EUI 8_1_0 still conflict`() = runTest {
+        val svp = testScript(
+            identifier = PresetScripts.SVP.identifier,
+            name = "SVP",
+            enabled = true,
+        )
+        val eui = testScript(
+            identifier = PresetScripts.EUI.identifier,
+            name = "EUI",
+            version = "8.1.0",
+            enabled = true,
+        )
+        every { scriptStorage.getAll() } returns listOf(svp, eui)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        val svpItem = state.scripts.first { it.identifier == PresetScripts.SVP.identifier }
+        assertTrue(svpItem.conflictNames.contains("EUI"))
+    }
+
+    @Test
     fun `no conflicts for disabled scripts`() = runTest {
         val svp = testScript(
             identifier = PresetScripts.SVP.identifier,

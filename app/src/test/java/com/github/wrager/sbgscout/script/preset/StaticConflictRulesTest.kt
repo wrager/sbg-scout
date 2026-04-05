@@ -1,7 +1,9 @@
 package com.github.wrager.sbgscout.script.preset
 
 import com.github.wrager.sbgscout.script.model.ScriptIdentifier
+import com.github.wrager.sbgscout.script.model.ScriptVersion
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -55,6 +57,34 @@ class StaticConflictRulesTest {
         for (conflict in euiConflicts) {
             assertEquals(PresetScripts.EUI.identifier, conflict.scriptIdentifier)
         }
+    }
+
+    @Test
+    fun `SVP-EUI conflict carries version constraint requiring EUI at least 8_2_0`() {
+        val euiConflict = rules.conflictsFor(PresetScripts.SVP.identifier)
+            .first { it.conflictsWith == PresetScripts.EUI.identifier }
+
+        val constraint = euiConflict.compatibleSince
+        assertEquals(PresetScripts.EUI.identifier, constraint?.identifier)
+        assertEquals(ScriptVersion("8.2.0"), constraint?.minVersion)
+    }
+
+    @Test
+    fun `SVP-CUI conflict has no version constraint`() {
+        val cuiConflict = rules.conflictsFor(PresetScripts.SVP.identifier)
+            .first { it.conflictsWith == PresetScripts.CUI.identifier }
+
+        assertNull(cuiConflict.compatibleSince)
+    }
+
+    @Test
+    fun `inverted EUI conflict preserves EUI version constraint`() {
+        val inverted = rules.conflictsFor(PresetScripts.EUI.identifier)
+            .first { it.conflictsWith == PresetScripts.SVP.identifier }
+
+        val constraint = inverted.compatibleSince
+        assertEquals(PresetScripts.EUI.identifier, constraint?.identifier)
+        assertEquals(ScriptVersion("8.2.0"), constraint?.minVersion)
     }
 
     @Test

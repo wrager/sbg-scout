@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.wrager.sbgscout.script.installer.ScriptInstallResult
 import com.github.wrager.sbgscout.script.installer.ScriptInstaller
 import com.github.wrager.sbgscout.script.model.ScriptIdentifier
+import com.github.wrager.sbgscout.script.model.ScriptVersion
 import com.github.wrager.sbgscout.script.model.UserScript
 import com.github.wrager.sbgscout.script.preset.ConflictDetector
 import com.github.wrager.sbgscout.script.preset.PresetScript
@@ -522,10 +523,9 @@ class LauncherViewModel(
 
     private fun refreshScriptList() {
         val storedScripts = scriptStorage.getAll()
-        val canonicalEnabledIdentifiers = storedScripts
+        val canonicalEnabledVersions: Map<ScriptIdentifier, ScriptVersion?> = storedScripts
             .filter { it.enabled }
-            .map { resolvePresetIdentifier(it) }
-            .toSet()
+            .associate { resolvePresetIdentifier(it) to it.header.version?.let(::ScriptVersion) }
         val nameByIdentifier = storedScripts.associate { resolvePresetIdentifier(it) to it.header.name }
 
         val presetClaimedIdentifiers = mutableSetOf<ScriptIdentifier>()
@@ -534,7 +534,7 @@ class LauncherViewModel(
                 ?: storedScripts.find { it.isPreset && it.sourceUrl == preset.downloadUrl }
             if (script != null) {
                 presetClaimedIdentifiers.add(script.identifier)
-                buildScriptUiItem(script, canonicalEnabledIdentifiers, nameByIdentifier)
+                buildScriptUiItem(script, canonicalEnabledVersions, nameByIdentifier)
             } else {
                 ScriptUiItem(
                     identifier = preset.identifier,
@@ -554,7 +554,7 @@ class LauncherViewModel(
 
         val customItems = storedScripts
             .filter { it.identifier !in presetClaimedIdentifiers }
-            .map { buildScriptUiItem(it, canonicalEnabledIdentifiers, nameByIdentifier) }
+            .map { buildScriptUiItem(it, canonicalEnabledVersions, nameByIdentifier) }
 
         val currentEnabledSnapshot = storedScripts
             .filter { it.enabled }
@@ -574,14 +574,15 @@ class LauncherViewModel(
 
     private fun buildScriptUiItem(
         script: UserScript,
-        canonicalEnabledIdentifiers: Set<ScriptIdentifier>,
+        canonicalEnabledVersions: Map<ScriptIdentifier, ScriptVersion?>,
         nameByIdentifier: Map<ScriptIdentifier, String>,
     ): ScriptUiItem {
         val canonicalIdentifier = resolvePresetIdentifier(script)
         val conflicts = if (script.enabled) {
             conflictDetector.detectConflicts(
-                canonicalIdentifier,
-                canonicalEnabledIdentifiers - canonicalIdentifier,
+                candidateIdentifier = canonicalIdentifier,
+                candidateVersion = script.header.version?.let(::ScriptVersion),
+                enabledVersions = canonicalEnabledVersions - canonicalIdentifier,
             )
         } else {
             emptyList()
