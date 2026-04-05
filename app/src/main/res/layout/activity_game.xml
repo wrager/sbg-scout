@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.github.wrager.sbgscout.game.SettingsDrawerLayout
+    <androidx.drawerlayout.widget.DrawerLayout
         android:id="@+id/settingsDrawer"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
@@ -21,14 +21,18 @@
             android:layout_gravity="end"
             android:background="?android:colorBackground" />
 
-    </com.github.wrager.sbgscout.game.SettingsDrawerLayout>
+    </androidx.drawerlayout.widget.DrawerLayout>
 
-    <com.github.wrager.sbgscout.game.SettingsPullTab
-        android:id="@+id/settingsPullTab"
-        android:layout_width="20dp"
-        android:layout_height="48dp"
-        android:layout_gravity="end|top"
-        android:contentDescription="@string/settings" />
+    <ImageButton
+        android:id="@+id/settingsButton"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="40dp"
+        android:layout_marginEnd="8dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/settings"
+        android:src="@mipmap/ic_launcher" />
 
     <LinearLayout
         android:id="@+id/provisioningOverlay"

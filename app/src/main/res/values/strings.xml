@@ -55,8 +55,6 @@
     <string name="settings_fullscreen_summary">Hide status bar and navigation buttons</string>
     <string name="settings_keep_screen_on">Keep screen on</string>
     <string name="settings_keep_screen_on_summary">Prevent screen from turning off while in game</string>
-    <string name="settings_pull_tab_position">Settings pull tab position</string>
-    <string name="settings_pull_tab_position_summary">Vertical position of the pull tab on the screen edge</string>
     <string name="settings_category_scripts">Scripts</string>
     <string name="settings_auto_update">Check for updates once a day on game load</string>
     <string name="settings_category_updates">Updates</string>

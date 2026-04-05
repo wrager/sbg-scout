@@ -20,15 +20,6 @@
             android:title="@string/settings_keep_screen_on"
             app:iconSpaceReserved="false" />
 
-        <com.github.wrager.sbgscout.settings.LiveSeekBarPreference
-            android:defaultValue="75"
-            android:key="pull_tab_position"
-            android:max="100"
-            android:summary="@string/settings_pull_tab_position_summary"
-            android:title="@string/settings_pull_tab_position"
-            app:iconSpaceReserved="false"
-            app:showSeekBarValue="true" />
-
     </PreferenceCategory>
 
     <PreferenceCategory

@@ -25,6 +25,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.preference.PreferenceManager
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import android.widget.TextView
@@ -33,9 +34,6 @@ import androidx.core.view.doOnLayout
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.FragmentManager
 import androidx.core.view.GravityCompat
-import com.github.wrager.sbgscout.game.PullTabPosition
-import com.github.wrager.sbgscout.game.SettingsDrawerLayout
-import com.github.wrager.sbgscout.game.SettingsPullTab
 import com.github.wrager.sbgscout.settings.SettingsFragment
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -92,15 +90,8 @@ class GameActivity : AppCompatActivity() {
     private val preferenceChangeListener =
         android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
             when (key) {
-                KEY_FULLSCREEN_MODE -> {
-                    applyFullscreen(prefs.getBoolean(key, false))
-                    // Диапазон видимости таба зависит от режима — пересчитать
-                    applyPullTabPosition(prefs.getInt(KEY_PULL_TAB_POSITION, DEFAULT_PULL_TAB_POSITION))
-                }
+                KEY_FULLSCREEN_MODE -> applyFullscreen(prefs.getBoolean(key, false))
                 KEY_KEEP_SCREEN_ON -> applyKeepScreenOn(prefs.getBoolean(key, true))
-                KEY_PULL_TAB_POSITION -> applyPullTabPosition(
-                    prefs.getInt(key, DEFAULT_PULL_TAB_POSITION),
-                )
             }
         }
 
@@ -328,22 +319,6 @@ class GameActivity : AppCompatActivity() {
         ViewCompat.requestApplyInsets(rootLayout)
     }
 
-    /**
-     * Применяет вертикальное положение pull-tab по UI-значению 0–100 %.
-     *
-     * Реальная позиция маппится через [PullTabPosition] с учётом того, что
-     * таб виден только в ограниченном диапазоне высоты экрана из-за system bars
-     * (диапазон отличается для обычного и полноэкранного режимов).
-     */
-    private fun applyPullTabPosition(uiPercent: Int) {
-        val pullTab = findViewById<SettingsPullTab>(R.id.settingsPullTab) ?: return
-        val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer) ?: return
-        val actualPercent = PullTabPosition.map(uiPercent, isFullscreen)
-        val tabY = rootLayout.height * (actualPercent / 100f)
-        pullTab.y = tabY - pullTab.height / 2f
-        drawerLayout.tabCenterY = tabY
-    }
-
     private fun configureCookies() {
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
@@ -437,13 +412,18 @@ class GameActivity : AppCompatActivity() {
             PackageManager.PERMISSION_GRANTED
 
     private fun setupSettingsDrawer() {
-        val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
-        val pullTab = findViewById<SettingsPullTab>(R.id.settingsPullTab)
+        val drawerLayout = findViewById<DrawerLayout>(R.id.settingsDrawer)
+        val settingsButton = findViewById<ImageButton>(R.id.settingsButton)
         val settingsContainer = findViewById<View>(R.id.settingsContainer)
 
         supportFragmentManager.beginTransaction()
             .replace(R.id.settingsContainer, SettingsFragment())
             .commit()
+
+        // Drawer открывается только по кнопке: свайп от края экрана заблокирован,
+        // чтобы не мешать взаимодействию с WebView. При открытии временно
+        // разблокируем — тогда свайп вправо закроет drawer.
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, GravityCompat.END)
 
         // Ширина drawer: видимая область за ним = 1/3 от стандартной (300dp)
         drawerLayout.doOnLayout {
@@ -456,9 +436,9 @@ class GameActivity : AppCompatActivity() {
             }
         }
 
-        pullTab.doOnLayout {
-            val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-            applyPullTabPosition(prefs.getInt(KEY_PULL_TAB_POSITION, DEFAULT_PULL_TAB_POSITION))
+        settingsButton.setOnClickListener {
+            drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.END)
+            drawerLayout.openDrawer(GravityCompat.END)
         }
 
         drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
@@ -471,16 +451,11 @@ class GameActivity : AppCompatActivity() {
                 }
             }
 
-            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
-                pullTab.translationX = -slideOffset * drawerView.width
-            }
-
-            override fun onDrawerOpened(drawerView: View) {
-                pullTab.isOpen = true
-            }
-
             override fun onDrawerClosed(drawerView: View) {
-                pullTab.isOpen = false
+                drawerLayout.setDrawerLockMode(
+                    DrawerLayout.LOCK_MODE_LOCKED_CLOSED,
+                    GravityCompat.END,
+                )
                 // При закрытии сбрасываем back stack (ScriptListFragment → SettingsFragment)
                 val fragmentManager = supportFragmentManager
                 if (fragmentManager.backStackEntryCount > 0) {
@@ -505,7 +480,7 @@ class GameActivity : AppCompatActivity() {
 
     /** Закрыть drawer настроек (вызывается из фрагментов внутри drawer). */
     fun closeSettingsDrawer() {
-        findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
+        findViewById<DrawerLayout>(R.id.settingsDrawer)
             .closeDrawer(GravityCompat.END)
     }
 
@@ -519,7 +494,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     /**
-     * Показывает оверлей загрузки, блокирует drawer и скрывает pull-tab,
+     * Показывает оверлей загрузки, блокирует drawer и скрывает кнопку настроек,
      * затем запускает загрузку предустановленных скриптов.
      *
      * При успехе — скрывает оверлей и загружает игру.
@@ -532,11 +507,11 @@ class GameActivity : AppCompatActivity() {
         val error = findViewById<TextView>(R.id.provisioningError)
         val retryButton = findViewById<Button>(R.id.provisioningRetryButton)
         val skipButton = findViewById<Button>(R.id.provisioningSkipButton)
-        val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
-        val pullTab = findViewById<SettingsPullTab>(R.id.settingsPullTab)
+        val drawerLayout = findViewById<DrawerLayout>(R.id.settingsDrawer)
+        val settingsButton = findViewById<ImageButton>(R.id.settingsButton)
 
         overlay.visibility = View.VISIBLE
-        pullTab.visibility = View.GONE
+        settingsButton.visibility = View.GONE
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, GravityCompat.END)
 
         // Сброс в состояние загрузки (актуально при повторных попытках)
@@ -608,12 +583,11 @@ class GameActivity : AppCompatActivity() {
 
     private fun finishProvisioning() {
         val overlay = findViewById<LinearLayout>(R.id.provisioningOverlay)
-        val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
-        val pullTab = findViewById<SettingsPullTab>(R.id.settingsPullTab)
+        val settingsButton = findViewById<ImageButton>(R.id.settingsButton)
 
         overlay.visibility = View.GONE
-        pullTab.visibility = View.VISIBLE
-        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.END)
+        settingsButton.visibility = View.VISIBLE
+        // Drawer остаётся залоченным (LOCK_MODE_LOCKED_CLOSED) — открывается только по кнопке
         webView.loadUrl(GAME_URL)
     }
 
@@ -960,7 +934,8 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun openScriptManagerWithAutoUpdate() {
-        val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
+        val drawerLayout = findViewById<DrawerLayout>(R.id.settingsDrawer)
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.END)
         drawerLayout.openDrawer(GravityCompat.END)
         supportFragmentManager.beginTransaction()
             .replace(R.id.settingsContainer, ScriptListFragment.newEmbeddedAutoUpdateInstance())
@@ -973,7 +948,7 @@ class GameActivity : AppCompatActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer)
+                    val drawerLayout = findViewById<DrawerLayout>(R.id.settingsDrawer)
                     val drawerOpen = drawerLayout.isDrawerOpen(GravityCompat.END)
                     when {
                         // ScriptListFragment открыт в drawer → вернуться к SettingsFragment
@@ -1014,8 +989,6 @@ class GameActivity : AppCompatActivity() {
         private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         private const val KEY_APPLIED_GAME_THEME = "applied_game_theme"
         private const val KEY_APPLIED_GAME_LANGUAGE = "applied_game_language"
-        private const val KEY_PULL_TAB_POSITION = "pull_tab_position"
-        private const val DEFAULT_PULL_TAB_POSITION = 75
         private const val DEFAULT_DRAWER_WIDTH_DP = 300f
         private const val DRAWER_GAP_DIVISOR = 3
         private const val SKIP_BUTTON_CONNECT_DELAY_MS = 2_000L
