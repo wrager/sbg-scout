@@ -85,4 +85,6 @@
     <string name="settings_report_bug">Сообщить об ошибке</string>
     <string name="settings_report_bug_summary">Скопировать диагностику и открыть GitHub Issues</string>
     <string name="bug_report_copied">Скопировано! Открываю\u2026</string>
+    <string name="download_saved">Сохранено: %s</string>
+    <string name="download_failed">Не удалось сохранить файл</string>
 </resources>

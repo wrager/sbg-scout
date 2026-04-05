@@ -7,6 +7,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import com.github.wrager.sbgscout.R
+import com.github.wrager.sbgscout.bridge.DownloadBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
 import com.github.wrager.sbgscout.bridge.ScoutBridge
 import com.github.wrager.sbgscout.script.injector.InjectionResult
@@ -25,8 +26,10 @@ class SbgWebViewClient(
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
         if (url?.contains("sbg-game.ru/app") == true && view != null) {
-            // Перехват localStorage.setItem ПЕРЕД инжекцией скриптов,
-            // чтобы отловить любые записи в 'settings'
+            // Перехватчики blob-скачиваний и localStorage ПЕРЕД инжекцией скриптов.
+            // Download-перехват должен быть установлен до того, как юзерскрипт
+            // успеет вызвать URL.createObjectURL — иначе blob не попадёт в кеш.
+            view.evaluateJavascript(DownloadBridge.BOOTSTRAP_SCRIPT) {}
             view.evaluateJavascript(GameSettingsBridge.LOCAL_STORAGE_WRAPPER) {}
             // Bootstrap для большой кнопки настроек: наблюдает за готовностью игры,
             // скрывает нативную кнопку и вставляет HTML-кнопку в .settings-content

@@ -86,4 +86,6 @@
     <string name="settings_report_bug">Report a bug</string>
     <string name="settings_report_bug_summary">Copy diagnostics and open GitHub Issues</string>
     <string name="bug_report_copied">Copied! Opening\u2026</string>
+    <string name="download_saved">Saved: %s</string>
+    <string name="download_failed">Download failed</string>
 </resources>

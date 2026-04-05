@@ -1,14 +1,20 @@
 package com.github.wrager.sbgscout
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.view.WindowManager
 import android.util.Log
 import android.view.inputmethod.InputMethodManager
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -35,6 +41,7 @@ import com.github.wrager.sbgscout.settings.SettingsFragment
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.github.wrager.sbgscout.bridge.ClipboardBridge
+import com.github.wrager.sbgscout.bridge.DownloadBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
 import com.github.wrager.sbgscout.bridge.ScoutBridge
 import com.github.wrager.sbgscout.bridge.ShareBridge
@@ -102,6 +109,17 @@ class GameActivity : AppCompatActivity() {
     // Pending geolocation callback while waiting for Android permission result
     private var pendingGeolocationCallback: GeolocationPermissions.Callback? = null
     private var pendingGeolocationOrigin: String? = null
+
+    // Pending callback для <input type="file"> — хранится между запуском пикера и onActivityResult
+    private var pendingFileChooserCallback: ValueCallback<Array<Uri>>? = null
+
+    private val fileChooserLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
+        pendingFileChooserCallback?.onReceiveValue(uris)
+        pendingFileChooserCallback = null
+    }
 
     private val locationPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -392,6 +410,8 @@ class GameActivity : AppCompatActivity() {
 
         webView.addJavascriptInterface(ClipboardBridge(this), "Android")
         webView.addJavascriptInterface(ShareBridge(this), "__sbg_share")
+        webView.addJavascriptInterface(createDownloadBridge(), DownloadBridge.JS_INTERFACE_NAME)
+        setupDownloadListener()
         val settingsBridge = GameSettingsBridge { json ->
             runOnUiThread { applyGameSettings(json) }
         }
@@ -445,6 +465,25 @@ class GameActivity : AppCompatActivity() {
                 return true
             }
 
+            override fun onShowFileChooser(
+                webView: WebView,
+                filePathCallback: ValueCallback<Array<Uri>>,
+                fileChooserParams: FileChooserParams,
+            ): Boolean {
+                // Отменить предыдущий незавершённый выбор, если он есть —
+                // иначе WebView зависнет, ожидая ответа по старому callback.
+                pendingFileChooserCallback?.onReceiveValue(null)
+                pendingFileChooserCallback = filePathCallback
+                return try {
+                    fileChooserLauncher.launch(fileChooserParams.createIntent())
+                    true
+                } catch (@Suppress("SwallowedException") _: android.content.ActivityNotFoundException) {
+                    pendingFileChooserCallback = null
+                    filePathCallback.onReceiveValue(null)
+                    false
+                }
+            }
+
             override fun onGeolocationPermissionsShowPrompt(
                 origin: String,
                 callback: GeolocationPermissions.Callback,
@@ -463,6 +502,79 @@ class GameActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun createDownloadBridge(): DownloadBridge = DownloadBridge(
+        save = { filename, mimeType, bytes -> saveToDownloads(filename, mimeType, bytes) },
+        onResult = { savedName ->
+            runOnUiThread {
+                val message = if (savedName != null) {
+                    getString(R.string.download_saved, savedName)
+                } else {
+                    getString(R.string.download_failed)
+                }
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            }
+        },
+    )
+
+    private fun setupDownloadListener() {
+        // Blob-скачивания перехватываются на JS-уровне через DownloadBridge.BOOTSTRAP_SCRIPT
+        // (см. комментарий к нему). DownloadListener остаётся как fallback-логгер
+        // для неожиданных http/https-скачиваний — игра и юзерскрипты пока их не используют.
+        webView.setDownloadListener { url, _, _, mimetype, _ ->
+            Log.w(LOG_TAG, "Unhandled download: url=$url, mime=$mimetype")
+        }
+    }
+
+    /**
+     * Сохраняет байты в публичную директорию Downloads.
+     * API 29+: MediaStore (без runtime permissions).
+     * API < 29: app-specific external files dir (без permissions, но путь менее доступный).
+     *
+     * @return отображаемое имя сохранённого файла или null при ошибке
+     */
+    private fun saveToDownloads(filename: String, mimeType: String, bytes: ByteArray): String? {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                saveViaMediaStore(filename, mimeType, bytes)
+            } else {
+                saveToLegacyExternalFiles(filename, bytes)
+            }
+        } catch (e: java.io.IOException) {
+            Log.e(LOG_TAG, "Failed to save download: $filename", e)
+            null
+        } catch (e: SecurityException) {
+            Log.e(LOG_TAG, "Failed to save download: $filename", e)
+            null
+        }
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveViaMediaStore(filename: String, mimeType: String, bytes: ByteArray): String? {
+        val resolver = contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, filename)
+            put(MediaStore.Downloads.MIME_TYPE, mimeType)
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null
+        resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: return null
+        values.clear()
+        values.put(MediaStore.Downloads.IS_PENDING, 0)
+        resolver.update(uri, values, null, null)
+        return filename
+    }
+
+    private fun saveToLegacyExternalFiles(filename: String, bytes: ByteArray): String? {
+        val downloadsDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: return null
+        if (!downloadsDir.exists()) {
+            downloadsDir.mkdirs()
+        }
+        val file = File(downloadsDir, filename)
+        file.writeBytes(bytes)
+        return file.absolutePath
     }
 
     private fun hasLocationPermission(): Boolean =
