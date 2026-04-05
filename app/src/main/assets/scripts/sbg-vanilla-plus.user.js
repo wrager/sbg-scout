@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SBG Vanilla+
 // @namespace    https://github.com/wrager/sbg-vanilla-plus
-// @version      0.6.0
+// @version      0.8.0
 // @author       wrager
 // @description  UI/UX enhancements for SBG (SBG v0.6.0)
 // @license      MIT
@@ -12,7 +12,7 @@
 // @updateURL    https://github.com/wrager/sbg-vanilla-plus/releases/latest/download/sbg-vanilla-plus.meta.js
 // @match        https://sbg-game.ru/app/*
 // @grant        none
-// @run-at       document-idle
+// @run-at       document-start
 // ==/UserScript==
 
 (function () {
@@ -30,6 +30,61 @@
       }
     }
     return sessionStorage.getItem(STORAGE_KEY$2) === "1";
+  }
+  const GAME_SCRIPT_PATTERN = /^script@/;
+  const PATCHES = [
+    // Экспозиция showInfo на window для прямого открытия попапа (refs/game/script.js:1687)
+    ["class Bitfield", "window.showInfo = showInfo; class Bitfield"]
+  ];
+  function isGameScript(node) {
+    return node instanceof HTMLScriptElement && node.type === "module" && GAME_SCRIPT_PATTERN.test(node.getAttribute("src") ?? "");
+  }
+  function applyPatches(source) {
+    let result = source;
+    let appliedCount = 0;
+    for (const [search, replacement] of PATCHES) {
+      if (result.includes(search)) {
+        result = result.replace(search, replacement);
+        appliedCount++;
+      }
+    }
+    return { result, appliedCount };
+  }
+  const EXPECTED_PATCHES_COUNT = PATCHES.length;
+  function installGameScriptPatcher() {
+    const originalAppend = Element.prototype.append;
+    Element.prototype.append = function(...args) {
+      for (const argument of args) {
+        if (isGameScript(argument)) {
+          Element.prototype.append = originalAppend;
+          void patchAndInject(argument.src, originalAppend);
+          return;
+        }
+      }
+      originalAppend.apply(this, args);
+    };
+  }
+  async function patchAndInject(originalSrc, appendFunction) {
+    try {
+      const response = await fetch(originalSrc);
+      const source = await response.text();
+      const { result, appliedCount } = applyPatches(source);
+      if (appliedCount !== EXPECTED_PATCHES_COUNT) {
+        console.warn(
+          `[SVP] Применено ${appliedCount}/${EXPECTED_PATCHES_COUNT} патчей скрипта игры. Игра обновилась?`
+        );
+      }
+      const script = document.createElement("script");
+      script.type = "module";
+      script.textContent = result;
+      appendFunction.call(document.head, script);
+    } catch (error) {
+      console.error("[SVP] Патчинг скрипта не удался, загружаем оригинал", error);
+      const script = document.createElement("script");
+      script.type = "module";
+      script.src = originalSrc;
+      appendFunction.call(document.head, script);
+    }
   }
   function getGameLocale() {
     try {
@@ -58,6 +113,13 @@
     console.error(`[SVP] Ошибка при ${PHASE_LABELS[phase]} модуля "${t(mod.name)}":`, e);
     mod.status = "failed";
     onError == null ? void 0 : onError(mod.id, message);
+  }
+  let registeredModules = [];
+  function registerModules(modules) {
+    registeredModules = modules;
+  }
+  function getModuleById(id) {
+    return registeredModules.find((mod) => mod.id === id);
   }
   function runModuleAction(action, onError) {
     try {
@@ -255,7 +317,7 @@
   function buildBugReportUrl(modules) {
     const params = new URLSearchParams({
       template: "bug_report.yml",
-      version: "0.6.0",
+      version: "0.8.0",
       browser: navigator.userAgent,
       modules: buildModuleList(modules)
     });
@@ -729,7 +791,7 @@ ${errorLog}`);
     footer.className = "svp-settings-footer";
     const version = document.createElement("span");
     version.className = "svp-settings-version";
-    version.textContent = `SBG Vanilla+ v${"0.6.0"}`;
+    version.textContent = `SBG Vanilla+ v${"0.8.0"}`;
     const reportButton = document.createElement("button");
     reportButton.className = "svp-report-button";
     const reportLabel = { en: "Report a bug", ru: "Сообщить об ошибке" };
@@ -789,6 +851,7 @@ ${errorLog}`);
     }
   }
   function bootstrap(modules) {
+    registerModules(modules);
     let settings = loadSettings();
     settings = persistModuleDefaults(settings, modules);
     const errorDisplay = /* @__PURE__ */ new Map();
@@ -820,7 +883,7 @@ ${errorLog}`);
     return "setSource" in layer && typeof layer.setSource === "function";
   }
   function isOlGlobal(val) {
-    return typeof val === "object" && val !== null && "Map" in val && typeof val.Map === "object" && val.Map !== null && "prototype" in val.Map && typeof val.Map.prototype === "object" && val.Map.prototype !== null && "getView" in val.Map.prototype && typeof val.Map.prototype.getView === "function";
+    return typeof val === "object" && val !== null && "Map" in val && (typeof val.Map === "object" || typeof val.Map === "function") && val.Map !== null && "prototype" in val.Map && typeof val.Map.prototype === "object" && val.Map.prototype !== null && "getView" in val.Map.prototype && typeof val.Map.prototype.getView === "function";
   }
   function isDragPan(interaction) {
     var _a, _b;
@@ -829,6 +892,29 @@ ${errorLog}`);
   }
   function findDragPanInteractions(map2) {
     return map2.getInteractions().getArray().filter(isDragPan);
+  }
+  function createDragPanControl(map2) {
+    let disabled = [];
+    return {
+      disable() {
+        disabled = findDragPanInteractions(map2);
+        for (const interaction of disabled) {
+          interaction.setActive(false);
+        }
+      },
+      restore() {
+        for (const interaction of disabled) {
+          interaction.setActive(true);
+        }
+        disabled = [];
+      }
+    };
+  }
+  function findLayerByName(map2, name) {
+    for (const layer of map2.getLayers().getArray()) {
+      if (layer.get("name") === name) return layer;
+    }
+    return null;
   }
   let captured = null;
   const resolvers = [];
@@ -902,7 +988,7 @@ ${errorLog}`);
     setTimeout(logDiagnostics, DIAG_DELAY);
   }
   const FLAVOR_HEADER = "x-sbg-flavor";
-  const FLAVOR_VALUE = `VanillaPlus/${"0.6.0"}`;
+  const FLAVOR_VALUE = `VanillaPlus/${"0.8.0"}`;
   function installSbgFlavor() {
     const originalFetch = window.fetch;
     window.fetch = function(input, init) {
@@ -921,7 +1007,7 @@ ${errorLog}`);
     };
   }
   const css$1 = ".topleft-container.svp-collapsed{display:flex;flex-direction:row;align-items:center;gap:4px;padding:4px 37px 4px 6px;margin:0;cursor:pointer;border:1px var(--border) solid!important;background:var(--background)!important;color:var(--text)}.topleft-container.svp-collapsed .self-info{display:flex;align-items:center;margin:0;padding:0}.topleft-container.svp-collapsed .game-menu{display:inline-flex;margin:0;padding:0}#svp-inv-summary{font-size:14px;white-space:nowrap}#svp-top-toggle,#svp-top-expand{position:fixed;z-index:1;font-size:10px;line-height:1;cursor:pointer;padding:4px 8px;color:var(--text);background:var(--background);border:1px var(--border) solid;border-radius:6px;opacity:.8;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}#svp-top-toggle:active,#svp-top-expand:active{opacity:1}#attack-menu{position:fixed;left:50%;transform:translate(-50%);height:27pt}";
-  const MODULE_ID$f = "enhancedMainScreen";
+  const MODULE_ID$h = "enhancedMainScreen";
   const SUMMARY_ID = "svp-inv-summary";
   const TOGGLE_ID = "svp-top-toggle";
   const EXPAND_ID = "svp-top-expand";
@@ -1044,7 +1130,7 @@ ${errorLog}`);
     };
   }
   const enhancedMainScreen = {
-    id: MODULE_ID$f,
+    id: MODULE_ID$h,
     name: { en: "Enhanced Main Screen", ru: "Улучшенный главный экран" },
     description: {
       en: "Collapses the top-left panel and centers the attack button on the map screen",
@@ -1055,21 +1141,21 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(css$1, MODULE_ID$f);
+      injectStyles(css$1, MODULE_ID$h);
       return setup().then((fn) => {
         cleanup = fn;
       });
     },
     disable() {
-      removeStyles(MODULE_ID$f);
+      removeStyles(MODULE_ID$h);
       cleanup == null ? void 0 : cleanup();
       cleanup = null;
     }
   };
-  const styles$3 = ".info.popup .i-buttons button{min-height:72px;display:flex;align-items:center;justify-content:center}.i-stat__entry:not(.i-stat__cores){font-size:.7rem}.cores-list__level{font-size:1rem}#magic-deploy-btn{position:fixed;bottom:5px;left:5px;width:32px;height:32px;min-height:auto}";
-  const MODULE_ID$e = "enhancedPointPopupUi";
+  const styles$5 = ".info.popup .i-buttons button{min-height:72px;display:flex;align-items:center;justify-content:center}.i-stat__entry:not(.i-stat__cores){font-size:.7rem}.cores-list__level{font-size:1rem}#magic-deploy-btn{position:fixed;bottom:5px;left:5px;width:32px;height:32px;min-height:auto}";
+  const MODULE_ID$g = "enhancedPointPopupUi";
   const enhancedPointPopupUi = {
-    id: MODULE_ID$e,
+    id: MODULE_ID$g,
     name: { en: "Enhanced Point Popup UI", ru: "Улучшенный UI попапа точки" },
     description: {
       en: "Larger buttons, smaller text, auto-deploy hidden from accidental taps",
@@ -1080,19 +1166,279 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(styles$3, MODULE_ID$e);
+      injectStyles(styles$5, MODULE_ID$g);
     },
     disable() {
-      removeStyles(MODULE_ID$e);
+      removeStyles(MODULE_ID$g);
     }
   };
-  const MODULE_ID$d = "shiftMapCenterDown";
+  const styles$4 = ".info.popup{touch-action:pan-y}.info.popup .deploy-slider-wrp{touch-action:manipulation}.info.popup.svp-swipe-animating{transition:translate .3s ease-out,rotate .3s ease-out,opacity .3s ease-out}";
+  const MODULE_ID$f = "swipeToClosePopup";
+  const POPUP_SELECTOR = ".info.popup";
+  const DIRECTION_THRESHOLD = 10;
+  const DISMISS_THRESHOLD = 100;
+  const VELOCITY_THRESHOLD = 0.5;
+  const MAX_ROTATION = 8;
+  const OPACITY_DISTANCE = 250;
+  const ANIMATION_DURATION = 300;
+  const ANIMATION_SAFETY_MARGIN = 50;
+  let state$1 = "idle";
+  let startX = 0;
+  let startY = 0;
+  let currentDeltaX = 0;
+  let startTimestamp = 0;
+  let popup = null;
+  let safetyTimer = null;
+  let animationFrameId = null;
+  let classObserver = null;
+  let lastObservedGuid = null;
+  function applySwipeStyles(element, deltaX) {
+    const rotation = deltaX / window.innerWidth * MAX_ROTATION;
+    const opacity = Math.max(0, 1 - Math.abs(deltaX) / OPACITY_DISTANCE);
+    element.style.setProperty("translate", `${deltaX}px`);
+    element.style.setProperty("rotate", `${rotation}deg`);
+    element.style.opacity = String(opacity);
+  }
+  function resetElementStyles(element) {
+    element.style.removeProperty("translate");
+    element.style.removeProperty("rotate");
+    element.style.opacity = "";
+    element.style.willChange = "";
+    element.classList.remove("svp-swipe-animating");
+  }
+  function hasStaleSwipeStyles(element) {
+    return element.style.getPropertyValue("translate") !== "" || element.style.getPropertyValue("rotate") !== "" || element.style.opacity !== "" || element.classList.contains("svp-swipe-animating");
+  }
+  function clearSafetyTimer() {
+    if (safetyTimer !== null) {
+      clearTimeout(safetyTimer);
+      safetyTimer = null;
+    }
+  }
+  function cancelAnimationFrameIfPending() {
+    if (animationFrameId !== null) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+  }
+  function cleanupAnimation(element = popup) {
+    cancelAnimationFrameIfPending();
+    clearSafetyTimer();
+    if (element) resetElementStyles(element);
+    state$1 = "idle";
+  }
+  function startPopupObserver() {
+    if (!popup) return;
+    stopPopupObserver();
+    lastObservedGuid = popup.dataset.guid ?? null;
+    classObserver = new MutationObserver((mutations) => {
+      if (!popup) return;
+      for (const mutation of mutations) {
+        if (mutation.type !== "attributes") continue;
+        if (!(mutation.target instanceof HTMLElement)) continue;
+        if (mutation.target !== popup) continue;
+        if (mutation.attributeName === "class") {
+          const oldValue = mutation.oldValue ?? "";
+          const wasHidden = /\bhidden\b/.test(oldValue);
+          const isHidden = popup.classList.contains("hidden");
+          if (!wasHidden || isHidden) continue;
+          lastObservedGuid = popup.dataset.guid ?? null;
+          if (state$1 !== "idle" || hasStaleSwipeStyles(popup)) cleanupAnimation(popup);
+          continue;
+        }
+        if (mutation.attributeName === "data-guid") {
+          if (popup.classList.contains("hidden")) continue;
+          const currentGuid = popup.dataset.guid ?? null;
+          if (currentGuid === lastObservedGuid) continue;
+          lastObservedGuid = currentGuid;
+          if (state$1 !== "idle" || hasStaleSwipeStyles(popup)) cleanupAnimation(popup);
+        }
+      }
+    });
+    classObserver.observe(popup, {
+      attributes: true,
+      attributeFilter: ["class", "data-guid"],
+      attributeOldValue: true
+    });
+  }
+  function stopPopupObserver() {
+    classObserver == null ? void 0 : classObserver.disconnect();
+    classObserver = null;
+  }
+  function animateDismiss(direction) {
+    if (!popup) return;
+    state$1 = "animating";
+    const targetX = direction > 0 ? window.innerWidth : -window.innerWidth;
+    const animatingElement = popup;
+    animatingElement.classList.add("svp-swipe-animating");
+    let finished = false;
+    const onTransitionEnd = (event) => {
+      if (event.target !== animatingElement) return;
+      finish();
+    };
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      animatingElement.removeEventListener("transitionend", onTransitionEnd);
+      cleanupAnimation(animatingElement);
+      const closeButton2 = animatingElement.querySelector(".popup-close");
+      if (closeButton2 instanceof HTMLElement) {
+        closeButton2.click();
+        if (animatingElement.classList.contains("hidden")) return;
+      }
+      animatingElement.classList.add("hidden");
+      for (const toast of animatingElement.querySelectorAll(".toastify")) {
+        toast.remove();
+      }
+    };
+    animatingElement.addEventListener("transitionend", onTransitionEnd);
+    safetyTimer = setTimeout(finish, ANIMATION_DURATION + ANIMATION_SAFETY_MARGIN);
+    animationFrameId = requestAnimationFrame(() => {
+      animationFrameId = null;
+      applySwipeStyles(animatingElement, targetX);
+    });
+  }
+  function animateReturn() {
+    if (!popup) return;
+    state$1 = "animating";
+    const animatingElement = popup;
+    animatingElement.classList.add("svp-swipe-animating");
+    let finished = false;
+    const onTransitionEnd = (event) => {
+      if (event.target !== animatingElement) return;
+      finish();
+    };
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      animatingElement.removeEventListener("transitionend", onTransitionEnd);
+      cleanupAnimation(animatingElement);
+    };
+    animatingElement.addEventListener("transitionend", onTransitionEnd);
+    safetyTimer = setTimeout(finish, ANIMATION_DURATION + ANIMATION_SAFETY_MARGIN);
+    animationFrameId = requestAnimationFrame(() => {
+      animationFrameId = null;
+      animatingElement.style.setProperty("translate", "0px");
+      animatingElement.style.setProperty("rotate", "0deg");
+      animatingElement.style.opacity = "1";
+    });
+  }
+  function onTouchStart$2(event) {
+    if (state$1 === "idle" && popup && hasStaleSwipeStyles(popup)) {
+      cleanupAnimation(popup);
+    }
+    if (state$1 !== "idle") return;
+    if (event.targetTouches.length !== 1) return;
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    const element = target instanceof Element ? target : target.parentElement;
+    if (element == null ? void 0 : element.closest(".deploy-slider-wrp")) return;
+    const touch = event.targetTouches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    startTimestamp = event.timeStamp;
+    currentDeltaX = 0;
+    state$1 = "tracking";
+    if (popup) {
+      popup.style.willChange = "translate, rotate, opacity";
+    }
+  }
+  function onTouchMove$2(event) {
+    if (state$1 !== "tracking" && state$1 !== "swiping") return;
+    if (event.targetTouches.length !== 1) {
+      if (popup) resetElementStyles(popup);
+      state$1 = "idle";
+      return;
+    }
+    const touch = event.targetTouches[0];
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    if (state$1 === "tracking") {
+      if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < DIRECTION_THRESHOLD) return;
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        state$1 = "swiping";
+      } else {
+        if (popup) popup.style.willChange = "";
+        state$1 = "idle";
+        return;
+      }
+    }
+    event.preventDefault();
+    currentDeltaX = deltaX;
+    if (popup) applySwipeStyles(popup, deltaX);
+  }
+  function onTouchEnd$2(event) {
+    if (state$1 === "tracking") {
+      if (popup) popup.style.willChange = "";
+      state$1 = "idle";
+      return;
+    }
+    if (state$1 !== "swiping") return;
+    const elapsed = event.timeStamp - startTimestamp;
+    const velocity = elapsed > 0 ? Math.abs(currentDeltaX) / elapsed : 0;
+    if (Math.abs(currentDeltaX) > DISMISS_THRESHOLD || velocity > VELOCITY_THRESHOLD) {
+      animateDismiss(currentDeltaX > 0 ? 1 : -1);
+    } else {
+      animateReturn();
+    }
+  }
+  function onTouchCancel() {
+    if (state$1 === "tracking" || state$1 === "swiping" || state$1 === "animating") {
+      cleanupAnimation();
+    }
+  }
+  function addListeners$2() {
+    if (!popup) return;
+    popup.addEventListener("touchstart", onTouchStart$2, { passive: true });
+    popup.addEventListener("touchmove", onTouchMove$2, { passive: false });
+    popup.addEventListener("touchend", onTouchEnd$2, { passive: true });
+    popup.addEventListener("touchcancel", onTouchCancel, { passive: true });
+  }
+  function removeListeners$2() {
+    if (!popup) return;
+    popup.removeEventListener("touchstart", onTouchStart$2);
+    popup.removeEventListener("touchmove", onTouchMove$2);
+    popup.removeEventListener("touchend", onTouchEnd$2);
+    popup.removeEventListener("touchcancel", onTouchCancel);
+  }
+  const swipeToClosePopup = {
+    id: MODULE_ID$f,
+    name: {
+      en: "Swipe to Close Popup",
+      ru: "Закрытие попапа свайпом"
+    },
+    description: {
+      en: "Swipe the point popup left or right to close it with a card swipe animation",
+      ru: "Свайп попапа точки влево или вправо закрывает его с анимацией смахивания"
+    },
+    defaultEnabled: true,
+    category: "ui",
+    init() {
+    },
+    enable() {
+      const element = $(POPUP_SELECTOR);
+      if (!(element instanceof HTMLElement)) return;
+      popup = element;
+      injectStyles(styles$4, MODULE_ID$f);
+      addListeners$2();
+      startPopupObserver();
+    },
+    disable() {
+      removeListeners$2();
+      stopPopupObserver();
+      cleanupAnimation();
+      removeStyles(MODULE_ID$f);
+      lastObservedGuid = null;
+      popup = null;
+    }
+  };
+  const MODULE_ID$e = "shiftMapCenterDown";
   const PADDING_FACTOR = 0.35;
   let map$5 = null;
   let topPadding = 0;
   let inflateForPadding = false;
   const shiftMapCenterDown = {
-    id: MODULE_ID$d,
+    id: MODULE_ID$e,
     name: { en: "Shift Map Center Down", ru: "Сдвиг центра карты вниз" },
     description: {
       en: "Moves map center down so you see more ahead while moving",
@@ -1133,7 +1479,7 @@ ${errorLog}`);
       }
     }
   };
-  const MODULE_ID$c = "disableDoubleTapZoom";
+  const MODULE_ID$d = "disableDoubleTapZoom";
   let disabledInteractions$1 = [];
   let enabled$3 = false;
   function isDoubleClickZoom$1(interaction) {
@@ -1142,7 +1488,7 @@ ${errorLog}`);
     return DoubleClickZoom !== void 0 && interaction instanceof DoubleClickZoom;
   }
   const disableDoubleTapZoom = {
-    id: MODULE_ID$c,
+    id: MODULE_ID$d,
     name: { en: "Disable Double-Tap Zoom", ru: "Отключить зум по двойному тапу" },
     description: {
       en: "Disables double-tap zoom to prevent accidental zooming",
@@ -1171,7 +1517,7 @@ ${errorLog}`);
       disabledInteractions$1 = [];
     }
   };
-  const MODULE_ID$b = "ngrsZoom";
+  const MODULE_ID$c = "ngrsZoom";
   const TAP_DURATION_THRESHOLD = 200;
   const MAX_TAP_GAP = 300;
   const MAX_TAP_DISTANCE = 30;
@@ -1180,7 +1526,7 @@ ${errorLog}`);
   let map$4 = null;
   let enabled$2 = false;
   let disabledInteractions = [];
-  let disabledDragPanInteractions$1 = [];
+  let dragPanControl$1 = null;
   let state = "idle";
   let firstTapStartTimestamp = 0;
   let firstTapX = 0;
@@ -1193,22 +1539,9 @@ ${errorLog}`);
     const DoubleClickZoom = (_b = (_a = window.ol) == null ? void 0 : _a.interaction) == null ? void 0 : _b.DoubleClickZoom;
     return DoubleClickZoom !== void 0 && interaction instanceof DoubleClickZoom;
   }
-  function disableDragPan$1() {
-    if (!map$4) return;
-    disabledDragPanInteractions$1 = findDragPanInteractions(map$4);
-    for (const interaction of disabledDragPanInteractions$1) {
-      interaction.setActive(false);
-    }
-  }
-  function restoreDragPan$1() {
-    for (const interaction of disabledDragPanInteractions$1) {
-      interaction.setActive(true);
-    }
-    disabledDragPanInteractions$1 = [];
-  }
   function resetGesture$1() {
     state = "idle";
-    restoreDragPan$1();
+    dragPanControl$1 == null ? void 0 : dragPanControl$1.restore();
     if (secondTapTimer !== null) {
       clearTimeout(secondTapTimer);
       secondTapTimer = null;
@@ -1261,7 +1594,7 @@ ${errorLog}`);
       state = "secondTapDown";
       initialY = touch.clientY;
       initialZoom = zoom;
-      disableDragPan$1();
+      dragPanControl$1 == null ? void 0 : dragPanControl$1.disable();
       event.preventDefault();
       return;
     }
@@ -1350,7 +1683,7 @@ ${errorLog}`);
     disabledInteractions = [];
   }
   const ngrsZoom = {
-    id: MODULE_ID$b,
+    id: MODULE_ID$c,
     name: {
       en: "Ngrs Zoom",
       ru: "Нгрс-зум"
@@ -1364,6 +1697,7 @@ ${errorLog}`);
     init() {
       return getOlMap().then((olMap2) => {
         map$4 = olMap2;
+        dragPanControl$1 = createDragPanControl(olMap2);
         if (enabled$2) {
           disableDoubleClickZoomInteractions();
           addListeners$1();
@@ -1386,10 +1720,10 @@ ${errorLog}`);
       resetGesture$1();
     }
   };
-  const MODULE_ID$a = "drawButtonFix";
+  const MODULE_ID$b = "drawButtonFix";
   let observer$1 = null;
   const drawButtonFix = {
-    id: MODULE_ID$a,
+    id: MODULE_ID$b,
     name: { en: "Draw Button Fix", ru: "Фикс кнопки рисования" },
     description: {
       en: "Draw button is always enabled — fixes a game bug where the button gets stuck in disabled state",
@@ -1418,7 +1752,7 @@ ${errorLog}`);
       observer$1 = null;
     }
   };
-  const MODULE_ID$9 = "groupErrorToasts";
+  const MODULE_ID$a = "groupErrorToasts";
   const ERROR_TOAST_CLASS = "error-toast";
   let restorePatch = null;
   function getContainerIdentity(selector) {
@@ -1480,7 +1814,7 @@ ${errorLog}`);
     };
   }
   const groupErrorToasts = {
-    id: MODULE_ID$9,
+    id: MODULE_ID$a,
     name: { en: "Group Error Toasts", ru: "Группировка тостов ошибок" },
     description: {
       en: "Groups identical error toasts into one with a counter instead of stacking",
@@ -1496,6 +1830,26 @@ ${errorLog}`);
     disable() {
       restorePatch == null ? void 0 : restorePatch();
       restorePatch = null;
+    }
+  };
+  const styles$3 = "#attack-slider-close{display:none!important}";
+  const MODULE_ID$9 = "removeAttackCloseButton";
+  const removeAttackCloseButton = {
+    id: MODULE_ID$9,
+    name: { en: "Remove Attack Close Button", ru: "Убрать кнопку «Закрыть» в атаке" },
+    description: {
+      en: "Removes the Close button in attack mode to avoid hitting it instead of Fire. Tap Attack again to exit",
+      ru: "Убирает кнопку «Закрыть» в режиме атаки, чтобы не нажать её случайно вместо «Огонь!». Выход из режима — повторный клик по кнопке «Атака»"
+    },
+    defaultEnabled: true,
+    category: "ui",
+    init() {
+    },
+    enable() {
+      injectStyles(styles$3, MODULE_ID$9);
+    },
+    disable() {
+      removeStyles(MODULE_ID$9);
     }
   };
   const MODULE_ID$8 = "keepScreenOn";
@@ -1534,27 +1888,69 @@ ${errorLog}`);
       return released;
     }
   };
+  const ITEM_TYPE_CORE = 1;
+  const ITEM_TYPE_CATALYSER = 2;
+  const ITEM_TYPE_REFERENCE = 3;
+  const ITEM_TYPE_BROOM = 4;
+  function isRecord$1(value) {
+    return typeof value === "object" && value !== null;
+  }
+  function isInventoryCore(value) {
+    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_CORE && typeof value.l === "number" && typeof value.a === "number";
+  }
+  function isInventoryCatalyser(value) {
+    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_CATALYSER && typeof value.l === "number" && typeof value.a === "number";
+  }
+  function isInventoryReference(value) {
+    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_REFERENCE && typeof value.l === "string" && typeof value.a === "number";
+  }
+  function isInventoryReferenceFull(value) {
+    if (!isInventoryReference(value)) return false;
+    const record = value;
+    return Array.isArray(record.c) && record.c.length === 2 && typeof record.c[0] === "number" && typeof record.c[1] === "number" && typeof record.ti === "string";
+  }
+  function isInventoryBroom(value) {
+    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_BROOM && typeof value.l === "number" && typeof value.a === "number";
+  }
+  function isInventoryItem(value) {
+    return isInventoryCore(value) || isInventoryCatalyser(value) || isInventoryReference(value) || isInventoryBroom(value);
+  }
+  const INVENTORY_CACHE_KEY = "inventory-cache";
+  function readInventoryCache() {
+    const raw = localStorage.getItem(INVENTORY_CACHE_KEY);
+    if (!raw) return [];
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
+  }
+  function readInventoryReferences() {
+    return readInventoryCache().filter(isInventoryReference);
+  }
+  function readFullInventoryReferences() {
+    return readInventoryCache().filter(isInventoryReferenceFull);
+  }
+  function getCssVariable(name, fallback) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  }
+  function getTextColor() {
+    return getCssVariable("--text", "#000000");
+  }
+  function getBackgroundColor() {
+    return getCssVariable("--background", "#ffffff");
+  }
   const MODULE_ID$7 = "keyCountOnPoints";
   const MIN_ZOOM = 15;
   const DEBOUNCE_MS = 100;
-  function isInventoryRef(val) {
-    return typeof val === "object" && val !== null && "t" in val && val.t === 3 && "l" in val && typeof val.l === "string" && "a" in val && typeof val.a === "number";
-  }
   function buildRefCounts() {
-    const raw = localStorage.getItem("inventory-cache");
-    if (!raw) return /* @__PURE__ */ new Map();
-    let items;
-    try {
-      items = JSON.parse(raw);
-    } catch {
-      return /* @__PURE__ */ new Map();
-    }
-    if (!Array.isArray(items)) return /* @__PURE__ */ new Map();
+    const refs = readInventoryReferences();
     const counts = /* @__PURE__ */ new Map();
-    for (const item of items) {
-      if (isInventoryRef(item)) {
-        counts.set(item.l, (counts.get(item.l) ?? 0) + item.a);
-      }
+    for (const ref of refs) {
+      counts.set(ref.l, (counts.get(ref.l) ?? 0) + ref.a);
     }
     return counts;
   }
@@ -1582,8 +1978,8 @@ ${errorLog}`);
     const OlFill = (_f = ol == null ? void 0 : ol.style) == null ? void 0 : _f.Fill;
     const OlStroke = (_g = ol == null ? void 0 : ol.style) == null ? void 0 : _g.Stroke;
     if (!OlFeature || !OlPoint || !OlStyle || !OlText || !OlFill || !OlStroke) return;
-    const textColor = getComputedStyle(document.documentElement).getPropertyValue("--text").trim() || "#000000";
-    const bgColor = getComputedStyle(document.documentElement).getPropertyValue("--background").trim() || "#ffffff";
+    const textColor = getTextColor();
+    const bgColor = getBackgroundColor();
     for (const feature of pointsSource$1.getFeatures()) {
       const id = feature.getId();
       if (typeof id !== "string") continue;
@@ -1610,12 +2006,6 @@ ${errorLog}`);
     if (debounceTimer !== null) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(renderLabels, DEBOUNCE_MS);
   }
-  function findPointsLayer$1(olMap2) {
-    for (const layer of olMap2.getLayers().getArray()) {
-      if (layer.get("name") === "points") return layer;
-    }
-    return null;
-  }
   const keyCountOnPoints = {
     id: MODULE_ID$7,
     name: { en: "Key count on points", ru: "Количество ключей на точках" },
@@ -1634,7 +2024,7 @@ ${errorLog}`);
         const OlVectorSource = (_a = ol == null ? void 0 : ol.source) == null ? void 0 : _a.Vector;
         const OlVectorLayer = (_b = ol == null ? void 0 : ol.layer) == null ? void 0 : _b.Vector;
         if (!OlVectorSource || !OlVectorLayer) return;
-        const pointsLayer = findPointsLayer$1(olMap2);
+        const pointsLayer = findLayerByName(olMap2, "points");
         if (!pointsLayer) return;
         const src = pointsLayer.getSource();
         if (!src) return;
@@ -1727,25 +2117,49 @@ ${errorLog}`);
   const styles$2 = ".info.popup .i-buttons .svp-next-point-button{position:fixed;bottom:5px;right:5px;width:32px;height:32px;min-height:auto}";
   const MODULE_ID$5 = "nextPointNavigation";
   const BUTTON_CLASS = "svp-next-point-button";
+  const INTERACTION_RANGE = 45;
+  const AUTOZOOM_THRESHOLD = 16;
+  const AUTOZOOM_TARGET = 17;
+  const AUTOZOOM_TIMEOUT_MS = 3e3;
   let map$1 = null;
   let pointsSource = null;
-  const visited = /* @__PURE__ */ new Set();
-  let chainOrigin = null;
+  let playerSource = null;
+  const rangeVisited = /* @__PURE__ */ new Set();
   let expectedNextGuid = null;
   let lastSeenGuid = null;
   let fakeClickRetries = 0;
   const MAX_FAKE_CLICK_RETRIES = 3;
   let popupObserver$1 = null;
-  let onButtonClick = null;
-  function findNearestUnvisited(origin, features, visitedSet) {
+  let playerMoveHandler = null;
+  let autozoomInProgress = false;
+  let onRangeButtonClick = null;
+  let sourceChangeHandler = null;
+  function getGeodeticDistance(coordsA, coordsB) {
+    var _a, _b;
+    const ol = window.ol;
+    if (!((_a = ol == null ? void 0 : ol.geom) == null ? void 0 : _a.LineString) || !((_b = ol.sphere) == null ? void 0 : _b.getLength)) return Infinity;
+    const line = new ol.geom.LineString([coordsA, coordsB]);
+    return ol.sphere.getLength(line);
+  }
+  function findFeaturesInRange(center, features, radiusMeters) {
+    const result = [];
+    for (const feature of features) {
+      const id = feature.getId();
+      if (id === void 0) continue;
+      const coords = feature.getGeometry().getCoordinates();
+      if (getGeodeticDistance(center, coords) <= radiusMeters) {
+        result.push(feature);
+      }
+    }
+    return result;
+  }
+  function findNearestByDistance(center, features) {
     let nearest = null;
     let minDistanceSquared = Infinity;
     for (const feature of features) {
-      const id = feature.getId();
-      if (id === void 0 || visitedSet.has(id)) continue;
       const coords = feature.getGeometry().getCoordinates();
-      const dx = coords[0] - origin[0];
-      const dy = coords[1] - origin[1];
+      const dx = coords[0] - center[0];
+      const dy = coords[1] - center[1];
       const distanceSquared = dx * dx + dy * dy;
       if (distanceSquared < minDistanceSquared) {
         minDistanceSquared = distanceSquared;
@@ -1754,16 +2168,32 @@ ${errorLog}`);
     }
     return nearest;
   }
-  function findPointsLayer(olMap2) {
-    for (const layer of olMap2.getLayers().getArray()) {
-      if (layer.get("name") === "points") return layer;
-    }
-    return null;
+  function hasFreeSlots(feature) {
+    var _a;
+    const cores = (_a = feature.get) == null ? void 0 : _a.call(feature, "cores");
+    return cores === void 0 || typeof cores === "number" && cores < 6;
+  }
+  function isDiscoverable(feature) {
+    const id = feature.getId();
+    if (id === void 0) return false;
+    const cooldowns = JSON.parse(localStorage.getItem("cooldowns") ?? "{}");
+    const cooldown = cooldowns[String(id)];
+    if (!(cooldown == null ? void 0 : cooldown.t)) return true;
+    return cooldown.t <= Date.now() && (cooldown.c ?? 0) > 0;
+  }
+  function findNextByPriority(center, candidates) {
+    return findNearestByDistance(center, candidates.filter(hasFreeSlots)) ?? findNearestByDistance(center, candidates.filter(isDiscoverable)) ?? findNearestByDistance(center, candidates);
+  }
+  function getPlayerCoordinates() {
+    if (!playerSource) return null;
+    const features = playerSource.getFeatures();
+    if (features.length === 0) return null;
+    return features[0].getGeometry().getCoordinates();
   }
   function getPopupPointId() {
-    const popup = document.querySelector(".info.popup");
-    if (!popup || popup.classList.contains("hidden")) return null;
-    return popup.dataset.guid ?? null;
+    const popup2 = document.querySelector(".info.popup");
+    if (!popup2 || popup2.classList.contains("hidden")) return null;
+    return popup2.dataset.guid ?? null;
   }
   function findFeatureById(id) {
     if (!pointsSource) return null;
@@ -1773,103 +2203,176 @@ ${errorLog}`);
     return null;
   }
   function openPointPopup(guid) {
+    var _a;
+    expectedNextGuid = guid;
+    if (typeof window.showInfo === "function") {
+      (_a = document.querySelector(".info.popup")) == null ? void 0 : _a.classList.add("hidden");
+      window.showInfo(guid);
+      return;
+    }
     if (!map$1 || typeof map$1.dispatchEvent !== "function" || typeof map$1.getPixelFromCoordinate !== "function") {
       return;
     }
     const feature = findFeatureById(guid);
     if (!feature) return;
-    expectedNextGuid = guid;
     const coords = feature.getGeometry().getCoordinates();
     const pixel = map$1.getPixelFromCoordinate(coords);
     map$1.dispatchEvent({ type: "click", pixel, originalEvent: {} });
   }
-  function navigateToNext() {
-    if (!map$1 || !pointsSource) return;
+  function tryNavigateInRange() {
+    if (!map$1 || !pointsSource) return false;
     const currentId = getPopupPointId();
-    if (!currentId) return;
-    const currentFeature = findFeatureById(currentId);
-    if (!currentFeature) return;
-    if (!chainOrigin) {
-      chainOrigin = currentFeature.getGeometry().getCoordinates();
-    }
-    visited.add(currentId);
+    if (!currentId) return false;
+    const playerCoordinates = getPlayerCoordinates();
+    if (!playerCoordinates) return false;
+    rangeVisited.add(currentId);
     const features = pointsSource.getFeatures();
-    const next = findNearestUnvisited(chainOrigin, features, visited);
-    if (!next) {
-      visited.clear();
-      chainOrigin = null;
-      return;
-    }
-    const nextId = next.getId();
-    if (nextId === void 0) return;
-    visited.add(nextId);
-    openPointPopup(String(nextId));
-  }
-  function injectButton(popup) {
-    if (popup.querySelector(`.${BUTTON_CLASS}`)) return;
-    const buttonsContainer = popup.querySelector(".i-buttons");
-    if (!buttonsContainer) return;
-    const button = document.createElement("button");
-    button.className = BUTTON_CLASS;
-    button.textContent = "→";
-    button.title = "Следующая ближайшая точка";
-    onButtonClick = () => {
-      navigateToNext();
-    };
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      onButtonClick == null ? void 0 : onButtonClick();
+    const inRange = findFeaturesInRange(playerCoordinates, features, INTERACTION_RANGE);
+    const candidates = inRange.filter((feature) => {
+      const id = feature.getId();
+      return id !== void 0 && !rangeVisited.has(id);
     });
-    buttonsContainer.appendChild(button);
+    let next = findNextByPriority(playerCoordinates, candidates);
+    if (!next) {
+      rangeVisited.clear();
+      rangeVisited.add(currentId);
+      const cycledCandidates = inRange.filter((feature) => {
+        const id = feature.getId();
+        return id !== void 0 && !rangeVisited.has(id);
+      });
+      next = findNextByPriority(playerCoordinates, cycledCandidates);
+    }
+    if (!next) return false;
+    const nextId = next.getId();
+    if (nextId === void 0) return false;
+    openPointPopup(String(nextId));
+    return true;
+  }
+  function autozoomAndNavigate() {
+    var _a, _b;
+    if (!map$1 || !pointsSource) return;
+    const view = map$1.getView();
+    const currentZoom = (_a = view.getZoom) == null ? void 0 : _a.call(view);
+    if (currentZoom === void 0 || currentZoom >= AUTOZOOM_THRESHOLD) return;
+    const playerCoordinates = getPlayerCoordinates();
+    if (!playerCoordinates) return;
+    autozoomInProgress = true;
+    const savedCenter = view.getCenter();
+    const savedZoom = currentZoom;
+    view.setCenter(playerCoordinates);
+    (_b = view.setZoom) == null ? void 0 : _b.call(view, AUTOZOOM_TARGET);
+    let resolved = false;
+    const finish = () => {
+      var _a2;
+      if (resolved) return;
+      resolved = true;
+      autozoomInProgress = false;
+      pointsSource == null ? void 0 : pointsSource.un("change", onSourceChange);
+      view.setCenter(savedCenter);
+      (_a2 = view.setZoom) == null ? void 0 : _a2.call(view, savedZoom);
+      updateButtonStates();
+    };
+    const onSourceChange = () => {
+      finish();
+    };
+    pointsSource.on("change", onSourceChange);
+    setTimeout(finish, AUTOZOOM_TIMEOUT_MS);
+  }
+  function navigateInRange() {
+    tryNavigateInRange();
+  }
+  function hasInRangePoints(excludePointId) {
+    if (!pointsSource) return false;
+    const playerCoordinates = getPlayerCoordinates();
+    if (!playerCoordinates) return false;
+    const features = pointsSource.getFeatures();
+    const inRange = findFeaturesInRange(playerCoordinates, features, INTERACTION_RANGE);
+    return inRange.some((feature) => feature.getId() !== excludePointId);
+  }
+  function injectButton(popup2) {
+    const buttonsContainer = popup2.querySelector(".i-buttons");
+    if (!buttonsContainer) return;
+    if (!popup2.querySelector(`.${BUTTON_CLASS}`)) {
+      const rangeButton2 = document.createElement("button");
+      rangeButton2.className = BUTTON_CLASS;
+      rangeButton2.textContent = "→";
+      rangeButton2.title = "Следующая точка в радиусе взаимодействия";
+      onRangeButtonClick = () => {
+        navigateInRange();
+      };
+      rangeButton2.addEventListener("click", (event) => {
+        event.stopPropagation();
+        onRangeButtonClick == null ? void 0 : onRangeButtonClick();
+      });
+      buttonsContainer.appendChild(rangeButton2);
+    }
+    const inRange = hasInRangePoints(getPopupPointId());
+    const rangeButton = popup2.querySelector(`.${BUTTON_CLASS}`);
+    if (rangeButton) {
+      rangeButton.disabled = !inRange;
+    }
+    if (!inRange && !autozoomInProgress) {
+      autozoomAndNavigate();
+    }
+  }
+  function updateButtonStates() {
+    const popup2 = document.querySelector(".info.popup");
+    if (!popup2 || popup2.classList.contains("hidden")) return;
+    const rangeButton = popup2.querySelector(`.${BUTTON_CLASS}`);
+    if (rangeButton) {
+      rangeButton.disabled = !hasInRangePoints(getPopupPointId());
+    }
   }
   function removeButton() {
     var _a;
     (_a = document.querySelector(`.${BUTTON_CLASS}`)) == null ? void 0 : _a.remove();
-    onButtonClick = null;
+    onRangeButtonClick = null;
   }
-  function onPopupMutation(popup) {
-    const isVisible = !popup.classList.contains("hidden");
+  function onPopupMutation(popup2) {
+    const isVisible = !popup2.classList.contains("hidden");
     if (isVisible) {
-      const currentGuid = popup.dataset.guid ?? null;
+      const currentGuid = popup2.dataset.guid ?? null;
       if (expectedNextGuid !== null) {
         if (currentGuid === lastSeenGuid && fakeClickRetries < MAX_FAKE_CLICK_RETRIES) {
           fakeClickRetries++;
           expectedNextGuid = null;
-          navigateToNext();
+          navigateInRange();
           return;
+        }
+        if (currentGuid === lastSeenGuid && expectedNextGuid) {
+          rangeVisited.add(expectedNextGuid);
         }
         fakeClickRetries = 0;
         if (currentGuid !== expectedNextGuid && currentGuid) {
-          visited.add(currentGuid);
+          rangeVisited.add(currentGuid);
         }
         expectedNextGuid = null;
       } else if (currentGuid !== lastSeenGuid) {
         fakeClickRetries = 0;
-        visited.clear();
-        chainOrigin = null;
+        rangeVisited.clear();
       }
       lastSeenGuid = currentGuid;
-      injectButton(popup);
+      injectButton(popup2);
     }
   }
-  function startObservingPopup(popup) {
+  function startObservingPopup(popup2) {
     popupObserver$1 = new MutationObserver(() => {
-      onPopupMutation(popup);
+      onPopupMutation(popup2);
     });
-    popupObserver$1.observe(popup, {
+    popupObserver$1.observe(popup2, {
       attributes: true,
       attributeFilter: ["class", "data-guid"],
       childList: true,
       subtree: true
     });
-    if (!popup.classList.contains("hidden")) {
-      injectButton(popup);
+    if (!popup2.classList.contains("hidden")) {
+      injectButton(popup2);
     }
   }
   function observePopup() {
-    const popup = document.querySelector(".info.popup");
-    if (popup) {
-      startObservingPopup(popup);
+    const popup2 = document.querySelector(".info.popup");
+    if (popup2) {
+      startObservingPopup(popup2);
       return;
     }
     void waitForElement(".info.popup").then((element) => {
@@ -1881,8 +2384,8 @@ ${errorLog}`);
     id: MODULE_ID$5,
     name: { en: "Next point navigation", ru: "Переход к следующей точке" },
     description: {
-      en: "Navigate sequentially to the nearest unvisited points from the popup",
-      ru: "Последовательная навигация по ближайшим точкам из попапа"
+      en: "Cycle through points in interaction range",
+      ru: "Зацикленная навигация по точкам в радиусе взаимодействия"
     },
     defaultEnabled: true,
     category: "feature",
@@ -1890,30 +2393,54 @@ ${errorLog}`);
     },
     enable() {
       return getOlMap().then((olMap2) => {
-        const pointsLayer = findPointsLayer(olMap2);
+        const pointsLayer = findLayerByName(olMap2, "points");
         if (!pointsLayer) return;
         const source = pointsLayer.getSource();
         if (!source) return;
+        const playerLayer = findLayerByName(olMap2, "player");
+        const playerLayerSource = (playerLayer == null ? void 0 : playerLayer.getSource()) ?? null;
         map$1 = olMap2;
         pointsSource = source;
+        playerSource = playerLayerSource;
         injectStyles(styles$2, MODULE_ID$5);
         observePopup();
+        sourceChangeHandler = () => {
+          updateButtonStates();
+        };
+        pointsSource.on("change", sourceChangeHandler);
+        const infoElement = document.querySelector(".info");
+        if (infoElement) {
+          playerMoveHandler = () => {
+            updateButtonStates();
+          };
+          infoElement.addEventListener("playermove", playerMoveHandler);
+        }
       });
     },
     disable() {
+      var _a;
       if (popupObserver$1) {
         popupObserver$1.disconnect();
         popupObserver$1 = null;
+      }
+      if (playerMoveHandler) {
+        (_a = document.querySelector(".info")) == null ? void 0 : _a.removeEventListener("playermove", playerMoveHandler);
+        playerMoveHandler = null;
+      }
+      if (pointsSource && sourceChangeHandler) {
+        pointsSource.un("change", sourceChangeHandler);
+        sourceChangeHandler = null;
       }
       removeButton();
       removeStyles(MODULE_ID$5);
       map$1 = null;
       pointsSource = null;
-      visited.clear();
-      chainOrigin = null;
+      playerSource = null;
+      rangeVisited.clear();
       expectedNextGuid = null;
       lastSeenGuid = null;
       fakeClickRetries = 0;
+      autozoomInProgress = false;
     }
   };
   const css = ".svp-refs-on-map-button{background:none;border:1px solid var(--border-transp);color:var(--text);padding:4px 8px;font-size:14px;cursor:pointer}.svp-refs-on-map-close{position:fixed;bottom:8px;left:50%;transform:translate(-50%);z-index:1;font-size:1.5em;padding:0 .1em;align-self:center}.svp-refs-on-map-trash{position:fixed;bottom:100px;right:20px;z-index:10;background:var(--background-transp);border:1px solid var(--border-transp);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:var(--text);font-size:14px;padding:8px 12px;border-radius:8px;cursor:pointer;min-width:48px;text-align:center}";
@@ -1931,23 +2458,6 @@ ${errorLog}`);
   const REFS_TAB_TYPE = 3;
   const COLLAPSIBLE_TOGGLE_ID = "svp-top-toggle";
   const COLLAPSIBLE_EXPAND_ID = "svp-top-expand";
-  function isInventoryRefFull(value) {
-    if (typeof value !== "object" || value === null) return false;
-    const record = value;
-    return record.t === 3 && typeof record.a === "number" && Array.isArray(record.c) && record.c.length === 2 && typeof record.c[0] === "number" && typeof record.c[1] === "number" && typeof record.g === "string" && typeof record.l === "string" && typeof record.ti === "string";
-  }
-  function readRefsFromCache() {
-    const raw = localStorage.getItem("inventory-cache");
-    if (!raw) return [];
-    let items;
-    try {
-      items = JSON.parse(raw);
-    } catch {
-      return [];
-    }
-    if (!Array.isArray(items)) return [];
-    return items.filter(isInventoryRefFull);
-  }
   function isPointApiResponse(value) {
     return typeof value === "object" && value !== null;
   }
@@ -1980,7 +2490,7 @@ ${errorLog}`);
     return {};
   }
   function removeRefsFromCache(deletedGuids) {
-    const raw = localStorage.getItem("inventory-cache");
+    const raw = localStorage.getItem(INVENTORY_CACHE_KEY);
     if (!raw) return;
     let items;
     try {
@@ -1995,7 +2505,7 @@ ${errorLog}`);
       if (record.t !== REFS_TAB_TYPE) return true;
       return typeof record.g === "string" && !deletedGuids.has(record.g);
     });
-    localStorage.setItem("inventory-cache", JSON.stringify(filtered));
+    localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(filtered));
   }
   function updateInventoryCounter(total) {
     const counter = document.getElementById("self-info__inv");
@@ -2055,8 +2565,8 @@ ${errorLog}`);
       const fillColor = isSelected ? SELECTED_COLOR : teamColor + "40";
       const strokeColor = isSelected ? SELECTED_COLOR : teamColor;
       const strokeWidth = isSelected ? 4 : 3;
-      const textColor = getComputedStyle(document.documentElement).getPropertyValue("--text").trim() || "#000000";
-      const backgroundColor = getComputedStyle(document.documentElement).getPropertyValue("--background").trim() || "#ffffff";
+      const textColor = getTextColor();
+      const backgroundColor = getBackgroundColor();
       const styles2 = [
         new OlStyle({
           image: new OlCircle({
@@ -2258,7 +2768,7 @@ ${errorLog}`);
   function showViewer() {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     if (viewerOpen || !olMap || !refsSource) return;
-    const refs = readRefsFromCache();
+    const refs = readFullInventoryReferences();
     if (refs.length === 0) return;
     const ol = window.ol;
     const OlFeature = ol == null ? void 0 : ol.Feature;
@@ -2274,9 +2784,10 @@ ${errorLog}`);
     view.setRotation(0);
     hideGameUi();
     setGameLayersVisible(false);
+    const ngrsZoomModule = getModuleById("ngrsZoom");
     const settings = loadSettings();
-    if (isModuleEnabled(settings, ngrsZoom.id, ngrsZoom.defaultEnabled)) {
-      void ngrsZoom.disable();
+    if (ngrsZoomModule && isModuleEnabled(settings, ngrsZoomModule.id, ngrsZoomModule.defaultEnabled)) {
+      void ngrsZoomModule.disable();
       ngrsZoomDisabledByViewer = true;
     }
     for (const ref of refs) {
@@ -2332,7 +2843,8 @@ ${errorLog}`);
     }
     restoreFollowMode();
     if (ngrsZoomDisabledByViewer) {
-      void ngrsZoom.enable();
+      const ngrsZoomModule = getModuleById("ngrsZoom");
+      if (ngrsZoomModule) void ngrsZoomModule.enable();
       ngrsZoomDisabledByViewer = false;
     }
   }
@@ -2439,10 +2951,6 @@ ${errorLog}`);
       refsLayer = null;
     }
   };
-  const ITEM_TYPE_CORE = 1;
-  const ITEM_TYPE_CATALYSER = 2;
-  const ITEM_TYPE_REFERENCE = 3;
-  const ITEM_TYPE_BROOM = 4;
   const MODULE_ID$3 = "repairAtFullCharge";
   let observer = null;
   function extractTeamFromStyle(element) {
@@ -2459,16 +2967,7 @@ ${errorLog}`);
     var _a;
     const pointGuid = (_a = document.querySelector(".info")) == null ? void 0 : _a.getAttribute("data-guid");
     if (!pointGuid) return false;
-    try {
-      const raw = localStorage.getItem("inventory-cache");
-      if (!raw) return false;
-      const items = JSON.parse(raw);
-      return items.some(
-        (item) => typeof item === "object" && item !== null && item.t === ITEM_TYPE_REFERENCE && item.l === pointGuid
-      );
-    } catch {
-      return false;
-    }
+    return readInventoryReferences().some((ref) => ref.l === pointGuid);
   }
   const repairAtFullCharge = {
     id: MODULE_ID$3,
@@ -2505,12 +3004,12 @@ ${errorLog}`);
   const MODULE_ID$2 = "singleFingerRotation";
   let viewport = null;
   let map = null;
+  let dragPanControl = null;
   let latestPoint = null;
   let inflateExtent = false;
   let enabled$1 = false;
-  let disabledDragPanInteractions = [];
   function isFollowActive() {
-    return localStorage.getItem("follow") === "true";
+    return localStorage.getItem("follow") !== "false";
   }
   function getScreenCenter() {
     const padding = (map ? map.getView().padding : void 0) ?? [0, 0, 0, 0];
@@ -2534,22 +3033,9 @@ ${errorLog}`);
     const view = map.getView();
     view.setRotation(view.getRotation() + delta);
   }
-  function disableDragPan() {
-    if (!map) return;
-    disabledDragPanInteractions = findDragPanInteractions(map);
-    for (const interaction of disabledDragPanInteractions) {
-      interaction.setActive(false);
-    }
-  }
-  function restoreDragPan() {
-    for (const interaction of disabledDragPanInteractions) {
-      interaction.setActive(true);
-    }
-    disabledDragPanInteractions = [];
-  }
   function resetGesture() {
     latestPoint = null;
-    restoreDragPan();
+    dragPanControl == null ? void 0 : dragPanControl.restore();
   }
   function onTouchStart(event) {
     if (event.targetTouches.length > 1) {
@@ -2560,7 +3046,7 @@ ${errorLog}`);
     if (!(event.target instanceof HTMLCanvasElement)) return;
     const touch = event.targetTouches[0];
     latestPoint = [touch.clientX, touch.clientY];
-    disableDragPan();
+    dragPanControl == null ? void 0 : dragPanControl.disable();
   }
   function onTouchMove(event) {
     if (!latestPoint) return;
@@ -2602,6 +3088,7 @@ ${errorLog}`);
     init() {
       return getOlMap().then((olMap2) => {
         map = olMap2;
+        dragPanControl = createDragPanControl(olMap2);
         const viewportElement = $(".ol-viewport");
         if (viewportElement instanceof HTMLElement) {
           viewport = viewportElement;
@@ -2629,7 +3116,7 @@ ${errorLog}`);
       enabled$1 = false;
       inflateExtent = false;
       removeListeners();
-      restoreDragPan();
+      dragPanControl == null ? void 0 : dragPanControl.restore();
       resetGesture();
     }
   };
@@ -2721,10 +3208,10 @@ ${errorLog}`);
       radio.disabled = !hasUrl;
     }
   }
-  function injectIntoPopup(popup) {
-    const list = popup.querySelector(".layers-config__list");
+  function injectIntoPopup(popup2) {
+    const list = popup2.querySelector(".layers-config__list");
     if (!list) return;
-    const lastGameRadio = popup.querySelector(
+    const lastGameRadio = popup2.querySelector(
       'input[name="baselayer"][value="goo"]'
     );
     const insertAfter = (lastGameRadio == null ? void 0 : lastGameRadio.closest(".layers-config__entry")) ?? null;
@@ -2818,9 +3305,9 @@ ${errorLog}`);
   function restoreGameRadioSelection() {
     const savedValue = lastGameRadioValue ?? localStorage.getItem(STORAGE_KEY_GAME_LAYER);
     if (!savedValue) return;
-    const popup = document.querySelector(".layers-config");
-    if (!popup) return;
-    const radios = popup.querySelectorAll('input[name="baselayer"]');
+    const popup2 = document.querySelector(".layers-config");
+    if (!popup2) return;
+    const radios = popup2.querySelectorAll('input[name="baselayer"]');
     for (const radio of radios) {
       if (radio.value === savedValue) {
         radio.checked = true;
@@ -2891,41 +3378,8 @@ ${errorLog}`);
       lastGameRadioValue = null;
     }
   };
-  function isRecord$1(value) {
-    return typeof value === "object" && value !== null;
-  }
-  function isInventoryCore(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_CORE && typeof value.l === "number" && typeof value.a === "number";
-  }
-  function isInventoryCatalyser(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_CATALYSER && typeof value.l === "number" && typeof value.a === "number";
-  }
-  function isInventoryReference(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_REFERENCE && typeof value.l === "string" && typeof value.a === "number";
-  }
-  function isInventoryBroom(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_BROOM && typeof value.l === "number" && typeof value.a === "number";
-  }
-  function isInventoryItem(value) {
-    return isInventoryCore(value) || isInventoryCatalyser(value) || isInventoryReference(value) || isInventoryBroom(value);
-  }
   function parseInventoryCache() {
-    const raw = localStorage.getItem("inventory-cache");
-    if (!raw) return [];
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return [];
-    }
-    if (!Array.isArray(parsed)) return [];
-    const items = [];
-    for (const entry of parsed) {
-      if (isInventoryItem(entry)) {
-        items.push(entry);
-      }
-    }
-    return items;
+    return readInventoryCache().filter(isInventoryItem);
   }
   const TYPE_LABELS = {
     [ITEM_TYPE_CORE]: { en: "Co", ru: "Я" },
@@ -3285,7 +3739,7 @@ ${errorLog}`);
     return { total: lastTotal };
   }
   function updateInventoryCache(deletions) {
-    const raw = localStorage.getItem("inventory-cache");
+    const raw = localStorage.getItem(INVENTORY_CACHE_KEY);
     if (!raw) {
       console.warn("[SVP inventoryCleanup] inventory-cache отсутствует, пропуск обновления");
       return;
@@ -3308,16 +3762,16 @@ ${errorLog}`);
       }
     }
     cache = cache.filter((item) => item.a > 0);
-    localStorage.setItem("inventory-cache", JSON.stringify(cache));
+    localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(cache));
   }
   const MODULE_ID = "inventoryCleanup";
   const ACTION_SELECTORS = "#discover, .discover-mod";
-  const INVENTORY_CACHE_KEY = "inventory-cache";
   const TOAST_DURATION = 3e3;
   const DEBUG_INV_KEY = "svp_debug_inv";
   let cleanupInProgress = false;
   let discoverPending = false;
   let originalSetItem = null;
+  let setItemPatchTarget = null;
   function readDebugInvCount() {
     const match = /[#&]svp-inv=(\d+)/.exec(location.hash);
     if (match) {
@@ -3408,19 +3862,31 @@ ${errorLog}`);
     void runCleanup();
   }
   function installSetItemInterceptor() {
-    originalSetItem = Storage.prototype.setItem;
-    const saved = originalSetItem;
-    Storage.prototype.setItem = (key, value) => {
-      saved.call(localStorage, key, value);
+    const nativeSetItem = localStorage.setItem;
+    originalSetItem = nativeSetItem;
+    const wrapper = function(key, value) {
+      nativeSetItem.call(localStorage, key, value);
       if (key === INVENTORY_CACHE_KEY && discoverPending) {
         void Promise.resolve().then(onInventoryCacheUpdated);
       }
     };
+    localStorage.setItem = wrapper;
+    if (localStorage.setItem === wrapper) {
+      setItemPatchTarget = "instance";
+    } else {
+      Storage.prototype.setItem = wrapper;
+      setItemPatchTarget = "prototype";
+    }
   }
   function uninstallSetItemInterceptor() {
-    if (originalSetItem) {
-      Storage.prototype.setItem = originalSetItem;
+    if (originalSetItem && setItemPatchTarget) {
+      if (setItemPatchTarget === "instance") {
+        localStorage.setItem = originalSetItem;
+      } else {
+        Storage.prototype.setItem = originalSetItem;
+      }
       originalSetItem = null;
+      setItemPatchTarget = null;
     }
   }
   const inventoryCleanup = {
@@ -3450,27 +3916,37 @@ ${errorLog}`);
     }
   };
   if (!isDisabled()) {
-    initErrorLog();
-    installSbgFlavor();
+    let init = function() {
+      initErrorLog();
+      installSbgFlavor();
+      bootstrap([
+        enhancedMainScreen,
+        enhancedPointPopupUi,
+        swipeToClosePopup,
+        groupErrorToasts,
+        removeAttackCloseButton,
+        shiftMapCenterDown,
+        largerPointTapArea,
+        disableDoubleTapZoom,
+        ngrsZoom,
+        drawButtonFix,
+        keepScreenOn,
+        inventoryCleanup,
+        keyCountOnPoints,
+        nextPointNavigation,
+        refsOnMap,
+        repairAtFullCharge,
+        singleFingerRotation,
+        mapTileLayers
+      ]);
+    };
+    installGameScriptPatcher();
     initOlMapCapture();
-    bootstrap([
-      enhancedMainScreen,
-      enhancedPointPopupUi,
-      groupErrorToasts,
-      shiftMapCenterDown,
-      largerPointTapArea,
-      disableDoubleTapZoom,
-      ngrsZoom,
-      drawButtonFix,
-      keepScreenOn,
-      inventoryCleanup,
-      keyCountOnPoints,
-      nextPointNavigation,
-      refsOnMap,
-      repairAtFullCharge,
-      singleFingerRotation,
-      mapTileLayers
-    ]);
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
   }
 
 })();
