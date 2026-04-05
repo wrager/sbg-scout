@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="scoutButtonBackground">#6B6B6B</color>
+    <color name="scoutButtonContent">#FFFFFF</color>
+    <color name="scoutButtonStroke">#D1D1D1</color>
+    <color name="settingsSeparator">#D1D1D1</color>
+</resources>

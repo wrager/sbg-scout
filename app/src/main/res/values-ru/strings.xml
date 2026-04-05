@@ -52,6 +52,9 @@
     <string name="settings">Настройки</string>
     <string name="app_settings_button">Настройки SBG Scout</string>
     <string name="app_settings_short">Scout</string>
+    <string name="reload_button">Reload</string>
+    <string name="game_initializing">Инициализация игры\u2026</string>
+    <string name="close_settings">Закрыть</string>
     <string name="settings_category_display">Экран</string>
     <string name="settings_fullscreen">Полноэкранный режим</string>
     <string name="settings_fullscreen_summary">Скрывать статус-бар и кнопки навигации</string>

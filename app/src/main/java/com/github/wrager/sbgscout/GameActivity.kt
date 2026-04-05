@@ -169,6 +169,10 @@ class GameActivity : AppCompatActivity() {
         val backgroundColor = ContextCompat.getColor(this, typedValue.resourceId)
         findViewById<View>(R.id.settingsContainer)?.setBackgroundColor(backgroundColor)
 
+        // Перечитать цвета кнопок «Scout»/«Reload»/«[x]» и сепаратора из текущей
+        // темы (resources тянут значения из values-night при dark-режиме).
+        refreshButtonColors()
+
         // Пересоздать SettingsFragment для применения новой темы/локали.
         // WebView не затрагивается — он обрабатывает configChanges самостоятельно.
         if (supportFragmentManager.backStackEntryCount == 0) {
@@ -176,6 +180,32 @@ class GameActivity : AppCompatActivity() {
                 .replace(R.id.settingsContainer, SettingsFragment())
                 .commitAllowingStateLoss()
         }
+    }
+
+    /**
+     * Применяет цвета `scoutButton*`/`settingsSeparator` из текущей темы к кнопкам
+     * «Scout»/«Reload»/«[x]», текстовому label'у и сепаратору. Нужно после смены
+     * uiMode (configChanges=uiMode), т.к. Activity не пересоздаётся и view'хи
+     * держат значения цветов, разрезолвенные при инфляции.
+     */
+    private fun refreshButtonColors() {
+        val background = ContextCompat.getColor(this, R.color.scoutButtonBackground)
+        val content = ContextCompat.getColor(this, R.color.scoutButtonContent)
+        val stroke = ContextCompat.getColor(this, R.color.scoutButtonStroke)
+        val backgroundTint = android.content.res.ColorStateList.valueOf(background)
+        val contentTint = android.content.res.ColorStateList.valueOf(content)
+        val strokeTint = android.content.res.ColorStateList.valueOf(stroke)
+        for (id in intArrayOf(R.id.settingsButton, R.id.reloadButton, R.id.closeSettingsButton)) {
+            val button = findViewById<MaterialButton>(id) ?: continue
+            button.backgroundTintList = backgroundTint
+            button.setTextColor(content)
+            button.iconTint = contentTint
+            button.strokeColor = strokeTint
+        }
+        findViewById<android.widget.TextView>(R.id.gameInitializingLabel)?.setTextColor(content)
+        findViewById<View>(R.id.closeSettingsSeparator)?.setBackgroundColor(
+            ContextCompat.getColor(this, R.color.settingsSeparator),
+        )
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -350,7 +380,8 @@ class GameActivity : AppCompatActivity() {
             onReady = {
                 runOnUiThread {
                     gameReady = true
-                    hideBigButton()
+                    hideLoadingButtons()
+                    hideLoadingOverlay()
                 }
             },
             onOpenSettings = { runOnUiThread { openSettings() } },
@@ -380,7 +411,8 @@ class GameActivity : AppCompatActivity() {
         webViewClient.onGamePageStarted = {
             runOnUiThread {
                 gameReady = false
-                showBigButton()
+                showLoadingButtons()
+                showLoadingOverlay()
             }
         }
         webView.webViewClient = webViewClient
@@ -431,33 +463,53 @@ class GameActivity : AppCompatActivity() {
     private fun setupSettings() {
         val settingsContainer = findViewById<View>(R.id.settingsContainer)
         val settingsButton = findViewById<MaterialButton>(R.id.settingsButton)
+        val reloadButton = findViewById<MaterialButton>(R.id.reloadButton)
+        val closeButton = findViewById<MaterialButton>(R.id.closeSettingsButton)
 
         supportFragmentManager.beginTransaction()
             .replace(R.id.settingsContainer, SettingsFragment())
             .commit()
 
         settingsButton.setOnClickListener { openSettings() }
+        reloadButton.setOnClickListener { webView.loadUrl(GAME_URL) }
+        closeButton.setOnClickListener { closeSettings() }
 
         // Настройки — отдельный экран поверх WebView; закрытие программное
-        // (кнопка «Назад» или действия из фрагментов), свайп не используется.
+        // (плавающая кнопка [x] снизу по центру), свайп и back не используются.
         // Перехватываем клики, чтобы они не уходили в WebView под контейнером.
         settingsContainer.isClickable = true
     }
 
-    /** Показать большую кнопку настроек (на старте загрузки страницы игры). */
-    private fun showBigButton() {
+    /** Показать «Инициализация игры…» + кнопки «Scout»/«Reload» (на старте загрузки). */
+    private fun showLoadingButtons() {
         if (isSettingsOpen()) return
+        findViewById<View>(R.id.gameInitializingLabel).visibility = View.VISIBLE
         findViewById<MaterialButton>(R.id.settingsButton).visibility = View.VISIBLE
+        findViewById<MaterialButton>(R.id.reloadButton).visibility = View.VISIBLE
     }
 
-    /** Скрыть большую кнопку настроек (когда игра готова — есть HTML-кнопка). */
-    private fun hideBigButton() {
+    /** Скрыть label + кнопки «Scout»/«Reload» (когда игра готова — есть HTML-кнопка). */
+    private fun hideLoadingButtons() {
+        findViewById<View>(R.id.gameInitializingLabel).visibility = View.GONE
         findViewById<MaterialButton>(R.id.settingsButton).visibility = View.GONE
+        findViewById<MaterialButton>(R.id.reloadButton).visibility = View.GONE
+    }
+
+    /** Показать белую подложку 50 % — на старте загрузки страницы игры. */
+    private fun showLoadingOverlay() {
+        findViewById<View>(R.id.loadingOverlay).visibility = View.VISIBLE
+    }
+
+    /** Скрыть белую подложку — когда интерфейс игры инициализировался. */
+    private fun hideLoadingOverlay() {
+        findViewById<View>(R.id.loadingOverlay).visibility = View.GONE
     }
 
     private fun openSettings() {
         findViewById<View>(R.id.settingsContainer).visibility = View.VISIBLE
-        findViewById<MaterialButton>(R.id.settingsButton).visibility = View.GONE
+        findViewById<View>(R.id.topButtonsContainer).visibility = View.GONE
+        findViewById<MaterialButton>(R.id.closeSettingsButton).visibility = View.VISIBLE
+        findViewById<View>(R.id.closeSettingsSeparator).visibility = View.VISIBLE
         // Скрыть клавиатуру, если была активна в WebView
         val imm = getSystemService(InputMethodManager::class.java)
         currentFocus?.let { imm.hideSoftInputFromWindow(it.windowToken, 0) }
@@ -475,22 +527,29 @@ class GameActivity : AppCompatActivity() {
     /** Снапшот скриптов, инжектированных при последней загрузке страницы. */
     fun getInjectedSnapshot() = injectionStateStorage?.getSnapshot()
 
-    /** Закрыть экран настроек (вызывается из фрагментов внутри drawer). */
+    /**
+     * Закрыть экран настроек или вернуться на уровень выше.
+     *
+     * Если поверх `SettingsFragment` открыт фрагмент (например, `ScriptListFragment`),
+     * возвращаемся к `SettingsFragment` через `popBackStack`. Иначе закрываем экран
+     * настроек полностью и возвращаемся к WebView.
+     */
     fun closeSettings() {
-        findViewById<View>(R.id.settingsContainer).visibility = View.GONE
-        // В режиме загрузки игры показываем большую кнопку снова; когда игра
-        // готова, открывать настройки можно через HTML-кнопку внутри игровой
-        // панели настроек, и большая кнопка больше не нужна.
-        if (!gameReady) {
-            findViewById<MaterialButton>(R.id.settingsButton).visibility = View.VISIBLE
-        }
-        // Сбросить back stack (ScriptListFragment → SettingsFragment)
         if (supportFragmentManager.backStackEntryCount > 0) {
-            supportFragmentManager.popBackStackImmediate(
-                null,
-                FragmentManager.POP_BACK_STACK_INCLUSIVE,
-            )
+            supportFragmentManager.popBackStackImmediate()
+            return
         }
+        findViewById<View>(R.id.settingsContainer).visibility = View.GONE
+        findViewById<View>(R.id.topButtonsContainer).visibility = View.VISIBLE
+        findViewById<MaterialButton>(R.id.closeSettingsButton).visibility = View.GONE
+        findViewById<View>(R.id.closeSettingsSeparator).visibility = View.GONE
+        // В режиме загрузки игры показываем label + «Scout»/«Reload» снова; когда
+        // игра готова, открывать настройки можно через HTML-кнопку в игровой
+        // панели настроек, а reload больше не нужен (игра рабочая).
+        val buttonVisibility = if (gameReady) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.gameInitializingLabel).visibility = buttonVisibility
+        findViewById<MaterialButton>(R.id.settingsButton).visibility = buttonVisibility
+        findViewById<MaterialButton>(R.id.reloadButton).visibility = buttonVisibility
         applySettingsAfterClose()
     }
 
@@ -517,10 +576,10 @@ class GameActivity : AppCompatActivity() {
         val error = findViewById<TextView>(R.id.provisioningError)
         val retryButton = findViewById<Button>(R.id.provisioningRetryButton)
         val skipButton = findViewById<Button>(R.id.provisioningSkipButton)
-        val settingsButton = findViewById<MaterialButton>(R.id.settingsButton)
+        val topButtons = findViewById<View>(R.id.topButtonsContainer)
 
         overlay.visibility = View.VISIBLE
-        settingsButton.visibility = View.GONE
+        topButtons.visibility = View.GONE
 
         // Сброс в состояние загрузки (актуально при повторных попытках)
         progress.isIndeterminate = true
@@ -591,10 +650,10 @@ class GameActivity : AppCompatActivity() {
 
     private fun finishProvisioning() {
         val overlay = findViewById<LinearLayout>(R.id.provisioningOverlay)
-        val settingsButton = findViewById<MaterialButton>(R.id.settingsButton)
+        val topButtons = findViewById<View>(R.id.topButtonsContainer)
 
         overlay.visibility = View.GONE
-        settingsButton.visibility = View.VISIBLE
+        topButtons.visibility = View.VISIBLE
         webView.loadUrl(GAME_URL)
     }
 
@@ -953,28 +1012,16 @@ class GameActivity : AppCompatActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    val settingsOpen = isSettingsOpen()
-                    when {
-                        // ScriptListFragment открыт → вернуться к SettingsFragment
-                        settingsOpen && supportFragmentManager.backStackEntryCount > 0 -> {
-                            supportFragmentManager.popBackStack()
-                        }
-                        // SettingsFragment открыт → закрыть экран настроек
-                        settingsOpen -> {
-                            closeSettings()
-                        }
-                        // Настройки закрыты → стандартная обработка WebView
-                        else -> {
-                            webView.evaluateJavascript(
-                                "document.dispatchEvent(new Event('backbutton'))",
-                            ) {}
-                            if (webView.canGoBack()) {
-                                webView.goBack()
-                            } else {
-                                isEnabled = false
-                                onBackPressedDispatcher.onBackPressed()
-                            }
-                        }
+                    // «Назад» всегда идёт в WebView: навигация в истории или выход.
+                    // Закрытие экрана настроек — только через плавающую кнопку [x].
+                    webView.evaluateJavascript(
+                        "document.dispatchEvent(new Event('backbutton'))",
+                    ) {}
+                    if (webView.canGoBack()) {
+                        webView.goBack()
+                    } else {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
                     }
                 }
             },

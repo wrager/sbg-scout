@@ -7,4 +7,8 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="scoutButtonBackground">#EFEFEF</color>
+    <color name="scoutButtonContent">#000000</color>
+    <color name="scoutButtonStroke">#767676</color>
+    <color name="settingsSeparator">#767676</color>
 </resources>

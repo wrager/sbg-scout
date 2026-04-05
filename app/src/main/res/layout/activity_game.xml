@@ -10,35 +10,119 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <View
+        android:id="@+id/loadingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#4DFFFFFF"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/topButtonsContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/gameInitializingLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="@string/game_initializing"
+            android:textColor="@color/scoutButtonContent"
+            android:textSize="12sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/settingsButton"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:backgroundTint="@color/scoutButtonBackground"
+            android:contentDescription="@string/app_settings_button"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="3dp"
+            android:text="@string/app_settings_short"
+            android:textColor="@color/scoutButtonContent"
+            android:textSize="11sp"
+            app:icon="@drawable/ic_gear"
+            app:iconGravity="textStart"
+            app:iconPadding="4dp"
+            app:iconSize="14dp"
+            app:iconTint="@color/scoutButtonContent"
+            app:strokeColor="@color/scoutButtonStroke"
+            app:strokeWidth="1dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/reloadButton"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="@color/scoutButtonBackground"
+            android:contentDescription="@string/reload_button"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="3dp"
+            android:text="@string/reload_button"
+            android:textColor="@color/scoutButtonContent"
+            android:textSize="11sp"
+            app:icon="@drawable/ic_reload"
+            app:iconGravity="textStart"
+            app:iconPadding="4dp"
+            app:iconSize="14dp"
+            app:iconTint="@color/scoutButtonContent"
+            app:strokeColor="@color/scoutButtonStroke"
+            app:strokeWidth="1dp" />
+
+    </LinearLayout>
+
     <FrameLayout
         android:id="@+id/settingsContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="?android:colorBackground"
+        android:paddingBottom="64dp"
+        android:visibility="gone" />
+
+    <View
+        android:id="@+id/closeSettingsSeparator"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="64dp"
+        android:background="@color/settingsSeparator"
         android:visibility="gone" />
 
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/settingsButton"
+        android:id="@+id/closeSettingsButton"
         style="@style/Widget.MaterialComponents.Button"
-        android:layout_width="wrap_content"
+        android:layout_width="32dp"
         android:layout_height="32dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="64dp"
-        android:layout_marginEnd="8dp"
-        android:backgroundTint="#6B6B6B"
-        android:contentDescription="@string/app_settings_button"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="16dp"
+        android:backgroundTint="@color/scoutButtonBackground"
+        android:contentDescription="@string/close_settings"
+        android:insetLeft="0dp"
+        android:insetRight="0dp"
         android:insetTop="0dp"
         android:insetBottom="0dp"
         android:minWidth="0dp"
         android:minHeight="0dp"
-        android:paddingHorizontal="10dp"
-        android:text="@string/app_settings_short"
-        android:textSize="11sp"
-        app:icon="@drawable/ic_gear"
-        app:iconGravity="textStart"
-        app:iconPadding="4dp"
-        app:iconSize="14dp"
-        app:iconTint="#FFFFFF" />
+        android:padding="0dp"
+        android:text="@string/close_settings_symbol"
+        android:textColor="@color/scoutButtonContent"
+        android:textSize="20sp"
+        android:visibility="gone"
+        app:cornerRadius="0dp"
+        app:strokeColor="@color/scoutButtonStroke"
+        app:strokeWidth="1dp" />
 
     <LinearLayout
         android:id="@+id/provisioningOverlay"

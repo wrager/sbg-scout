@@ -105,11 +105,9 @@ class ScriptListFragment : Fragment() {
     private fun setupToolbar(view: View) {
         val toolbar = view.findViewById<MaterialToolbar>(R.id.toolbar)
         if (isEmbedded) {
-            toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
-            toolbar.setNavigationOnClickListener {
-                parentFragmentManager.popBackStack()
-            }
-            // В drawer не показываем пункт «Настройки» — мы уже в настройках
+            // В embedded-режиме нет кнопки «Назад» в toolbar — возврат к
+            // SettingsFragment выполняется через плавающую кнопку [x] в GameActivity.
+            // В drawer не показываем пункт «Настройки» — мы уже в настройках.
         } else {
             toolbar.inflateMenu(R.menu.menu_launcher)
         }
