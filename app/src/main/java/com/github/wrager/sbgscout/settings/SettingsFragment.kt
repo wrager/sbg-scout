@@ -52,7 +52,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .edit().putBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, true).apply()
             if (activity is GameActivity) {
-                (activity as GameActivity).closeSettingsDrawer()
+                (activity as GameActivity).closeSettings()
             } else {
                 startActivity(
                     Intent(requireContext(), GameActivity::class.java)

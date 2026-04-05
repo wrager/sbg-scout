@@ -157,8 +157,8 @@ class ScriptListFragment : Fragment() {
             PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .edit().putBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, true).apply()
             if (isEmbedded) {
-                // В drawer: закрываем весь drawer, reload произойдёт в applySettingsAfterDrawerClose
-                (requireActivity() as com.github.wrager.sbgscout.GameActivity).closeSettingsDrawer()
+                // В игровом экране: закрываем настройки, reload произойдёт в applySettingsAfterClose
+                (requireActivity() as com.github.wrager.sbgscout.GameActivity).closeSettings()
             }
         }
 

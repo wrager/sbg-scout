@@ -4,34 +4,29 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <androidx.drawerlayout.widget.DrawerLayout
-        android:id="@+id/settingsDrawer"
+    <WebView
+        android:id="@+id/gameWebView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent" />
 
-        <WebView
-            android:id="@+id/gameWebView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
-        <FrameLayout
-            android:id="@+id/settingsContainer"
-            android:layout_width="300dp"
-            android:layout_height="match_parent"
-            android:layout_gravity="end"
-            android:background="?android:colorBackground" />
-
-    </androidx.drawerlayout.widget.DrawerLayout>
+    <FrameLayout
+        android:id="@+id/settingsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?android:colorBackground"
+        android:visibility="gone" />
 
     <ImageButton
         android:id="@+id/settingsButton"
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:layout_gravity="top|end"
-        android:layout_marginTop="40dp"
+        android:layout_marginTop="64dp"
         android:layout_marginEnd="8dp"
-        android:background="@android:color/transparent"
+        android:background="@drawable/bg_settings_button"
         android:contentDescription="@string/settings"
+        android:padding="3dp"
+        android:scaleType="center"
         android:src="@mipmap/ic_launcher" />
 
     <LinearLayout

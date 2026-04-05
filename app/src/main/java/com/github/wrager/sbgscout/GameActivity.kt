@@ -30,10 +30,7 @@ import android.widget.LinearLayout
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import android.widget.TextView
 import android.view.View
-import androidx.core.view.doOnLayout
-import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.FragmentManager
-import androidx.core.view.GravityCompat
 import com.github.wrager.sbgscout.settings.SettingsFragment
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -133,7 +130,7 @@ class GameActivity : AppCompatActivity() {
 
         setupWebView()
         setupBackPressHandling()
-        setupSettingsDrawer()
+        setupSettings()
         scheduleAutoUpdateCheck(prefs)
 
         if (savedInstanceState == null) {
@@ -411,63 +408,32 @@ class GameActivity : AppCompatActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
-    private fun setupSettingsDrawer() {
-        val drawerLayout = findViewById<DrawerLayout>(R.id.settingsDrawer)
-        val settingsButton = findViewById<ImageButton>(R.id.settingsButton)
+    private fun setupSettings() {
         val settingsContainer = findViewById<View>(R.id.settingsContainer)
+        val settingsButton = findViewById<ImageButton>(R.id.settingsButton)
 
         supportFragmentManager.beginTransaction()
             .replace(R.id.settingsContainer, SettingsFragment())
             .commit()
 
-        // Drawer открывается только по кнопке: свайп от края экрана заблокирован,
-        // чтобы не мешать взаимодействию с WebView. При открытии временно
-        // разблокируем — тогда свайп вправо закроет drawer.
-        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, GravityCompat.END)
+        settingsButton.setOnClickListener { openSettings() }
 
-        // Ширина drawer: видимая область за ним = 1/3 от стандартной (300dp)
-        drawerLayout.doOnLayout {
-            val screenWidth = drawerLayout.width
-            val defaultDrawerWidth = (DEFAULT_DRAWER_WIDTH_DP * resources.displayMetrics.density).toInt()
-            val defaultGap = screenWidth - defaultDrawerWidth
-            val narrowGap = defaultGap / DRAWER_GAP_DIVISOR
-            settingsContainer.layoutParams = settingsContainer.layoutParams.apply {
-                width = screenWidth - narrowGap
-            }
-        }
-
-        settingsButton.setOnClickListener {
-            drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.END)
-            drawerLayout.openDrawer(GravityCompat.END)
-        }
-
-        drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
-            override fun onDrawerStateChanged(newState: Int) {
-                // Скрыть клавиатуру при начале открытия drawer,
-                // чтобы она не торчала поверх экрана настроек
-                if (newState != DrawerLayout.STATE_IDLE) {
-                    val imm = getSystemService(InputMethodManager::class.java)
-                    currentFocus?.let { imm.hideSoftInputFromWindow(it.windowToken, 0) }
-                }
-            }
-
-            override fun onDrawerClosed(drawerView: View) {
-                drawerLayout.setDrawerLockMode(
-                    DrawerLayout.LOCK_MODE_LOCKED_CLOSED,
-                    GravityCompat.END,
-                )
-                // При закрытии сбрасываем back stack (ScriptListFragment → SettingsFragment)
-                val fragmentManager = supportFragmentManager
-                if (fragmentManager.backStackEntryCount > 0) {
-                    fragmentManager.popBackStackImmediate(
-                        null,
-                        FragmentManager.POP_BACK_STACK_INCLUSIVE,
-                    )
-                }
-                applySettingsAfterDrawerClose()
-            }
-        })
+        // Настройки — отдельный экран поверх WebView; закрытие программное
+        // (кнопка «Назад» или действия из фрагментов), свайп не используется.
+        // Перехватываем клики, чтобы они не уходили в WebView под контейнером.
+        settingsContainer.isClickable = true
     }
+
+    private fun openSettings() {
+        findViewById<View>(R.id.settingsContainer).visibility = View.VISIBLE
+        findViewById<ImageButton>(R.id.settingsButton).visibility = View.GONE
+        // Скрыть клавиатуру, если была активна в WebView
+        val imm = getSystemService(InputMethodManager::class.java)
+        currentFocus?.let { imm.hideSoftInputFromWindow(it.windowToken, 0) }
+    }
+
+    private fun isSettingsOpen(): Boolean =
+        findViewById<View>(R.id.settingsContainer).visibility == View.VISIBLE
 
     /** Список включённых скриптов (для диагностики баг-репортов). */
     fun getEnabledScripts() = scriptStorage.getEnabled()
@@ -478,14 +444,22 @@ class GameActivity : AppCompatActivity() {
     /** Снапшот скриптов, инжектированных при последней загрузке страницы. */
     fun getInjectedSnapshot() = injectionStateStorage?.getSnapshot()
 
-    /** Закрыть drawer настроек (вызывается из фрагментов внутри drawer). */
-    fun closeSettingsDrawer() {
-        findViewById<DrawerLayout>(R.id.settingsDrawer)
-            .closeDrawer(GravityCompat.END)
+    /** Закрыть экран настроек (вызывается из фрагментов внутри drawer). */
+    fun closeSettings() {
+        findViewById<View>(R.id.settingsContainer).visibility = View.GONE
+        findViewById<ImageButton>(R.id.settingsButton).visibility = View.VISIBLE
+        // Сбросить back stack (ScriptListFragment → SettingsFragment)
+        if (supportFragmentManager.backStackEntryCount > 0) {
+            supportFragmentManager.popBackStackImmediate(
+                null,
+                FragmentManager.POP_BACK_STACK_INCLUSIVE,
+            )
+        }
+        applySettingsAfterClose()
     }
 
-    /** Выполнить отложенные действия при закрытии drawer (перезагрузка игры). */
-    private fun applySettingsAfterDrawerClose() {
+    /** Выполнить отложенные действия при закрытии настроек (перезагрузка игры). */
+    private fun applySettingsAfterClose() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         if (prefs.getBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, false)) {
             prefs.edit().remove(LauncherActivity.KEY_RELOAD_REQUESTED).apply()
@@ -494,7 +468,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     /**
-     * Показывает оверлей загрузки, блокирует drawer и скрывает кнопку настроек,
+     * Показывает оверлей загрузки, скрывает кнопку настроек,
      * затем запускает загрузку предустановленных скриптов.
      *
      * При успехе — скрывает оверлей и загружает игру.
@@ -507,12 +481,10 @@ class GameActivity : AppCompatActivity() {
         val error = findViewById<TextView>(R.id.provisioningError)
         val retryButton = findViewById<Button>(R.id.provisioningRetryButton)
         val skipButton = findViewById<Button>(R.id.provisioningSkipButton)
-        val drawerLayout = findViewById<DrawerLayout>(R.id.settingsDrawer)
         val settingsButton = findViewById<ImageButton>(R.id.settingsButton)
 
         overlay.visibility = View.VISIBLE
         settingsButton.visibility = View.GONE
-        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, GravityCompat.END)
 
         // Сброс в состояние загрузки (актуально при повторных попытках)
         progress.isIndeterminate = true
@@ -587,7 +559,6 @@ class GameActivity : AppCompatActivity() {
 
         overlay.visibility = View.GONE
         settingsButton.visibility = View.VISIBLE
-        // Drawer остаётся залоченным (LOCK_MODE_LOCKED_CLOSED) — открывается только по кнопке
         webView.loadUrl(GAME_URL)
     }
 
@@ -934,9 +905,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun openScriptManagerWithAutoUpdate() {
-        val drawerLayout = findViewById<DrawerLayout>(R.id.settingsDrawer)
-        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.END)
-        drawerLayout.openDrawer(GravityCompat.END)
+        openSettings()
         supportFragmentManager.beginTransaction()
             .replace(R.id.settingsContainer, ScriptListFragment.newEmbeddedAutoUpdateInstance())
             .addToBackStack(null)
@@ -948,18 +917,17 @@ class GameActivity : AppCompatActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    val drawerLayout = findViewById<DrawerLayout>(R.id.settingsDrawer)
-                    val drawerOpen = drawerLayout.isDrawerOpen(GravityCompat.END)
+                    val settingsOpen = isSettingsOpen()
                     when {
-                        // ScriptListFragment открыт в drawer → вернуться к SettingsFragment
-                        drawerOpen && supportFragmentManager.backStackEntryCount > 0 -> {
+                        // ScriptListFragment открыт → вернуться к SettingsFragment
+                        settingsOpen && supportFragmentManager.backStackEntryCount > 0 -> {
                             supportFragmentManager.popBackStack()
                         }
-                        // Drawer открыт на SettingsFragment → закрыть drawer
-                        drawerOpen -> {
-                            drawerLayout.closeDrawer(GravityCompat.END)
+                        // SettingsFragment открыт → закрыть экран настроек
+                        settingsOpen -> {
+                            closeSettings()
                         }
-                        // Drawer закрыт → стандартная обработка WebView
+                        // Настройки закрыты → стандартная обработка WebView
                         else -> {
                             webView.evaluateJavascript(
                                 "document.dispatchEvent(new Event('backbutton'))",
@@ -989,8 +957,6 @@ class GameActivity : AppCompatActivity() {
         private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         private const val KEY_APPLIED_GAME_THEME = "applied_game_theme"
         private const val KEY_APPLIED_GAME_LANGUAGE = "applied_game_language"
-        private const val DEFAULT_DRAWER_WIDTH_DP = 300f
-        private const val DRAWER_GAP_DIVISOR = 3
         private const val SKIP_BUTTON_CONNECT_DELAY_MS = 2_000L
         private const val SKIP_BUTTON_DOWNLOAD_DELAY_MS = 5_000L
         private const val KEY_AUTO_CHECK_UPDATES = "auto_check_updates"
