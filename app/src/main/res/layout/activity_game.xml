@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -20,11 +21,24 @@
         android:id="@+id/settingsButton"
         style="@style/Widget.MaterialComponents.Button"
         android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:layout_gravity="bottom|center_horizontal"
+        android:layout_height="32dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="64dp"
+        android:layout_marginEnd="8dp"
+        android:backgroundTint="#6B6B6B"
         android:contentDescription="@string/app_settings_button"
-        android:paddingHorizontal="16dp"
-        android:text="@string/app_settings_button" />
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:paddingHorizontal="10dp"
+        android:text="@string/app_settings_short"
+        android:textSize="11sp"
+        app:icon="@drawable/ic_gear"
+        app:iconGravity="textStart"
+        app:iconPadding="4dp"
+        app:iconSize="14dp"
+        app:iconTint="#FFFFFF" />
 
     <LinearLayout
         android:id="@+id/provisioningOverlay"

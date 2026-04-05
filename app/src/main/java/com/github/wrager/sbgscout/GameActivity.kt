@@ -19,8 +19,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
-import androidx.core.view.doOnLayout
-import androidx.core.view.updateLayoutParams
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -439,16 +437,6 @@ class GameActivity : AppCompatActivity() {
             .commit()
 
         settingsButton.setOnClickListener { openSettings() }
-
-        // Позиция большой кнопки: 20 % от высоты видимой области снизу.
-        // rootLayout уже получает padding от window insets, поэтому height
-        // считается от visible-области (без системных баров в non-fullscreen).
-        rootLayout.doOnLayout { root ->
-            val offset = (root.height * BIG_BUTTON_BOTTOM_FRACTION).toInt()
-            settingsButton.updateLayoutParams<FrameLayout.LayoutParams> {
-                bottomMargin = offset
-            }
-        }
 
         // Настройки — отдельный экран поверх WebView; закрытие программное
         // (кнопка «Назад» или действия из фрагментов), свайп не используется.
@@ -1010,7 +998,6 @@ class GameActivity : AppCompatActivity() {
         private const val KEY_AUTO_CHECK_UPDATES = "auto_check_updates"
         private const val KEY_LAST_UPDATE_CHECK = "last_update_check"
         private const val UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
-        private const val BIG_BUTTON_BOTTOM_FRACTION = 0.20f
         private const val RELEASE_NOTES_MAX_HEIGHT_DP = 200
         private const val RELEASE_NOTES_PADDING_DP = 24
     }
