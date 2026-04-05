@@ -52,5 +52,5 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 [license]: LICENSE
 [release-badge]: https://img.shields.io/github/v/release/wrager/sbg-scout?style=flat-square
 [ci-badge]: https://img.shields.io/github/actions/workflow/status/wrager/sbg-scout/ci.yml?branch=main&style=flat-square
-[downloads-badge]: https://img.shields.io/github/downloads/wrager/sbg-scout/total?style=flat-square
+[downloads-badge]: https://img.shields.io/github/downloads/wrager/sbg-scout/total?style=flat-square&cacheSeconds=3600
 [license-badge]: https://img.shields.io/github/license/wrager/sbg-scout?style=flat-square
