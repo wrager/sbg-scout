@@ -554,6 +554,22 @@ class GameActivity : AppCompatActivity() {
             supportFragmentManager.popBackStackImmediate()
             return
         }
+        dismissSettings()
+    }
+
+    /**
+     * Полностью закрыть экран настроек — сбросить back stack (если открыт
+     * фрагмент поверх SettingsFragment) и спрятать контейнер. Используется для
+     * форсированного закрытия из фрагментов (например, кнопка «Reload game» в
+     * ScriptListFragment после применения нового сетапа скриптов).
+     */
+    fun dismissSettings() {
+        if (supportFragmentManager.backStackEntryCount > 0) {
+            supportFragmentManager.popBackStackImmediate(
+                null,
+                FragmentManager.POP_BACK_STACK_INCLUSIVE,
+            )
+        }
         findViewById<View>(R.id.settingsContainer).visibility = View.GONE
         findViewById<View>(R.id.topButtonsContainer).visibility = View.VISIBLE
         findViewById<MaterialButton>(R.id.closeSettingsButton).visibility = View.GONE

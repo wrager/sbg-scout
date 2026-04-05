@@ -155,8 +155,11 @@ class ScriptListFragment : Fragment() {
             PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .edit().putBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, true).apply()
             if (isEmbedded) {
-                // В игровом экране: закрываем настройки, reload произойдёт в applySettingsAfterClose
-                (requireActivity() as com.github.wrager.sbgscout.GameActivity).closeSettings()
+                // В игровом экране: форсированно закрываем экран настроек целиком
+                // (сбрасывая ScriptListFragment из back stack), reload произойдёт
+                // в applySettingsAfterClose. closeSettings() здесь не подходит —
+                // он сделал бы popBackStack обратно в SettingsFragment.
+                (requireActivity() as com.github.wrager.sbgscout.GameActivity).dismissSettings()
             }
         }
 
