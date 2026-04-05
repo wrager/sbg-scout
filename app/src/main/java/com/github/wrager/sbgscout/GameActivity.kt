@@ -33,6 +33,7 @@ import androidx.core.view.doOnLayout
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.FragmentManager
 import androidx.core.view.GravityCompat
+import com.github.wrager.sbgscout.game.PullTabPosition
 import com.github.wrager.sbgscout.game.SettingsDrawerLayout
 import com.github.wrager.sbgscout.game.SettingsPullTab
 import com.github.wrager.sbgscout.settings.SettingsFragment
@@ -91,7 +92,11 @@ class GameActivity : AppCompatActivity() {
     private val preferenceChangeListener =
         android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
             when (key) {
-                KEY_FULLSCREEN_MODE -> applyFullscreen(prefs.getBoolean(key, false))
+                KEY_FULLSCREEN_MODE -> {
+                    applyFullscreen(prefs.getBoolean(key, false))
+                    // Диапазон видимости таба зависит от режима — пересчитать
+                    applyPullTabPosition(prefs.getInt(KEY_PULL_TAB_POSITION, DEFAULT_PULL_TAB_POSITION))
+                }
                 KEY_KEEP_SCREEN_ON -> applyKeepScreenOn(prefs.getBoolean(key, true))
                 KEY_PULL_TAB_POSITION -> applyPullTabPosition(
                     prefs.getInt(key, DEFAULT_PULL_TAB_POSITION),
@@ -324,13 +329,17 @@ class GameActivity : AppCompatActivity() {
     }
 
     /**
-     * Применяет вертикальное положение pull-tab (0–100% высоты экрана).
-     * Обновляет позицию самого таба и зону касания drawer.
+     * Применяет вертикальное положение pull-tab по UI-значению 0–100 %.
+     *
+     * Реальная позиция маппится через [PullTabPosition] с учётом того, что
+     * таб виден только в ограниченном диапазоне высоты экрана из-за system bars
+     * (диапазон отличается для обычного и полноэкранного режимов).
      */
-    private fun applyPullTabPosition(percent: Int) {
+    private fun applyPullTabPosition(uiPercent: Int) {
         val pullTab = findViewById<SettingsPullTab>(R.id.settingsPullTab) ?: return
         val drawerLayout = findViewById<SettingsDrawerLayout>(R.id.settingsDrawer) ?: return
-        val tabY = rootLayout.height * (percent / 100f)
+        val actualPercent = PullTabPosition.map(uiPercent, isFullscreen)
+        val tabY = rootLayout.height * (actualPercent / 100f)
         pullTab.y = tabY - pullTab.height / 2f
         drawerLayout.tabCenterY = tabY
     }
