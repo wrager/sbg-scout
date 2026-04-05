@@ -50,6 +50,7 @@
     <string name="reinstall_completed">Переустановлен %s</string>
     <string name="reinstall_failed">Не удалось переустановить: %s</string>
     <string name="settings">Настройки</string>
+    <string name="app_settings_button">Настройки SBG Scout</string>
     <string name="settings_category_display">Экран</string>
     <string name="settings_fullscreen">Полноэкранный режим</string>
     <string name="settings_fullscreen_summary">Скрывать статус-бар и кнопки навигации</string>

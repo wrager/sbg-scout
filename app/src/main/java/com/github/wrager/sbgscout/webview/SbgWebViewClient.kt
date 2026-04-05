@@ -8,6 +8,7 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
+import com.github.wrager.sbgscout.bridge.ScoutBridge
 import com.github.wrager.sbgscout.script.injector.InjectionResult
 import com.github.wrager.sbgscout.script.injector.ScriptInjector
 
@@ -18,12 +19,19 @@ class SbgWebViewClient(
     /** Вызывается после загрузки страницы игры с текущим значением настроек. */
     var onGameSettingsRead: ((String?) -> Unit)? = null
 
+    /** Вызывается при старте загрузки страницы игры (в т.ч. при reload). */
+    var onGamePageStarted: (() -> Unit)? = null
+
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
         if (url?.contains("sbg-game.ru/app") == true && view != null) {
             // Перехват localStorage.setItem ПЕРЕД инжекцией скриптов,
             // чтобы отловить любые записи в 'settings'
             view.evaluateJavascript(GameSettingsBridge.LOCAL_STORAGE_WRAPPER) {}
+            // Bootstrap для большой кнопки настроек: наблюдает за готовностью игры,
+            // скрывает нативную кнопку и вставляет HTML-кнопку в .settings-content
+            view.evaluateJavascript(ScoutBridge.BOOTSTRAP_SCRIPT) {}
+            onGamePageStarted?.invoke()
             scriptInjector.inject(view) { results ->
                 handleInjectionResults(view, results)
             }

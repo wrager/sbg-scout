@@ -19,14 +19,16 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.doOnLayout
+import androidx.core.view.updateLayoutParams
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.preference.PreferenceManager
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.ImageButton
 import android.widget.LinearLayout
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import android.widget.TextView
 import android.view.View
@@ -36,6 +38,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.github.wrager.sbgscout.bridge.ClipboardBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
+import com.github.wrager.sbgscout.bridge.ScoutBridge
 import com.github.wrager.sbgscout.bridge.ShareBridge
 import com.github.wrager.sbgscout.diagnostic.ConsoleLogBuffer
 import com.github.wrager.sbgscout.game.GameSettingsReader
@@ -82,6 +85,9 @@ class GameActivity : AppCompatActivity() {
     private val gameSettingsReader = GameSettingsReader()
     private var lastAppliedTheme: GameSettingsReader.ThemeMode? = null
     private var lastAppliedLanguage: String? = null
+
+    /** true после того как в игре применились переводы — HTML-кнопка вставлена в .settings-content. */
+    private var gameReady = false
 
     /** Применяет настройки немедленно при переключении в UI (без ожидания закрытия drawer). */
     private val preferenceChangeListener =
@@ -342,6 +348,16 @@ class GameActivity : AppCompatActivity() {
             runOnUiThread { applyGameSettings(json) }
         }
         webView.addJavascriptInterface(settingsBridge, GameSettingsBridge.JS_INTERFACE_NAME)
+        val scoutBridge = ScoutBridge(
+            onReady = {
+                runOnUiThread {
+                    gameReady = true
+                    hideBigButton()
+                }
+            },
+            onOpenSettings = { runOnUiThread { openSettings() } },
+        )
+        webView.addJavascriptInterface(scoutBridge, ScoutBridge.JS_INTERFACE_NAME)
 
         val preferences = getSharedPreferences("scripts", MODE_PRIVATE)
         val fileStorage = ScriptFileStorageImpl(File(filesDir, "scripts"))
@@ -363,6 +379,12 @@ class GameActivity : AppCompatActivity() {
         )
         val webViewClient = SbgWebViewClient(scriptInjector)
         webViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
+        webViewClient.onGamePageStarted = {
+            runOnUiThread {
+                gameReady = false
+                showBigButton()
+            }
+        }
         webView.webViewClient = webViewClient
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -410,7 +432,7 @@ class GameActivity : AppCompatActivity() {
 
     private fun setupSettings() {
         val settingsContainer = findViewById<View>(R.id.settingsContainer)
-        val settingsButton = findViewById<ImageButton>(R.id.settingsButton)
+        val settingsButton = findViewById<MaterialButton>(R.id.settingsButton)
 
         supportFragmentManager.beginTransaction()
             .replace(R.id.settingsContainer, SettingsFragment())
@@ -418,15 +440,36 @@ class GameActivity : AppCompatActivity() {
 
         settingsButton.setOnClickListener { openSettings() }
 
+        // Позиция большой кнопки: 20 % от высоты видимой области снизу.
+        // rootLayout уже получает padding от window insets, поэтому height
+        // считается от visible-области (без системных баров в non-fullscreen).
+        rootLayout.doOnLayout { root ->
+            val offset = (root.height * BIG_BUTTON_BOTTOM_FRACTION).toInt()
+            settingsButton.updateLayoutParams<FrameLayout.LayoutParams> {
+                bottomMargin = offset
+            }
+        }
+
         // Настройки — отдельный экран поверх WebView; закрытие программное
         // (кнопка «Назад» или действия из фрагментов), свайп не используется.
         // Перехватываем клики, чтобы они не уходили в WebView под контейнером.
         settingsContainer.isClickable = true
     }
 
+    /** Показать большую кнопку настроек (на старте загрузки страницы игры). */
+    private fun showBigButton() {
+        if (isSettingsOpen()) return
+        findViewById<MaterialButton>(R.id.settingsButton).visibility = View.VISIBLE
+    }
+
+    /** Скрыть большую кнопку настроек (когда игра готова — есть HTML-кнопка). */
+    private fun hideBigButton() {
+        findViewById<MaterialButton>(R.id.settingsButton).visibility = View.GONE
+    }
+
     private fun openSettings() {
         findViewById<View>(R.id.settingsContainer).visibility = View.VISIBLE
-        findViewById<ImageButton>(R.id.settingsButton).visibility = View.GONE
+        findViewById<MaterialButton>(R.id.settingsButton).visibility = View.GONE
         // Скрыть клавиатуру, если была активна в WebView
         val imm = getSystemService(InputMethodManager::class.java)
         currentFocus?.let { imm.hideSoftInputFromWindow(it.windowToken, 0) }
@@ -447,7 +490,12 @@ class GameActivity : AppCompatActivity() {
     /** Закрыть экран настроек (вызывается из фрагментов внутри drawer). */
     fun closeSettings() {
         findViewById<View>(R.id.settingsContainer).visibility = View.GONE
-        findViewById<ImageButton>(R.id.settingsButton).visibility = View.VISIBLE
+        // В режиме загрузки игры показываем большую кнопку снова; когда игра
+        // готова, открывать настройки можно через HTML-кнопку внутри игровой
+        // панели настроек, и большая кнопка больше не нужна.
+        if (!gameReady) {
+            findViewById<MaterialButton>(R.id.settingsButton).visibility = View.VISIBLE
+        }
         // Сбросить back stack (ScriptListFragment → SettingsFragment)
         if (supportFragmentManager.backStackEntryCount > 0) {
             supportFragmentManager.popBackStackImmediate(
@@ -481,7 +529,7 @@ class GameActivity : AppCompatActivity() {
         val error = findViewById<TextView>(R.id.provisioningError)
         val retryButton = findViewById<Button>(R.id.provisioningRetryButton)
         val skipButton = findViewById<Button>(R.id.provisioningSkipButton)
-        val settingsButton = findViewById<ImageButton>(R.id.settingsButton)
+        val settingsButton = findViewById<MaterialButton>(R.id.settingsButton)
 
         overlay.visibility = View.VISIBLE
         settingsButton.visibility = View.GONE
@@ -555,7 +603,7 @@ class GameActivity : AppCompatActivity() {
 
     private fun finishProvisioning() {
         val overlay = findViewById<LinearLayout>(R.id.provisioningOverlay)
-        val settingsButton = findViewById<ImageButton>(R.id.settingsButton)
+        val settingsButton = findViewById<MaterialButton>(R.id.settingsButton)
 
         overlay.visibility = View.GONE
         settingsButton.visibility = View.VISIBLE
@@ -962,6 +1010,7 @@ class GameActivity : AppCompatActivity() {
         private const val KEY_AUTO_CHECK_UPDATES = "auto_check_updates"
         private const val KEY_LAST_UPDATE_CHECK = "last_update_check"
         private const val UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
+        private const val BIG_BUTTON_BOTTOM_FRACTION = 0.20f
         private const val RELEASE_NOTES_MAX_HEIGHT_DP = 200
         private const val RELEASE_NOTES_PADDING_DP = 24
     }

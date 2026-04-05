@@ -50,6 +50,7 @@
     <string name="reinstall_completed">Reinstalled %s</string>
     <string name="reinstall_failed">Failed to reinstall: %s</string>
     <string name="settings">Settings</string>
+    <string name="app_settings_button">SBG Scout settings</string>
     <string name="settings_category_display">Display</string>
     <string name="settings_fullscreen">Fullscreen mode</string>
     <string name="settings_fullscreen_summary">Hide status bar and navigation buttons</string>
