@@ -96,6 +96,8 @@ class ScriptListFragment : Fragment() {
         setupScriptList(view)
         setupButtons(view)
         observeViewModel(view)
+        // Сбросить скролл: RecyclerView может восстановить позицию из savedInstanceState
+        view.findViewById<RecyclerView>(R.id.scriptList).scrollToPosition(0)
         when {
             arguments?.getBoolean(ARG_AUTO_UPDATE, false) == true -> viewModel.checkAndUpdateAll()
             arguments?.getBoolean(ARG_AUTO_CHECK, false) == true -> viewModel.checkUpdates()

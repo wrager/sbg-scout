@@ -640,6 +640,12 @@ class GameActivity : AppCompatActivity() {
         // Скрыть клавиатуру, если была активна в WebView
         val imm = getSystemService(InputMethodManager::class.java)
         currentFocus?.let { imm.hideSoftInputFromWindow(it.windowToken, 0) }
+        // Сбросить скролл настроек: фрагмент живёт всё время, скролл
+        // сохраняется между открытиями
+        val settingsFragment = supportFragmentManager.findFragmentById(R.id.settingsContainer)
+        if (settingsFragment is SettingsFragment) {
+            settingsFragment.scrollToTop()
+        }
     }
 
     private fun isSettingsOpen(): Boolean =

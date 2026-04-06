@@ -85,6 +85,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
     }
 
+    fun scrollToTop() {
+        listView?.scrollToPosition(0)
+    }
+
     /**
      * Собирает диагностику, копирует в буфер обмена, показывает Toast и открывает GitHub Issues.
      *
