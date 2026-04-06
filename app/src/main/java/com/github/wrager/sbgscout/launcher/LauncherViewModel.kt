@@ -558,7 +558,7 @@ class LauncherViewModel(
 
         val currentEnabledSnapshot = storedScripts
             .filter { it.enabled }
-            .map { "${it.identifier.value}::${it.header.version ?: ""}" }
+            .map { InjectionStateStorage.buildSnapshotEntry(it) }
             .toSet()
         // null — игра не загружалась, ничего перезагружать незачем
         val lastInjectedSnapshot = injectionStateStorage.getSnapshot()

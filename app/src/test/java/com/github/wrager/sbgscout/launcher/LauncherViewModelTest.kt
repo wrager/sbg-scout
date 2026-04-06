@@ -935,6 +935,32 @@ class LauncherViewModelTest {
     }
 
     @Test
+    fun `addScriptFromContent with same version but different content sets reloadNeeded`() = runTest {
+        val existingScript = testScript(version = "1.0.0", enabled = true, content = "old content")
+        every { scriptStorage.getAll() } returns listOf(existingScript)
+        // Снапшот сохранён при инжекции старого контента
+        every { injectionStateStorage.getSnapshot() } returns setOf(
+            InjectionStateStorage.buildSnapshotEntry(existingScript),
+        )
+
+        val newScript = testScript(version = "1.0.0", enabled = true, content = "new content")
+        every { scriptInstaller.parse("new content") } returns ScriptInstallResult.Parsed(newScript)
+        every { scriptInstaller.save(any()) } answers {
+            every { scriptStorage.getAll() } returns listOf(newScript)
+        }
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        // Контент совпадает со снапшотом — reload не нужен
+        assertFalse(viewModel.uiState.value.reloadNeeded)
+
+        viewModel.addScriptFromContent("new content")
+        advanceUntilIdle()
+        // Контент изменился — нужен reload
+        assertTrue(viewModel.uiState.value.reloadNeeded)
+    }
+
+    @Test
     fun `orphaned preset script appears in custom section`() = runTest {
         // Скрипт с isPreset=true, но sourceUrl не совпадает ни с одним пресетом
         val orphanedScript = testScript(
@@ -967,6 +993,7 @@ class LauncherViewModelTest {
         scriptProvisioner,
     )
 
+    @Suppress("LongParameterList")
     private fun testScript(
         identifier: ScriptIdentifier = ScriptIdentifier("test/script"),
         name: String = "Test Script",
@@ -975,12 +1002,13 @@ class LauncherViewModelTest {
         sourceUrl: String? = "https://example.com/script.user.js",
         releaseTag: String? = null,
         isPreset: Boolean = false,
+        content: String = "console.log('test')",
     ) = UserScript(
         identifier = identifier,
         header = ScriptHeader(name = name, version = version),
         sourceUrl = sourceUrl,
         updateUrl = "https://example.com/script.meta.js",
-        content = "console.log('test')",
+        content = content,
         enabled = enabled,
         isPreset = isPreset,
         releaseTag = releaseTag,
