@@ -32,6 +32,12 @@
             android:title="@string/settings_manage_scripts"
             app:iconSpaceReserved="false" />
 
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="@string/settings_category_game"
+        app:iconSpaceReserved="false">
+
         <Preference
             android:key="reload_game"
             android:summary="@string/settings_reload_game_summary"

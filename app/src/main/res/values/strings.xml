@@ -62,6 +62,7 @@
     <string name="settings_keep_screen_on">Keep screen on</string>
     <string name="settings_keep_screen_on_summary">Prevent screen from turning off while in game</string>
     <string name="settings_category_scripts">Scripts</string>
+    <string name="settings_category_game">Game</string>
     <string name="settings_auto_update">Check for updates once a day on game load</string>
     <string name="settings_category_updates">Updates</string>
     <string name="settings_auto_check_updates">Auto-check updates</string>
