@@ -120,7 +120,7 @@ class ScriptListFragment : Fragment() {
                 it.operationState is ScriptOperationState.UpdateAvailable
             }
             if (hasUpdates) {
-                viewModel.checkAndUpdateAll()
+                viewModel.updateAll()
             } else {
                 viewModel.checkUpdates()
             }
@@ -279,7 +279,7 @@ class ScriptListFragment : Fragment() {
             .setTitle(R.string.script_updates_title)
             .setView(container)
             .setPositiveButton(R.string.update_all) { _, _ ->
-                viewModel.checkAndUpdateAll()
+                viewModel.updateAll()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

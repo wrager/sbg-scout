@@ -268,6 +268,30 @@ class LauncherViewModel(
         }
     }
 
+    /** Скачивает все обновления, уже помеченные как [ScriptOperationState.UpdateAvailable]. */
+    fun updateAll() {
+        viewModelScope.launch {
+            val toUpdate = operationStateMap
+                .filter { it.value is ScriptOperationState.UpdateAvailable }
+                .keys.toList()
+            if (toUpdate.isEmpty()) return@launch
+            var updatedCount = 0
+            for (identifier in toUpdate) {
+                setOperationState(identifier, ScriptOperationState.Downloading(0))
+                val newIdentifier = applyUpdate(identifier) { progress ->
+                    setOperationState(identifier, ScriptOperationState.Downloading(progress))
+                }
+                if (newIdentifier != null) {
+                    setOperationState(newIdentifier, ScriptOperationState.UpToDate)
+                    updatedCount++
+                } else {
+                    setOperationState(identifier, null)
+                }
+            }
+            _events.send(LauncherEvent.UpdatesCompleted(updatedCount))
+        }
+    }
+
     /** Проверяет обновления и скачивает все доступные (одна операция). */
     fun checkAndUpdateAll() {
         val isAlreadyChecking = operationStateMap.values.any { it is ScriptOperationState.CheckingUpdate }
