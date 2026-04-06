@@ -403,6 +403,8 @@ class GameActivity : AppCompatActivity() {
         webView.settings.setGeolocationEnabled(true)
         webView.settings.javaScriptCanOpenWindowsAutomatically = true
         webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
+        webView.settings.userAgentString =
+            "${webView.settings.userAgentString} SbgScout/${BuildConfig.VERSION_NAME}"
 
         if (BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true)
