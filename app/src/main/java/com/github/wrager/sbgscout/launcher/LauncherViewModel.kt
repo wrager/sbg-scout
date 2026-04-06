@@ -210,12 +210,15 @@ class LauncherViewModel(
         if (isAlreadyChecking) return
         viewModelScope.launch {
             try {
-                val downloadedIdentifiers = scriptStorage.getAll().map { it.identifier }.toSet()
+                val updatableIdentifiers = scriptStorage.getAll()
+                    .filter { it.updateUrl != null }
+                    .map { it.identifier }
+                    .toSet()
                 // Очищаем старые результаты проверки, сохраняя активные загрузки
                 operationStateMap.entries.removeAll { (_, state) ->
                     state is ScriptOperationState.UpToDate || state is ScriptOperationState.UpdateAvailable
                 }
-                for (identifier in downloadedIdentifiers) {
+                for (identifier in updatableIdentifiers) {
                     if (operationStateMap[identifier] !is ScriptOperationState.Downloading) {
                         operationStateMap[identifier] = ScriptOperationState.CheckingUpdate
                     }
@@ -298,11 +301,14 @@ class LauncherViewModel(
         if (isAlreadyChecking) return
         viewModelScope.launch {
             // Фаза 1: проверка (аналог checkUpdates, но без отправки CheckCompleted)
-            val downloadedIdentifiers = scriptStorage.getAll().map { it.identifier }.toSet()
+            val updatableIdentifiers = scriptStorage.getAll()
+                .filter { it.updateUrl != null }
+                .map { it.identifier }
+                .toSet()
             operationStateMap.entries.removeAll { (_, state) ->
                 state is ScriptOperationState.UpToDate || state is ScriptOperationState.UpdateAvailable
             }
-            for (identifier in downloadedIdentifiers) {
+            for (identifier in updatableIdentifiers) {
                 if (operationStateMap[identifier] !is ScriptOperationState.Downloading) {
                     operationStateMap[identifier] = ScriptOperationState.CheckingUpdate
                 }
@@ -627,6 +633,7 @@ class LauncherViewModel(
             conflictNames = conflictNames,
             sourceUrl = script.sourceUrl,
             isDownloaded = true,
+            isUpdatable = script.updateUrl != null,
             operationState = operationStateMap[script.identifier],
         )
     }

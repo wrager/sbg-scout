@@ -186,7 +186,9 @@ class ScriptListFragment : Fragment() {
                         adapter.submitList(state.scripts)
                         emptyText.visibility =
                             if (state.scripts.isEmpty()) View.VISIBLE else View.GONE
-                        checkUpdatesButton.isEnabled = state.scripts.any { it.isDownloaded }
+                        checkUpdatesButton.isEnabled = state.scripts.any {
+                            it.isDownloaded && it.isUpdatable
+                        }
                         val hasUpdates = state.scripts.any {
                             it.operationState is ScriptOperationState.UpdateAvailable
                         }

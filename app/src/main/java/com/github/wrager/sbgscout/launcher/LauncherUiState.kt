@@ -28,6 +28,7 @@ data class ScriptUiItem(
     val sourceUrl: String?,
     val isDownloaded: Boolean = true,
     val operationState: ScriptOperationState? = null,
+    val isUpdatable: Boolean = false,
 ) {
     val isGithubHosted: Boolean
         get() = sourceUrl != null &&

@@ -61,6 +61,8 @@ class ScriptUpdateChecker(
     }
 
     suspend fun checkAllForUpdates(): List<ScriptUpdateResult> {
-        return scriptStorage.getAll().map { checkForUpdate(it) }
+        return scriptStorage.getAll()
+            .filter { it.updateUrl != null }
+            .map { checkForUpdate(it) }
     }
 }
