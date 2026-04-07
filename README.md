@@ -19,9 +19,10 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 
 ## Скриншоты
 
-![Настройки — экран и скрипты](.github/images/screenshots/settings-1.png) ![Настройки — обновления и о приложении](.github/images/screenshots/settings-2.png)
-
-![Менеджер скриптов](.github/images/screenshots/script-manager.png)
+<table><tr>
+<td valign="top"><img src=".github/images/screenshots/settings.png" alt="Настройки"></td>
+<td valign="top"><img src=".github/images/screenshots/script-manager.png" alt="Менеджер скриптов"></td>
+</tr></table>
 
 ## Требования
 
