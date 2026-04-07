@@ -7,10 +7,11 @@ import android.webkit.JavascriptInterface
  *
  * Bootstrap-скрипт, инжектируемый в onPageStarted, ждёт инициализацию i18next и:
  * 1. Вызывает [onGameReady] — игра готова, Android снимает подложку загрузки.
- * 2. Пытается вставить HTML-кнопку в игровую панель настроек (`.settings-content`).
- *    При успехе вызывает [onHtmlButtonInjected] — Android скрывает нативную «Scout».
- *    Под скриптами, переделывающими UI (CUI), `.settings-content` может
- *    отсутствовать — инжекция пропускается, нативная «Scout» остаётся.
+ * 2. Пытается вставить строчку «SBG Scout settings» в игровую панель настроек
+ *    (`.settings-content`). При успехе вызывает [onHtmlButtonInjected] — Android
+ *    скрывает нативную кнопку. Под скриптами, переделывающими UI (CUI),
+ *    `.settings-content` может отсутствовать — инжекция пропускается, нативная
+ *    кнопка остаётся.
  * 3. Клик по HTML-кнопке вызывает [openScoutSettings] — открыть экран настроек.
  */
 class ScoutBridge(
@@ -58,8 +59,8 @@ class ScoutBridge(
         val BOOTSTRAP_SCRIPT = """
             (function() {
                 var STRINGS = {
-                    ru: { section: 'SBG Scout', item: 'Настройки приложения', button: 'Открыть' },
-                    en: { section: 'SBG Scout', item: 'App settings', button: 'Open' }
+                    ru: { item: 'Настройки SBG Scout', button: 'Открыть' },
+                    en: { item: 'SBG Scout settings', button: 'Open' }
                 };
 
                 function pickStrings() {
@@ -75,16 +76,10 @@ class ScoutBridge(
                 }
 
                 function injectButton() {
-                    if (document.getElementById('sbg-scout-section')) return true;
+                    if (document.getElementById('sbg-scout-settings-btn')) return true;
                     var content = document.querySelector('.settings-content');
                     if (!content) return false;
                     var strings = pickStrings();
-                    var section = document.createElement('div');
-                    section.className = 'settings-section';
-                    section.id = 'sbg-scout-section';
-                    var header = document.createElement('h4');
-                    header.className = 'settings-section__header';
-                    header.textContent = strings.section;
                     var item = document.createElement('div');
                     item.className = 'settings-section__item';
                     var label = document.createElement('span');
@@ -98,9 +93,7 @@ class ScoutBridge(
                     });
                     item.appendChild(label);
                     item.appendChild(button);
-                    section.appendChild(header);
-                    section.appendChild(item);
-                    content.insertBefore(section, content.firstChild);
+                    content.insertBefore(item, content.firstChild);
                     return true;
                 }
 

@@ -51,7 +51,7 @@
     <string name="reinstall_failed">Не удалось переустановить: %s</string>
     <string name="settings">Настройки</string>
     <string name="app_settings_button">Настройки SBG Scout</string>
-    <string name="app_settings_short">Scout</string>
+    <string name="app_settings_short">Настройки SBG Scout</string>
     <string name="reload_button">Reload</string>
     <string name="game_initializing">Инициализация игры\u2026</string>
     <string name="close_settings">Закрыть</string>

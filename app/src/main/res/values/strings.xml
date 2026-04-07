@@ -51,7 +51,7 @@
     <string name="reinstall_failed">Failed to reinstall: %s</string>
     <string name="settings">Settings</string>
     <string name="app_settings_button">SBG Scout settings</string>
-    <string name="app_settings_short">Scout</string>
+    <string name="app_settings_short">SBG Scout settings</string>
     <string name="reload_button">Reload</string>
     <string name="game_initializing">Initializing game\u2026</string>
     <string name="close_settings">Close</string>
