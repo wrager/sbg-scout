@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SBG Vanilla+
 // @namespace    https://github.com/wrager/sbg-vanilla-plus
-// @version      0.8.0
+// @version      0.8.1
 // @author       wrager
 // @description  UI/UX enhancements for SBG (SBG v0.6.0)
 // @license      MIT
@@ -317,7 +317,7 @@
   function buildBugReportUrl(modules) {
     const params = new URLSearchParams({
       template: "bug_report.yml",
-      version: "0.8.0",
+      version: "0.8.1",
       browser: navigator.userAgent,
       modules: buildModuleList(modules)
     });
@@ -452,12 +452,14 @@ ${errorLog}`);
   box-shadow: inset 0 -12px 8px -8px rgba(0, 0, 0, 0.2);
 }
 
-.svp-settings-panel .popup-close {
+.svp-settings-panel .svp-settings-close {
   position: fixed;
   bottom: 8px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1;
+  font-size: 1.5em;
+  padding: 0 .1em;
 }
 
 .svp-settings-section {
@@ -791,7 +793,7 @@ ${errorLog}`);
     footer.className = "svp-settings-footer";
     const version = document.createElement("span");
     version.className = "svp-settings-version";
-    version.textContent = `SBG Vanilla+ v${"0.8.0"}`;
+    version.textContent = `SBG Vanilla+ v${"0.8.1"}`;
     const reportButton = document.createElement("button");
     reportButton.className = "svp-report-button";
     const reportLabel = { en: "Report a bug", ru: "Сообщить об ошибке" };
@@ -812,7 +814,7 @@ ${errorLog}`);
     footer.appendChild(version);
     panel2.appendChild(footer);
     const closeButton2 = document.createElement("button");
-    closeButton2.className = "popup-close";
+    closeButton2.className = "svp-settings-close";
     closeButton2.textContent = "[x]";
     closeButton2.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -988,7 +990,7 @@ ${errorLog}`);
     setTimeout(logDiagnostics, DIAG_DELAY);
   }
   const FLAVOR_HEADER = "x-sbg-flavor";
-  const FLAVOR_VALUE = `VanillaPlus/${"0.8.0"}`;
+  const FLAVOR_VALUE = `VanillaPlus/${"0.8.1"}`;
   function installSbgFlavor() {
     const originalFetch = window.fetch;
     window.fetch = function(input, init) {
@@ -1434,9 +1436,59 @@ ${errorLog}`);
   };
   const MODULE_ID$e = "shiftMapCenterDown";
   const PADDING_FACTOR = 0.35;
+  const ACTION_PANEL_SELECTORS = ".attack-slider-wrp, .draw-slider-wrp";
   let map$5 = null;
   let topPadding = 0;
   let inflateForPadding = false;
+  let actionObserver = null;
+  let actionPanelActive = false;
+  let actionRafId = null;
+  function applyPadding(padding) {
+    if (!map$5) return;
+    const view = map$5.getView();
+    const center = view.getCenter();
+    view.padding = padding;
+    view.setCenter(center);
+  }
+  function handleActionPanelChange() {
+    const openPanel = document.querySelector(
+      ".attack-slider-wrp:not(.hidden), .draw-slider-wrp:not(.hidden)"
+    );
+    if (openPanel && !actionPanelActive) {
+      actionPanelActive = true;
+      const panelHeight = openPanel.getBoundingClientRect().height;
+      applyPadding([0, 0, panelHeight, 0]);
+    } else if (!openPanel && actionPanelActive) {
+      actionPanelActive = false;
+      applyPadding([topPadding, 0, 0, 0]);
+    }
+  }
+  function startActionObserver() {
+    stopActionObserver();
+    const panels = document.querySelectorAll(ACTION_PANEL_SELECTORS);
+    if (panels.length === 0) return;
+    actionObserver = new MutationObserver(() => {
+      if (actionRafId !== null) return;
+      actionRafId = requestAnimationFrame(() => {
+        actionRafId = null;
+        handleActionPanelChange();
+      });
+    });
+    for (const panel2 of panels) {
+      actionObserver.observe(panel2, {
+        attributes: true,
+        attributeFilter: ["class"]
+      });
+    }
+  }
+  function stopActionObserver() {
+    if (actionRafId !== null) {
+      cancelAnimationFrame(actionRafId);
+      actionRafId = null;
+    }
+    actionObserver == null ? void 0 : actionObserver.disconnect();
+    actionObserver = null;
+  }
   const shiftMapCenterDown = {
     id: MODULE_ID$e,
     name: { en: "Shift Map Center Down", ru: "Сдвиг центра карты вниз" },
@@ -1462,21 +1514,14 @@ ${errorLog}`);
     },
     enable() {
       inflateForPadding = true;
-      if (map$5) {
-        const view = map$5.getView();
-        const center = view.getCenter();
-        view.padding = [topPadding, 0, 0, 0];
-        view.setCenter(center);
-      }
+      applyPadding([topPadding, 0, 0, 0]);
+      startActionObserver();
     },
     disable() {
       inflateForPadding = false;
-      if (map$5) {
-        const view = map$5.getView();
-        const center = view.getCenter();
-        view.padding = [0, 0, 0, 0];
-        view.setCenter(center);
-      }
+      stopActionObserver();
+      actionPanelActive = false;
+      applyPadding([0, 0, 0, 0]);
     }
   };
   const MODULE_ID$d = "disableDoubleTapZoom";
@@ -3008,6 +3053,8 @@ ${errorLog}`);
   let latestPoint = null;
   let inflateExtent = false;
   let enabled$1 = false;
+  let pendingDelta = 0;
+  let frameRequestId = null;
   function isFollowActive() {
     return localStorage.getItem("follow") !== "false";
   }
@@ -3033,7 +3080,31 @@ ${errorLog}`);
     const view = map.getView();
     view.setRotation(view.getRotation() + delta);
   }
+  function applyPendingRotation() {
+    frameRequestId = null;
+    const delta = pendingDelta;
+    pendingDelta = 0;
+    if (delta !== 0) {
+      applyRotation(delta);
+    }
+  }
+  function flushPendingRotation() {
+    if (frameRequestId !== null) {
+      cancelAnimationFrame(frameRequestId);
+      frameRequestId = null;
+    }
+    if (pendingDelta !== 0) {
+      applyRotation(pendingDelta);
+      pendingDelta = 0;
+    }
+  }
+  function scheduleRotationFrame() {
+    if (frameRequestId === null) {
+      frameRequestId = requestAnimationFrame(applyPendingRotation);
+    }
+  }
   function resetGesture() {
+    flushPendingRotation();
     latestPoint = null;
     dragPanControl == null ? void 0 : dragPanControl.restore();
   }
@@ -3055,7 +3126,8 @@ ${errorLog}`);
     const currentAngle = angleFromCenter(touch.clientX, touch.clientY);
     const previousAngle = angleFromCenter(latestPoint[0], latestPoint[1]);
     const delta = normalizeAngleDelta(currentAngle - previousAngle);
-    applyRotation(delta);
+    pendingDelta += delta;
+    scheduleRotationFrame();
     latestPoint = [touch.clientX, touch.clientY];
   }
   function onTouchEnd() {
