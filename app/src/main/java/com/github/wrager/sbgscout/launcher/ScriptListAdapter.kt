@@ -57,6 +57,7 @@ class ScriptListAdapter(
 
     inner class ScriptViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val nameText: TextView = itemView.findViewById(R.id.scriptName)
+        private val descriptionText: TextView = itemView.findViewById(R.id.scriptDescription)
         private val detailsRow: View = itemView.findViewById(R.id.detailsRow)
         private val scriptVersion: TextView = itemView.findViewById(R.id.scriptVersion)
         private val latestStatus: TextView = itemView.findViewById(R.id.latestStatus)
@@ -77,10 +78,22 @@ class ScriptListAdapter(
         fun bind(item: ScriptUiItem) {
             nameText.text = item.name
 
+            bindDescription(item)
             bindDetails(item)
             bindDownloadStatus(item)
             bindLoadingProgress(item)
             bindControls(item)
+        }
+
+        private fun bindDescription(item: ScriptUiItem) {
+            val description = item.description
+            if (description == null) {
+                descriptionText.visibility = View.GONE
+                return
+            }
+
+            descriptionText.text = description
+            descriptionText.visibility = View.VISIBLE
         }
 
         /**

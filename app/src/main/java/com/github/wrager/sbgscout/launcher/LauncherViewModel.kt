@@ -565,6 +565,7 @@ class LauncherViewModel(
             if (script != null) {
                 presetClaimedIdentifiers.add(script.identifier)
                 buildScriptUiItem(script, canonicalEnabledVersions, nameByIdentifier)
+                    .copy(description = preset.description)
             } else {
                 ScriptUiItem(
                     identifier = preset.identifier,
@@ -578,6 +579,7 @@ class LauncherViewModel(
                     sourceUrl = preset.downloadUrl,
                     isDownloaded = false,
                     operationState = operationStateMap[preset.identifier],
+                    description = preset.description,
                 )
             }
         }

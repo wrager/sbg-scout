@@ -9,4 +9,5 @@ data class PresetScript(
     val updateUrl: String,
     val fallbackDownloadUrl: String? = null,
     val enabledByDefault: Boolean = false,
+    val description: String? = null,
 )
