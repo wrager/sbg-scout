@@ -3,5 +3,4 @@
     <color name="scoutButtonBackground">#6B6B6B</color>
     <color name="scoutButtonContent">#FFFFFF</color>
     <color name="scoutButtonStroke">#D1D1D1</color>
-    <color name="settingsSeparator">#D1D1D1</color>
 </resources>

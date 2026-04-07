@@ -189,6 +189,7 @@ class GameActivity : AppCompatActivity() {
         @Suppress("ResourceType") // colorBackground — цвет, не drawable
         val backgroundColor = ContextCompat.getColor(this, typedValue.resourceId)
         findViewById<View>(R.id.settingsContainer)?.setBackgroundColor(backgroundColor)
+        findViewById<View>(R.id.closeSettingsFooterPanel)?.setBackgroundColor(backgroundColor)
 
         // Перечитать цвета кнопок «Scout»/«Reload»/«[x]» и сепаратора из текущей
         // темы (resources тянут значения из values-night при dark-режиме).
@@ -204,8 +205,8 @@ class GameActivity : AppCompatActivity() {
     }
 
     /**
-     * Применяет цвета `scoutButton*`/`settingsSeparator` из текущей темы к кнопкам
-     * «Scout»/«Reload»/«[x]», текстовому label'у и сепаратору. Нужно после смены
+     * Применяет цвета `scoutButton*` из текущей темы к кнопкам
+     * «Scout»/«Reload»/«[x]» и текстовому label'у. Нужно после смены
      * uiMode (configChanges=uiMode), т.к. Activity не пересоздаётся и view'хи
      * держат значения цветов, разрезолвенные при инфляции.
      */
@@ -224,9 +225,6 @@ class GameActivity : AppCompatActivity() {
             button.strokeColor = strokeTint
         }
         findViewById<android.widget.TextView>(R.id.gameInitializingLabel)?.setTextColor(content)
-        findViewById<View>(R.id.closeSettingsSeparator)?.setBackgroundColor(
-            ContextCompat.getColor(this, R.color.settingsSeparator),
-        )
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -637,8 +635,7 @@ class GameActivity : AppCompatActivity() {
     private fun openSettings() {
         findViewById<View>(R.id.settingsContainer).visibility = View.VISIBLE
         findViewById<View>(R.id.topButtonsContainer).visibility = View.GONE
-        findViewById<MaterialButton>(R.id.closeSettingsButton).visibility = View.VISIBLE
-        findViewById<View>(R.id.closeSettingsSeparator).visibility = View.VISIBLE
+        findViewById<View>(R.id.closeSettingsFooter).visibility = View.VISIBLE
         // Скрыть клавиатуру, если была активна в WebView
         val imm = getSystemService(InputMethodManager::class.java)
         currentFocus?.let { imm.hideSoftInputFromWindow(it.windowToken, 0) }
@@ -692,8 +689,7 @@ class GameActivity : AppCompatActivity() {
         }
         findViewById<View>(R.id.settingsContainer).visibility = View.GONE
         findViewById<View>(R.id.topButtonsContainer).visibility = View.VISIBLE
-        findViewById<MaterialButton>(R.id.closeSettingsButton).visibility = View.GONE
-        findViewById<View>(R.id.closeSettingsSeparator).visibility = View.GONE
+        findViewById<View>(R.id.closeSettingsFooter).visibility = View.GONE
         // Восстановить видимость loading-элементов по текущему состоянию:
         // — label и «Reload» скрываются, когда игра готова (i18next);
         // — «Scout» скрывается только если HTML-кнопка успешно инжектирована.

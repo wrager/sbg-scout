@@ -10,5 +10,4 @@
     <color name="scoutButtonBackground">#EFEFEF</color>
     <color name="scoutButtonContent">#000000</color>
     <color name="scoutButtonStroke">#767676</color>
-    <color name="settingsSeparator">#767676</color>
 </resources>
