@@ -2,6 +2,7 @@ package com.github.wrager.sbgscout.webview
 
 import android.app.Activity
 import android.graphics.Bitmap
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -62,6 +63,13 @@ class SbgWebViewClient(
         }
         val message = view.context.getString(R.string.script_execution_error, scriptNames)
         Toast.makeText(view.context, message, Toast.LENGTH_LONG).show()
+    }
+
+    override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+        // Renderer-процесс упал или был убит системой.
+        // false = дефолтное поведение (краш приложения).
+        // При необходимости можно заменить на graceful recovery (пересоздание WebView).
+        return false
     }
 
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {

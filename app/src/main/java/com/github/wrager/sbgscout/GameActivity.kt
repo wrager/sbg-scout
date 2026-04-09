@@ -404,6 +404,8 @@ class GameActivity : AppCompatActivity() {
         webView.settings.userAgentString =
             "${webView.settings.userAgentString} SbgScout/${BuildConfig.VERSION_NAME}"
 
+        configureWebViewPerformance(webView)
+
         if (BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true)
         }
@@ -1197,5 +1199,32 @@ class GameActivity : AppCompatActivity() {
         private const val UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
         private const val RELEASE_NOTES_MAX_HEIGHT_DP = 200
         private const val RELEASE_NOTES_PADDING_DP = 24
+    }
+}
+
+/**
+ * Настройки WebView для снижения вероятности ANR при тяжёлом canvas-рендеринге.
+ *
+ * WebView встроен в Android layout system — его compositor работает синхронно
+ * с Android RenderThread. При тяжёлом canvas (OpenLayers карта) UI thread
+ * блокируется на syncFrameState, что может вызывать ANR на слабых устройствах.
+ */
+internal fun configureWebViewPerformance(
+    webView: WebView,
+    sdkVersion: Int = Build.VERSION.SDK_INT,
+) {
+    // Промотировать WebView в hardware layer: контент кэшируется как GPU-текстура,
+    // что улучшает compositor scheduling при тяжёлом canvas-рендеринге.
+    // Референс: Anmiles (refs/anmiles/) использует ту же настройку.
+    webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
+    // Не позволяет системе понижать приоритет renderer-процесса WebView.
+    // Без этого под нагрузкой renderer получает меньше CPU time →
+    // UI thread блокируется в ожидании кадров → ANR.
+    if (sdkVersion >= Build.VERSION_CODES.O) {
+        webView.setRendererPriorityPolicy(
+            WebView.RENDERER_PRIORITY_IMPORTANT,
+            true, // понижать приоритет когда Activity невидима
+        )
     }
 }
