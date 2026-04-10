@@ -1,8 +1,12 @@
 # ![icon](.github/images/icon.png) SBG Scout
 
 [![Latest release][release-badge]][releases]
-[![Build status][ci-badge]][ci]
+[![Release date][release-date-badge]][releases]
 [![Downloads][downloads-badge]][releases]
+[![Downloads@latest][downloads-latest-badge]][releases]
+[![SBG][sbg-badge]][sbg]
+
+[![Build status][ci-badge]][ci]
 [![License MIT][license-badge]][license]
 
 Android-клиент для игры [SBG](https://sbg-game.ru/) со встроенным менеджером юзерскриптов.
@@ -13,6 +17,7 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 - **Автообновление** — проверка приложения и скриптов при запуске, диалоги с release notes и прогрессом загрузки, кнопка «Обновить все» для скриптов
 - **WebView с игрой** — полноэкранный immersive-режим, геолокация, синхронизация темы и языка из настроек игры, перезагрузка из настроек
 
+<a id="download"></a>
 ## Скачать
 
 [Скачать последний APK][releases-latest]
@@ -51,7 +56,11 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 [releases-latest]: https://github.com/wrager/sbg-scout/releases/latest
 [ci]: https://github.com/wrager/sbg-scout/actions/workflows/ci.yml
 [license]: LICENSE
+[sbg]: https://sbg-game.ru/app
 [release-badge]: https://img.shields.io/github/v/release/wrager/sbg-scout?style=flat-square
+[release-date-badge]: https://img.shields.io/github/release-date/wrager/sbg-scout?style=flat-square
 [ci-badge]: https://img.shields.io/github/actions/workflow/status/wrager/sbg-scout/ci.yml?branch=main&style=flat-square
 [downloads-badge]: https://img.shields.io/github/downloads/wrager/sbg-scout/total?style=flat-square&cacheSeconds=3600
+[downloads-latest-badge]: https://img.shields.io/github/downloads/wrager/sbg-scout/latest/total?style=flat-square&cacheSeconds=3600&label=downloads%40latest
 [license-badge]: https://img.shields.io/github/license/wrager/sbg-scout?style=flat-square
+[sbg-badge]: https://img.shields.io/website?label=sbg-game.ru/app&style=flat-square&url=https%3A%2F%2Fsbg-game.ru/app
