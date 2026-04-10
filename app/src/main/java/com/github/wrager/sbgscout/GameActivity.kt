@@ -1164,8 +1164,10 @@ class GameActivity : AppCompatActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    // «Назад» всегда идёт в WebView: навигация в истории или выход.
-                    // Закрытие экрана настроек — только через плавающую кнопку [x].
+                    // На экране настроек «назад» игнорируется — закрытие только
+                    // через плавающую кнопку [x] снизу по центру.
+                    if (isSettingsOpen()) return
+                    // «Назад» в игре идёт в WebView: навигация в истории или выход.
                     webView.evaluateJavascript(
                         "document.dispatchEvent(new Event('backbutton'))",
                     ) {}
