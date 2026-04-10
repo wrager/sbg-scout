@@ -65,7 +65,7 @@
     <string name="settings_category_updates">Обновления</string>
     <string name="settings_auto_check_updates">Автоматическая проверка</string>
     <string name="settings_auto_check_updates_summary">Проверять обновления приложения и скриптов раз в день при загрузке игры</string>
-    <string name="settings_check_app_update">Проверить обновление приложения</string>
+    <string name="settings_check_app_update">Проверить обновления приложения</string>
     <string name="settings_check_app_update_summary">Проверить наличие новой версии на GitHub</string>
     <string name="settings_check_script_updates">Проверить обновления скриптов</string>
     <string name="settings_check_script_updates_summary">Проверить наличие новых версий скриптов</string>

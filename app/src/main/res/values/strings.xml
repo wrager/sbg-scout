@@ -67,7 +67,7 @@
     <string name="settings_category_updates">Updates</string>
     <string name="settings_auto_check_updates">Auto-check updates</string>
     <string name="settings_auto_check_updates_summary">Check for app and script updates once a day on game load</string>
-    <string name="settings_check_app_update">Check for app update</string>
+    <string name="settings_check_app_update">Check for app updates</string>
     <string name="settings_check_app_update_summary">Check if a new version is available on GitHub</string>
     <string name="settings_check_script_updates">Check for script updates</string>
     <string name="settings_check_script_updates_summary">Check if scripts have new versions</string>
