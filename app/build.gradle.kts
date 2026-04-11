@@ -21,6 +21,7 @@ android {
         versionName = "$versionMajor.$versionMinor.$versionPatch"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
 
         buildConfigField("String", "GAME_APP_URL", "\"https://sbg-game.ru/app\"")
         buildConfigField("String", "GAME_LOGIN_URL", "\"https://sbg-game.ru/login\"")
@@ -47,6 +48,17 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
+        create("e2e") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".e2e"
+            versionNameSuffix = "-e2e"
+            matchingFallbacks += listOf("debug")
+            // BuildConfig для e2e указывает на localhost (реальный порт подставляется
+            // в androidTest через GameUrls.appUrlOverride — MockWebServer.port).
+            buildConfigField("String", "GAME_APP_URL", "\"http://127.0.0.1/app\"")
+            buildConfigField("String", "GAME_LOGIN_URL", "\"http://127.0.0.1/login\"")
+            buildConfigField("String", "GAME_HOST_MATCH", "\"127.0.0.1\"")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -60,6 +72,8 @@ android {
         }
     }
 
+    testBuildType = "e2e"
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -67,6 +81,7 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
 
     buildFeatures {
@@ -102,4 +117,12 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.espresso.web)
+    androidTestImplementation(libs.androidx.test.uiautomator)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.core.ktx)
+    androidTestImplementation(libs.okhttp.mockwebserver)
+    androidTestUtil(libs.androidx.test.orchestrator)
 }
