@@ -57,6 +57,27 @@ class ScriptVersionTest {
     }
 
     @Test
+    fun `segment with trailing suffix takes leading digits`() {
+        // versionNameSuffix = "-debug" / "-instr" из buildType превращает
+        // BuildConfig.VERSION_NAME в "0.15.4-debug". Без leading-digits парсинга
+        // последний сегмент "4-debug" превращается в 0, и [0, 15, 0] < [0, 15, 4]
+        // — AppUpdateChecker ложно находит обновление на ту же версию.
+        assertEquals(0, ScriptVersion("0.15.4-debug").compareTo(ScriptVersion("0.15.4")))
+        assertEquals(0, ScriptVersion("0.15.4-instr").compareTo(ScriptVersion("0.15.4")))
+    }
+
+    @Test
+    fun `newer version with suffix is still greater`() {
+        assertTrue(ScriptVersion("0.15.5-debug") > ScriptVersion("0.15.4"))
+        assertTrue(ScriptVersion("0.15.4") < ScriptVersion("0.15.5-debug"))
+    }
+
+    @Test
+    fun `older version with suffix is still less`() {
+        assertTrue(ScriptVersion("0.15.3-debug") < ScriptVersion("0.15.4"))
+    }
+
+    @Test
     fun `single segment versions compare correctly`() {
         assertTrue(ScriptVersion("2") > ScriptVersion("1"))
     }
