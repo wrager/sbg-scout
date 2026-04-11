@@ -13,7 +13,7 @@ import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
-import org.hamcrest.CoreMatchers.allOf
+import org.hamcrest.core.CombinableMatcher.both
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -51,10 +51,8 @@ class ShareBridgeE2ETest : E2ETestBase() {
             game.evaluateJs("__sbg_share.open('$targetUrl')")
 
             Intents.intended(
-                allOf(
-                    hasAction(Intent.ACTION_VIEW),
-                    hasData(Uri.parse(targetUrl)),
-                ),
+                both(hasAction(Intent.ACTION_VIEW))
+                    .and(hasData(Uri.parse(targetUrl))),
             )
         } finally {
             Intents.release()

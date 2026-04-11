@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Instrumentation
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.matcher.IntentMatchers.anyIntent
@@ -43,6 +44,9 @@ class ScriptManagerNavigationE2ETest {
 
             val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
             val settingsLabel = targetContext.getString(R.string.settings)
+            // menu_launcher.xml объявляет action_settings с showAsAction="never",
+            // значит пункт спрятан в overflow-меню toolbar.
+            openActionBarOverflowOrOptionsMenu(targetContext)
             onView(withText(settingsLabel)).perform(click())
 
             Intents.intended(hasComponent(SettingsActivity::class.java.name))

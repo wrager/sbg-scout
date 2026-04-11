@@ -21,7 +21,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.settings.SettingsActivity
-import org.hamcrest.CoreMatchers.allOf
+import org.hamcrest.core.CombinableMatcher.both
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.startsWith
 import org.junit.After
@@ -69,12 +69,9 @@ class ReportBugE2ETest {
 
             // 1. Intent на github.com/wrager/sbg-scout/issues/new — с query-параметрами.
             Intents.intended(
-                allOf(
-                    hasAction(Intent.ACTION_VIEW),
-                    hasDataString(startsWith(ISSUE_URL_PREFIX)),
-                    // URL должен содержать query — хотя бы `apk-version`.
-                    hasDataString(containsString("apk-version=")),
-                ),
+                both(hasAction(Intent.ACTION_VIEW))
+                    .and(hasDataString(startsWith(ISSUE_URL_PREFIX)))
+                    .and(hasDataString(containsString("apk-version="))),
             )
 
             // 2. Clipboard — должна быть скопирована диагностика (полный текст
