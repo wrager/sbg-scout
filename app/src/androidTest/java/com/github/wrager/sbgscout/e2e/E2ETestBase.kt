@@ -1,8 +1,10 @@
 package com.github.wrager.sbgscout.e2e
 
 import android.Manifest
+import androidx.preference.PreferenceManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.config.GameUrls
@@ -60,7 +62,24 @@ abstract class E2ETestBase {
         GameUrls.appUrlOverride = "$baseUrl/app"
         GameUrls.loginUrlOverride = "$baseUrl/login"
         GameUrls.hostMatchOverride = "127.0.0.1"
+        disableAutoUpdateCheck()
         IdlingRegistry.getInstance().register(idling)
+    }
+
+    /**
+     * Подавляет фоновую проверку обновлений в [GameActivity.scheduleAutoUpdateCheck].
+     * Без этого GameActivity ходит на github.com на старте, а при наличии более
+     * свежего релиза показывает AlertDialog, который блокирует Espresso и ломает
+     * e2e-тесты. Orchestrator clearPackageData стирает prefs перед каждым тестом,
+     * поэтому выставляем значения заново в @Before.
+     */
+    private fun disableAutoUpdateCheck() {
+        val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+        PreferenceManager.getDefaultSharedPreferences(targetContext)
+            .edit()
+            .putBoolean("auto_check_updates", false)
+            .putLong("last_update_check", System.currentTimeMillis())
+            .apply()
     }
 
     @After
