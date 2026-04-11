@@ -117,6 +117,11 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.espresso.contrib) {
+        // espresso-contrib тянет material, который уже есть как implementation —
+        // исключаем, чтобы избежать конфликта версий.
+        exclude(group = "com.google.android.material", module = "material")
+    }
     androidTestImplementation(libs.androidx.espresso.web)
     androidTestImplementation(libs.androidx.test.uiautomator)
     androidTestImplementation(libs.androidx.test.runner)
