@@ -5,9 +5,9 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
 import androidx.test.rule.GrantPermissionRule
 import com.github.wrager.sbgscout.GameActivity
+import com.github.wrager.sbgscout.config.GameUrls
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.infra.FakeGameServer
-import com.github.wrager.sbgscout.e2e.infra.GameUrlsOverrideRule
 import com.github.wrager.sbgscout.e2e.infra.WebViewIdlingResource
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import org.junit.After
@@ -40,21 +40,26 @@ abstract class E2ETestBase {
     protected val server = FakeGameServer()
     protected val idling = WebViewIdlingResource()
 
-    @get:Rule(order = 0)
+    @get:Rule
     val permissionRule: GrantPermissionRule =
         GrantPermissionRule.grant(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
         )
 
-    @get:Rule(order = 1)
-    val gameUrlsRule = GameUrlsOverrideRule { server.baseUrl }
-
     private var activeScenario: ActivityScenario<GameActivity>? = null
 
     @Before
     fun setUpE2E() {
+        // Порядок важен: сначала старт сервера, потом чтение server.baseUrl
+        // (оно же под капотом вызывает MockWebServer.hostName/port). Обратный
+        // порядок триггерит ленивый MockWebServer.before() → start() на случайном
+        // порту, и последующий явный start() падает с "start() already called".
         server.start()
+        val baseUrl = server.baseUrl.trimEnd('/')
+        GameUrls.appUrlOverride = "$baseUrl/app"
+        GameUrls.loginUrlOverride = "$baseUrl/login"
+        GameUrls.hostMatchOverride = "127.0.0.1"
         IdlingRegistry.getInstance().register(idling)
     }
 
@@ -64,6 +69,9 @@ abstract class E2ETestBase {
         activeScenario = null
         IdlingRegistry.getInstance().unregister(idling)
         CookieFixtures.clearAll()
+        GameUrls.appUrlOverride = null
+        GameUrls.loginUrlOverride = null
+        GameUrls.hostMatchOverride = null
         server.shutdown()
     }
 
