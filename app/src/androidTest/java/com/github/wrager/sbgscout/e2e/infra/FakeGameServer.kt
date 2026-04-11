@@ -1,7 +1,9 @@
 package com.github.wrager.sbgscout.e2e.infra
 
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import java.net.InetAddress
+import java.util.concurrent.TimeUnit
 
 /**
  * Обёртка над [MockWebServer] с маршрутизацией под fake-игру.
@@ -35,4 +37,12 @@ class FakeGameServer {
     }
 
     fun requestCount(): Int = server.requestCount
+
+    /** Блокирующее чтение следующего запроса, пришедшего на fake-сервер. */
+    fun takeRequest(timeoutMs: Long = DEFAULT_TAKE_TIMEOUT_MS): RecordedRequest? =
+        server.takeRequest(timeoutMs, TimeUnit.MILLISECONDS)
+
+    private companion object {
+        const val DEFAULT_TAKE_TIMEOUT_MS = 5_000L
+    }
 }
