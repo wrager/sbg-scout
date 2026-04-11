@@ -8,7 +8,6 @@ import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import com.github.wrager.sbgscout.e2e.screens.LoginScreen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,8 +25,8 @@ import org.junit.runner.RunWith
  * 6. Fake-сервер видит cookie и отдаёт HTML игры → onGamePageFinished →
  *    IdlingResource становится idle → GameScreen.waitForLoaded возвращается.
  *
- * Проверяется вся HTTP-цепочка через server.takeRequest + итоговое состояние
- * через evaluateJs на фикстуре.
+ * Проверка идёт через `takeRequestMatching`, который пропускает незначимые
+ * запросы WebView (например, автоматический `/favicon.ico` на странице логина).
  */
 @RunWith(AndroidJUnit4::class)
 class LoginFlowE2ETest : E2ETestBase() {
@@ -40,9 +39,9 @@ class LoginFlowE2ETest : E2ETestBase() {
 
         val scenario = launchGameActivity()
 
-        val unauthenticatedAppRequest = server.takeRequest()
-        assertNotNull("WebView должен обратиться к fake-серверу", unauthenticatedAppRequest)
-        assertEquals("/app", unauthenticatedAppRequest!!.path)
+        val unauthenticatedAppRequest = server.takeRequestMatching { request ->
+            request.method == "GET" && request.path == "/app"
+        }
         assertFalse(
             "На первом запросе /app не должно быть session-cookie",
             unauthenticatedAppRequest.getHeader("Cookie").orEmpty().contains(
@@ -50,29 +49,31 @@ class LoginFlowE2ETest : E2ETestBase() {
             ),
         )
 
-        val loginRequest = server.takeRequest()
-        assertNotNull("После 302 WebView должен запросить /login", loginRequest)
-        assertEquals("/login", loginRequest!!.path)
+        server.takeRequestMatching { request ->
+            request.method == "GET" && request.path == "/login"
+        }
 
-        // Fake-страница /login загружена, JS фикстуры исполнен — дожидаемся.
+        // Fake-страница /login загружена, JS фикстуры исполнен — дожидаемся
+        // готовности функции submitTelegramStub в глобальном scope страницы.
         val loginScreen = LoginScreen(scenario).waitUntilReady()
         loginScreen.submitFakeAuth()
 
-        val callbackRequest = server.takeRequest()
-        assertNotNull(
-            "submitTelegramStub должен отправить POST на /login/callback",
-            callbackRequest,
-        )
-        assertEquals("POST", callbackRequest!!.method)
-        assertEquals("/login/callback", callbackRequest.path)
+        val callbackRequest = server.takeRequestMatching { request ->
+            request.method == "POST" && request.path == "/login/callback"
+        }
+        assertEquals("POST", callbackRequest.method)
 
         // Dispatcher вернул 302 → /app + Set-Cookie. WebView сам перейдёт на /app
         // (см. submitTelegramStub.then → location.href = "/app").
-        val authenticatedAppRequest = server.takeRequest()
-        assertNotNull("После успешного логина WebView должен заново загрузить /app", authenticatedAppRequest)
-        assertEquals("/app", authenticatedAppRequest!!.path)
+        val authenticatedAppRequest = server.takeRequestMatching { request ->
+            request.method == "GET" &&
+                request.path == "/app" &&
+                request.getHeader("Cookie").orEmpty().contains(
+                    "hittoken=${CookieFixtures.FAKE_SESSION_TOKEN}",
+                )
+        }
         assertTrue(
-            "На втором запросе /app должен быть session-cookie, выставленный dispatcher'ом",
+            "Authenticated request должен содержать session-cookie",
             authenticatedAppRequest.getHeader("Cookie").orEmpty().contains(
                 "hittoken=${CookieFixtures.FAKE_SESSION_TOKEN}",
             ),
