@@ -16,41 +16,45 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 /**
- * Установка пресета SBG Vanilla+ / SBG Enhanced UI через клик по download-иконке
- * в карточке. Полный цикл: LauncherViewModel.downloadScript → ScriptDownloader
- * → HttpFetcher (с urlRewriter на FakeGameServer) → ScriptInstaller → storage.
+ * Установка пресетов через embedded-менеджер скриптов в GameActivity.
+ *
+ * Нюанс: SVP (SBG Vanilla+) приходит вшитым в APK через BundledScriptInstaller
+ * и устанавливается автоматически при первом запуске GameActivity в
+ * `setupWebView`. Значит пользователь физически не увидит «download» для SVP —
+ * он всегда уже установлен. Download-flow применим только к не-bundled пресетам
+ * (EUI, CUI) и кастомным скриптам.
+ *
+ * Поэтому тест на SVP проверяет BundledScriptInstaller, а тест на EUI —
+ * реальный клик по download-иконке + HTTP-flow через FakeGameServer.
  */
 class ScriptManagerInstallPresetE2ETest : E2ETestBase() {
 
     @Test
-    fun downloadSvpPreset_savesScriptAsPresetAndEnabledByDefault() {
+    fun bundledSvp_isPreinstalledAfterFirstGameActivityLaunch() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
-        server.stubScriptAsset(
-            owner = "wrager",
-            repo = "sbg-vanilla-plus",
-            tag = "latest",
-            filename = "sbg-vanilla-plus.user.js",
-            content = AssetLoader.read("fixtures/scripts/svp-v0.8.0.user.js"),
-        )
 
         val scenario = launchGameActivity()
         val scriptManager = GameScreen(scenario, idling).waitForLoaded()
             .openSettings().openManageScripts()
+        scriptManager.waitForCard("SBG Vanilla+")
 
-        scriptManager.clickCardChildView("SBG Vanilla+", R.id.actionButton)
-
+        // BundledScriptInstaller.installBundled в GameActivity.setupWebView
+        // установил SVP из app/src/main/assets/scripts/sbg-vanilla-plus.user.js.
         val storage = ScriptStorageFixture.storage()
-        val svp = waitForScript(storage) {
-            it.header.namespace == "github.com/wrager/sbg-vanilla-plus" &&
-                it.header.name == "SBG Vanilla+" &&
-                it.enabled
+        val svp = storage.getAll().find {
+            it.header.namespace == "github.com/wrager/sbg-vanilla-plus"
+        } ?: fail("SVP должен быть автоматически установлен BundledScriptInstaller").let {
+            throw AssertionError("unreachable")
         }
 
-        assertEquals("0.8.0", svp.header.version)
-        assertTrue("SVP должен быть enabled=true по умолчанию", svp.enabled)
-        assertTrue("Сохранённый скрипт должен быть isPreset=true", svp.isPreset)
+        assertTrue("Bundled SVP помечен isPreset=true", svp.isPreset)
+        assertTrue(
+            "Bundled SVP включён по умолчанию (enabledByDefault=true у пресета)",
+            svp.enabled,
+        )
         assertEquals(
+            "sourceUrl совпадает с preset.downloadUrl",
             "https://github.com/wrager/sbg-vanilla-plus/releases/latest/download/sbg-vanilla-plus.user.js",
             svp.sourceUrl,
         )
