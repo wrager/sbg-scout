@@ -48,12 +48,12 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
-        create("e2e") {
+        create("instr") {
             initWith(getByName("debug"))
-            applicationIdSuffix = ".e2e"
-            versionNameSuffix = "-e2e"
+            applicationIdSuffix = ".instr"
+            versionNameSuffix = "-instr"
             matchingFallbacks += listOf("debug")
-            // BuildConfig для e2e указывает на localhost (реальный порт подставляется
+            // BuildConfig для instr указывает на localhost (реальный порт подставляется
             // в androidTest через GameUrls.appUrlOverride — MockWebServer.port).
             buildConfigField("String", "GAME_APP_URL", "\"http://127.0.0.1/app\"")
             buildConfigField("String", "GAME_LOGIN_URL", "\"http://127.0.0.1/login\"")
@@ -72,7 +72,7 @@ android {
         }
     }
 
-    testBuildType = "e2e"
+    testBuildType = "instr"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

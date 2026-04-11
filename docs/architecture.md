@@ -269,15 +269,15 @@ app/src/main/java/com/github/wrager/sbgscout/
 
 ## e2e-инфраструктура
 
-Тестирование пользовательских сценариев на реальном WebView идёт через отдельный buildType `e2e`, локальный fake-сервер и source set `androidTest/`.
+Тестирование пользовательских сценариев на реальном WebView идёт через отдельный buildType `instr` (сокращение от *instrumentation* — по задаче Gradle `connectedInstrAndroidTest`), локальный fake-сервер и source set `androidTest/`.
 
-### buildType `e2e`
+### buildType `instr`
 
-- Наследуется от `debug` (`initWith(debug)`) c `applicationIdSuffix = ".e2e"` — тестовый APK ставится параллельно debug-сборке на эмуляторе, не затирая её.
+- Наследуется от `debug` (`initWith(debug)`) c `applicationIdSuffix = ".instr"` — тестовый APK ставится параллельно debug-сборке на эмуляторе, не затирая её.
 - Свой `BuildConfig.GAME_APP_URL / GAME_LOGIN_URL / GAME_HOST_MATCH` указывает на `http://127.0.0.1` — вместо `sbg-game.ru`.
-- `testBuildType = "e2e"` делает `connectedAndroidTest` запускающим именно e2e-вариант APK. Побочный эффект: AGP генерирует unit-тесты только как `testE2eUnitTest` (см. команду CI в корневом CLAUDE.md).
+- `testBuildType = "instr"` делает `connectedAndroidTest` запускающим именно instr-вариант APK (задача `connectedInstrAndroidTest`). Побочный эффект: AGP генерирует unit-тесты только как `testInstrUnitTest` (см. команду CI в корневом CLAUDE.md). Это обычные JVM unit-тесты из `app/src/test/`, не инструментированные — имя складывается по шаблону `test<BuildType>UnitTest`.
 - `testOptions.execution = "ANDROIDX_TEST_ORCHESTRATOR"` + `clearPackageData` — каждый e2e-тест стартует в своём процессе с чистым состоянием (SharedPreferences, WebView cookies, files).
-- Source set `app/src/e2e/` содержит свой `network_security_config.xml` (cleartext разрешён только для `127.0.0.1` и `localhost`) и `AndroidManifest.xml` с `tools:replace` — прод-сборки остаются без послаблений network security.
+- Source set `app/src/instr/` содержит свой `network_security_config.xml` (cleartext разрешён только для `127.0.0.1` и `localhost`) и `AndroidManifest.xml` с `tools:replace` — прод-сборки остаются без послаблений network security.
 
 ### Централизация URL игры
 
@@ -324,14 +324,14 @@ app/src/androidTest/java/com/github/wrager/sbgscout/e2e/
     ├── settings/SettingsScreenE2ETest.kt
     └── auth/LoginFlowE2ETest.kt
 app/src/androidTest/assets/fixtures/  Минимальные HTML/JSON фикстуры
-app/src/e2e/
+app/src/instr/
 ├── AndroidManifest.xml               tools:replace android:networkSecurityConfig
 └── res/xml/network_security_config.xml  cleartext для 127.0.0.1 / localhost
 ```
 
 ### CI
 
-`.github/workflows/e2e.yml` — отдельный workflow на `reactivecircus/android-emulator-runner` (API 33, x86_64, pixel_4), запускается по `pull_request` с path-filter (`app/src/main/**`, `app/src/androidTest/**`, `app/src/e2e/**`, `app/build.gradle.kts`, `gradle/libs.versions.toml`) и `workflow_dispatch`. AVD snapshot кэшируется между запусками. Не добавлен в `push: main`, чтобы не блокировать мердж долгим прогоном эмулятора. Основной `ci.yml` собирает e2e-APK (`assembleE2e`) для быстрого ловли поломок сборки до запуска emulator runner.
+`.github/workflows/e2e.yml` — отдельный workflow на `reactivecircus/android-emulator-runner` (API 33, x86_64, pixel_4), запускается по `pull_request` с path-filter (`app/src/main/**`, `app/src/androidTest/**`, `app/src/instr/**`, `app/build.gradle.kts`, `gradle/libs.versions.toml`) и `workflow_dispatch`. AVD snapshot кэшируется между запусками. Не добавлен в `push: main`, чтобы не блокировать мердж долгим прогоном эмулятора. Основной `ci.yml` собирает instr-APK (`assembleInstr`) для быстрого ловли поломок сборки до запуска emulator runner.
 
 ### Запрет обращений к прод-серверу
 

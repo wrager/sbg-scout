@@ -29,10 +29,10 @@ jobs:
         run: ./gradlew detekt
 
       - name: Unit tests
-        run: ./gradlew testE2eUnitTest
+        run: ./gradlew testInstrUnitTest
 
       - name: Build debug APK
         run: ./gradlew assembleDebug
 
-      - name: Build e2e APK
-        run: ./gradlew assembleE2e
+      - name: Build instrumentation APK
+        run: ./gradlew assembleInstr

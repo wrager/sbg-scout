@@ -26,7 +26,7 @@ Disabling Errors:
 1. Покрывать тестами любой новый функционал и любые изменения существующего.
 2. Стремиться к покрытию тестами всех веток кода.
 3. Unit-тесты — в `app/src/test/`, инструментальные — в `app/src/androidTest/`.
-4. **e2e-тесты** — в `app/src/androidTest/java/com/github/wrager/sbgscout/e2e/`, запускаются на эмуляторе в рамках buildType `e2e`. См. [docs/architecture.md](architecture.md) раздел «e2e-инфраструктура».
+4. **e2e-тесты** — в `app/src/androidTest/java/com/github/wrager/sbgscout/e2e/`, запускаются на эмуляторе в рамках buildType `instr` (сокращение от *instrumentation*). См. [docs/architecture.md](architecture.md) раздел «e2e-инфраструктура».
 5. **Запрещено ходить в реальный `sbg-game.ru` из тестов.** Правила игры квалифицируют автоматизированные обращения как нарушение, а сам факт автоматизированных запросов может привести к блокировке аккаунта разработчика. Все e2e идут исключительно через `FakeGameServer` (OkHttp MockWebServer), поднимаемый локально в процессе теста на `127.0.0.1`.
 
 ## Readability

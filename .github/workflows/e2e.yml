@@ -5,7 +5,7 @@ on:
     paths:
       - 'app/src/main/**'
       - 'app/src/androidTest/**'
-      - 'app/src/e2e/**'
+      - 'app/src/instr/**'
       - 'app/build.gradle.kts'
       - 'gradle/libs.versions.toml'
       - '.github/workflows/e2e.yml'
@@ -63,7 +63,7 @@ jobs:
           disable-animations: true
           script: echo "AVD snapshot created"
 
-      - name: Run connectedE2eAndroidTest
+      - name: Run connectedInstrAndroidTest
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
@@ -75,7 +75,7 @@ jobs:
           heap-size: 1024M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew connectedE2eAndroidTest --stacktrace --no-daemon
+          script: ./gradlew connectedInstrAndroidTest --stacktrace --no-daemon
 
       - name: Upload reports
         if: always()
