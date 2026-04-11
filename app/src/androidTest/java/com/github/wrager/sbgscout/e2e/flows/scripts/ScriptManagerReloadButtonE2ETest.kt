@@ -1,13 +1,11 @@
 package com.github.wrager.sbgscout.e2e.flows.scripts
 
-import android.content.Context
-import androidx.test.platform.app.InstrumentationRegistry
+import android.os.SystemClock
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.infra.ScriptStorageFixture
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
-import com.github.wrager.sbgscout.script.injector.InjectionStateStorage
 import com.github.wrager.sbgscout.script.model.ScriptHeader
 import com.github.wrager.sbgscout.script.model.ScriptIdentifier
 import com.github.wrager.sbgscout.script.model.UserScript
@@ -16,8 +14,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Кнопка «Reload game» в embedded ScriptListFragment появляется, когда текущий
- * enabled-снапшот скриптов отличается от snapshot'а последней инжекции.
+ * Кнопка «Reload game» в embedded ScriptListFragment появляется, когда
+ * текущий enabled-снапшот скриптов отличается от snapshot'а последней
+ * инжекции в WebView.
+ *
+ * Важный нюанс: `ScriptInjector.inject` в `SbgWebViewClient.onPageStarted`
+ * перезаписывает InjectionStateStorage snapshot на основании enabled-скриптов
+ * в момент загрузки /app. Поэтому нельзя «подготовить» snapshot до launch —
+ * он будет перезаписан. Правильный flow теста:
+ *
+ * 1. Sideload SVP v0.8.0 enabled.
+ * 2. launchGameActivity → WebView грузит /app → inject сохраняет snapshot {SVP v0.8.0}.
+ * 3. Ждём waitForLoaded (snapshot уже записан).
+ * 4. Переписываем storage: SVP v0.8.1 enabled (отличается от snapshot'а по version).
+ * 5. Открываем settings overlay → Manage scripts → LauncherViewModel.refreshScriptList
+ *    видит snapshot={v0.8.0} != current={v0.8.1} → reloadNeeded=true → button VISIBLE.
  */
 class ScriptManagerReloadButtonE2ETest : E2ETestBase() {
 
@@ -26,19 +37,24 @@ class ScriptManagerReloadButtonE2ETest : E2ETestBase() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
 
-        val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
-        val injectionStorage = InjectionStateStorage(
-            targetContext.getSharedPreferences("scripts", Context.MODE_PRIVATE),
-        )
-        // Предыдущая сессия использовала SVP v0.8.0.
-        injectionStorage.saveSnapshot(listOf(buildSvpScript("0.8.0", enabled = true)))
-
-        // Текущий стор: SVP v0.8.1 enabled (отличается от snapshot'а).
-        ScriptStorageFixture.storage().save(buildSvpScript("0.8.1", enabled = true))
+        // Этап 1: state до load игры — SVP v0.8.0 enabled.
+        ScriptStorageFixture.storage().save(buildSvpScript("0.8.0", enabled = true))
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val game = GameScreen(scenario, idling).waitForLoaded()
+        // Подождать, пока ScriptInjector действительно сохранит snapshot (inject
+        // идёт после evaluateJavascript и не гарантированно синхронен с onPageFinished).
+        SystemClock.sleep(INJECT_SETTLE_MS)
+
+        // Этап 2: обновляем state поверх загруженной игры — SVP v0.8.1 enabled.
+        val storage = ScriptStorageFixture.storage()
+        storage.delete(ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"))
+        storage.save(buildSvpScript("0.8.1", enabled = true))
+
+        // Этап 3: открываем overlay → script manager → LauncherViewModel видит
+        // расхождение snapshot ↔ current и ставит reloadNeeded=true.
+        val scriptManager = game.openSettings().openManageScripts()
+        scriptManager.waitForCard("SBG Vanilla+")
 
         assertTrue(
             "reloadButton должен быть VISIBLE при расхождении snapshot ↔ current enabled",
@@ -60,4 +76,8 @@ class ScriptManagerReloadButtonE2ETest : E2ETestBase() {
         enabled = enabled,
         isPreset = true,
     )
+
+    private companion object {
+        const val INJECT_SETTLE_MS = 300L
+    }
 }

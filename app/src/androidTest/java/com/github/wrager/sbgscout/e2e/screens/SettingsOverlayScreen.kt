@@ -1,24 +1,29 @@
 package com.github.wrager.sbgscout.e2e.screens
 
 import android.view.View
+import androidx.annotation.StringRes
+import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
-import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.R
 
 /**
- * PageObject для экрана настроек, открытого как overlay внутри GameActivity
- * (fragment SettingsFragment в `R.id.settingsContainer`).
+ * PageObject для экрана настроек, открытого как overlay в GameActivity
+ * (SettingsFragment в `R.id.settingsContainer`).
  *
- * Все клики идут через Espresso по заголовку preference (`withText(...)`).
- * Перед каждым кликом программно скроллим RecyclerView к нужной позиции,
- * чтобы не зависеть от [androidx.test.espresso.contrib.RecyclerViewActions.scrollTo],
- * который требует отключённых анимаций эмулятора.
+ * Все взаимодействия с preferences идут через Preference API, а не через
+ * Espresso onView на RecyclerView. Причина: PreferenceFragmentCompat использует
+ * RecyclerView, который биндит ViewHolder'ы лениво — небольшой экран может
+ * не отрендерить preference вне viewport, и `onView(withText(...))` не найдёт
+ * его, даже если скроллить программно. `findPreference(key)` работает с
+ * полным списком preference-объектов независимо от рендеринга.
+ *
+ * Для `Preference.performClick()` есть нюанс: на `TwoStatePreference`
+ * (SwitchPreferenceCompat) он корректно флипает состояние и триггерит
+ * `OnSharedPreferenceChangeListener`. Для обычного `Preference` он триггерит
+ * `onPreferenceClickListener` — ровно то, что делает `SettingsFragment`.
  */
 class SettingsOverlayScreen(
     private val scenario: ActivityScenario<GameActivity>,
@@ -41,104 +46,74 @@ class SettingsOverlayScreen(
         }
     }
 
-    fun clickPreferenceByTitle(@androidx.annotation.StringRes titleRes: Int) {
-        val title = targetContext.getString(titleRes)
-        scrollRecyclerToChildWithText(title)
-        onView(withText(title)).perform(click())
-    }
-
     /**
-     * Кликает "Manage scripts" в preference, возвращает [ScriptManagerScreen]
-     * для дальнейших операций. В GameActivity контексте SettingsFragment делает
-     * fragment transaction на ScriptListFragment.newEmbeddedInstance().
+     * Кликает preference по его ключу через Preference API.
+     * Находит preference в уже inflated PreferenceScreen и вызывает
+     * `performClick` — это триггерит onPreferenceClickListener или toggle
+     * для SwitchPreferenceCompat.
      */
-    fun openManageScripts(): ScriptManagerScreen {
-        clickPreferenceByTitle(R.string.settings_manage_scripts)
-        return ScriptManagerScreen(scenario).waitDisplayed()
-    }
-
-    fun assertPreferenceSummaryContains(@androidx.annotation.StringRes titleRes: Int, summary: String) {
-        val title = targetContext.getString(titleRes)
-        scrollRecyclerToChildWithText(title)
+    fun clickPreferenceByKey(key: String) {
         scenario.onActivity { activity ->
-            val recyclerView = findPreferenceRecyclerView(activity)
-                ?: error("preference RecyclerView не найден")
-            val itemView = findItemViewWithText(recyclerView, title)
-                ?: error("Не найден preference с title='$title'")
-            val summaryView = itemView.findViewById<android.widget.TextView>(android.R.id.summary)
-                ?: error("Нет android.R.id.summary в preference '$title'")
-            check(summaryView.text.toString().contains(summary)) {
-                "preference '$title' summary='${summaryView.text}' не содержит '$summary'"
-            }
-        }
-    }
-
-    fun assertCategoriesVisible(vararg titleRes: Int) {
-        for (res in titleRes) {
-            val title = targetContext.getString(res)
-            scrollRecyclerToChildWithText(title)
-            scenario.onActivity { activity ->
-                val recyclerView = findPreferenceRecyclerView(activity)
-                    ?: error("preference RecyclerView не найден")
-                val item = findItemViewWithText(recyclerView, title)
-                check(item != null) { "Категория '$title' не найдена в preference RecyclerView" }
-            }
-        }
-    }
-
-    private fun scrollRecyclerToChildWithText(text: String) {
-        scenario.onActivity { activity ->
-            val recyclerView = findPreferenceRecyclerView(activity) ?: return@onActivity
-            val adapter = recyclerView.adapter ?: return@onActivity
-            for (i in 0 until adapter.itemCount) {
-                val holder = recyclerView.findViewHolderForAdapterPosition(i)
-                    ?: run {
-                        recyclerView.scrollToPosition(i)
-                        return@onActivity
-                    }
-                if (findTextViewWithText(holder.itemView, text) != null) {
-                    recyclerView.scrollToPosition(i)
-                    return@onActivity
-                }
-            }
-            recyclerView.scrollToPosition(adapter.itemCount - 1)
+            val fragment = activity.supportFragmentManager
+                .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
+                ?: error("SettingsFragment не найден в settingsContainer")
+            val preference = fragment.findPreference<Preference>(key)
+                ?: error("Preference с key='$key' не найден в PreferenceScreen")
+            preference.performClick()
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
-    private fun findPreferenceRecyclerView(activity: GameActivity): RecyclerView? {
-        val container = activity.findViewById<View>(R.id.settingsContainer)
-        return findRecyclerViewRecursive(container)
-    }
-
-    private fun findRecyclerViewRecursive(view: View?): RecyclerView? {
-        if (view == null) return null
-        if (view is RecyclerView) return view
-        if (view is android.view.ViewGroup) {
-            for (i in 0 until view.childCount) {
-                val match = findRecyclerViewRecursive(view.getChildAt(i))
-                if (match != null) return match
+    fun assertPreferenceSummaryContains(key: String, substring: String) {
+        scenario.onActivity { activity ->
+            val fragment = activity.supportFragmentManager
+                .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
+                ?: error("SettingsFragment не найден")
+            val preference = fragment.findPreference<Preference>(key)
+                ?: error("Preference '$key' не найден")
+            val summary = preference.summary?.toString().orEmpty()
+            check(summary.contains(substring)) {
+                "preference '$key' summary='$summary' не содержит '$substring'"
             }
         }
-        return null
     }
 
-    private fun findItemViewWithText(recyclerView: RecyclerView, text: String): View? {
-        for (i in 0 until (recyclerView.adapter?.itemCount ?: 0)) {
-            val holder = recyclerView.findViewHolderForAdapterPosition(i) ?: continue
-            if (findTextViewWithText(holder.itemView, text) != null) return holder.itemView
-        }
-        return null
-    }
-
-    private fun findTextViewWithText(view: View, text: String): View? {
-        if (view is android.widget.TextView && view.text?.toString() == text) return view
-        if (view is android.view.ViewGroup) {
-            for (i in 0 until view.childCount) {
-                val match = findTextViewWithText(view.getChildAt(i), text)
-                if (match != null) return match
+    fun assertCategoryTitles(@StringRes vararg titleRes: Int) {
+        val expectedTitles = titleRes.map { targetContext.getString(it) }.toSet()
+        scenario.onActivity { activity ->
+            val fragment = activity.supportFragmentManager
+                .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
+                ?: error("SettingsFragment не найден")
+            val screen = fragment.preferenceScreen
+            val actualTitles = mutableSetOf<String>()
+            for (i in 0 until screen.preferenceCount) {
+                screen.getPreference(i).title?.let { actualTitles += it.toString() }
+            }
+            val missing = expectedTitles - actualTitles
+            check(missing.isEmpty()) {
+                "Не найдены категории: $missing (актуальные: $actualTitles)"
             }
         }
-        return null
+    }
+
+    /**
+     * Кликает "Manage scripts" через Preference API → fragment transaction →
+     * ScriptListFragment.newEmbeddedInstance() в том же контейнере.
+     */
+    fun openManageScripts(): ScriptManagerScreen {
+        clickPreferenceByKey(KEY_MANAGE_SCRIPTS)
+        return ScriptManagerScreen(scenario).waitDisplayed()
+    }
+
+    companion object {
+        const val KEY_FULLSCREEN = "fullscreen_mode"
+        const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+        const val KEY_AUTO_CHECK_UPDATES = "auto_check_updates"
+        const val KEY_MANAGE_SCRIPTS = "manage_scripts"
+        const val KEY_RELOAD_GAME = "reload_game"
+        const val KEY_CHECK_APP_UPDATE = "check_app_update"
+        const val KEY_CHECK_SCRIPT_UPDATES = "check_script_updates"
+        const val KEY_APP_VERSION = "app_version"
+        const val KEY_REPORT_BUG = "report_bug"
     }
 }

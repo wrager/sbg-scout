@@ -56,8 +56,28 @@ class ScriptManagerScreen(
         throw AssertionError("ScriptListFragment не стал RESUMED за ${timeoutMs}ms")
     }
 
+    /**
+     * Ждёт появления карточки с заданным именем в RecyclerView.
+     *
+     * LauncherViewModel.loadScripts() запускает coroutine, которая обновляет
+     * uiState через Flow.collect. ScriptListAdapter биндит ViewHolder после
+     * submitList — это occurs после того, как fragment уже `isResumed`. Без
+     * polling'а можно поймать момент, когда `findViewHolderForAdapterPosition`
+     * возвращает null для ещё не биндованной позиции.
+     */
+    fun waitForCard(cardName: String, timeoutMs: Long = CARD_WAIT_TIMEOUT_MS) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val found = cardView(cardName) != null
+            if (found) return
+            Thread.sleep(CARD_POLL_INTERVAL_MS)
+        }
+        throw AssertionError("Карточка '$cardName' не появилась в RecyclerView за ${timeoutMs}ms")
+    }
+
     /** Кликает на дочернюю view с указанным id внутри карточки скрипта. */
     fun clickCardChildView(cardName: String, @IdRes childId: Int) {
+        waitForCard(cardName)
         scenario.onActivity { activity ->
             val recyclerView = findScriptRecyclerView(activity)
                 ?: error("ScriptListFragment RecyclerView не найден")
@@ -115,21 +135,32 @@ class ScriptManagerScreen(
 
     /** Добавить скрипт через диалог "Add script" (ввод URL). */
     fun openAddScriptDialogAndSubmitUrl(url: String) {
-        // Скроллим до последней позиции (item_add_script всегда в конце).
+        // Шаг 1: scroll к последней позиции. scrollToPosition можно звать на main
+        // через onActivity, но waitForIdleSync звать изнутри onActivity нельзя —
+        // Instrumentation валится с "This method can not be called from the main
+        // application thread". Поэтому scroll и click разделены на два блока.
         scenario.onActivity { activity ->
             val recyclerView = findScriptRecyclerView(activity) ?: return@onActivity
             val adapter = recyclerView.adapter ?: return@onActivity
             if (adapter.itemCount > 0) {
                 recyclerView.scrollToPosition(adapter.itemCount - 1)
             }
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
+        // Шаг 2: после layout pass ищем ViewHolder и кликаем addScriptButton.
+        scenario.onActivity { activity ->
+            val recyclerView = findScriptRecyclerView(activity)
+                ?: error("scriptList RecyclerView not found")
+            val adapter = recyclerView.adapter ?: error("adapter not attached")
             val lastHolder = recyclerView.findViewHolderForAdapterPosition(adapter.itemCount - 1)
             val addButton = lastHolder?.itemView?.findViewById<View>(R.id.addScriptButton)
                 ?: error("Add script button not found in RecyclerView footer")
             addButton.performClick()
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-        // Ввод URL в диалог и клик Add.
+
+        // Шаг 3: диалог открыт — ввод URL и клик Add.
         onView(androidx.test.espresso.matcher.ViewMatchers.withId(R.id.scriptUrlInput))
             .perform(androidx.test.espresso.action.ViewActions.replaceText(url))
         val addLabel = targetContext.getString(R.string.add)
@@ -193,5 +224,7 @@ class ScriptManagerScreen(
     private companion object {
         const val WAIT_TIMEOUT_MS = 3_000L
         const val POLL_INTERVAL_MS = 50L
+        const val CARD_WAIT_TIMEOUT_MS = 5_000L
+        const val CARD_POLL_INTERVAL_MS = 100L
     }
 }

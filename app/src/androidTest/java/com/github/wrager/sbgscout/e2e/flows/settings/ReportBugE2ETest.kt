@@ -10,11 +10,11 @@ import androidx.test.espresso.intent.matcher.IntentMatchers.anyIntent
 import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
 import androidx.test.espresso.intent.matcher.IntentMatchers.hasDataString
 import androidx.test.platform.app.InstrumentationRegistry
-import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
+import com.github.wrager.sbgscout.e2e.screens.SettingsOverlayScreen
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.startsWith
 import org.hamcrest.core.CombinableMatcher.both
@@ -43,7 +43,7 @@ class ReportBugE2ETest : E2ETestBase() {
             Intents.intending(anyIntent())
                 .respondWith(Instrumentation.ActivityResult(Activity.RESULT_OK, null))
 
-            overlay.clickPreferenceByTitle(R.string.settings_report_bug)
+            overlay.clickPreferenceByKey(SettingsOverlayScreen.KEY_REPORT_BUG)
 
             // Intent на github.com/wrager/sbg-scout/issues/new — с query.
             Intents.intended(
