@@ -1,6 +1,16 @@
 name: e2e
 
 on:
+  push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+    paths:
+      - 'app/src/main/**'
+      - 'app/src/androidTest/**'
+      - 'app/src/e2e/**'
+      - 'app/build.gradle.kts'
+      - 'gradle/libs.versions.toml'
+      - '.github/workflows/e2e.yml'
   pull_request:
     branches: [main]
     paths:
