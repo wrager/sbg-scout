@@ -1,19 +1,26 @@
 package com.github.wrager.sbgscout.e2e.infra
 
+import java.net.InetAddress
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
-import java.net.InetAddress
-import java.util.concurrent.TimeUnit
 
 /**
- * Обёртка над [MockWebServer] с маршрутизацией под fake-игру.
+ * Обёртка над [MockWebServer] с маршрутизацией под fake-игру и fake-GitHub.
  *
  * Сервер стартует на `127.0.0.1:<random-port>` в том же процессе, что и
  * приложение под тест (instrumented tests — один процесс), поэтому WebView
- * обращается на этот же loopback без нужды в `10.0.2.2`.
+ * и HttpFetcher обращаются на этот же loopback без нужды в `10.0.2.2`.
  *
- * Тела HTML-страниц задаются полями [gamePageBody] / [loginPageBody] до старта
- * сервера (или между запросами — dispatcher читает свежее значение).
+ * Настройка ответов:
+ * - HTML игры и логина — поля [gamePageBody] / [loginPageBody].
+ * - Скачивание юзерскриптов с GitHub — [stubScriptAsset] по комбинации
+ *   owner/repo/tag/filename. Dispatcher перенаправляет запросы GitHub
+ *   (переписанные через [DefaultHttpFetcher.urlRewriter] на префикс `/gh-web/`)
+ *   в эту Map.
+ * - GitHub API — [stubGithubReleaseLatest] / [stubGithubReleases] для
+ *   `/gh-api/repos/<owner>/<repo>/releases[/latest]`.
  */
 class FakeGameServer {
 
@@ -22,6 +29,15 @@ class FakeGameServer {
     @Volatile var gamePageBody: String = "<html><body>fake app page (no body set)</body></html>"
 
     @Volatile var loginPageBody: String = "<html><body>fake login (no body set)</body></html>"
+
+    /** Содержимое юзерскриптов: ключ = "<owner>/<repo>/<tag>/<filename>". */
+    internal val scriptAssets = ConcurrentHashMap<String, String>()
+
+    /** JSON для `/gh-api/repos/<owner>/<repo>/releases/latest`, ключ = "<owner>/<repo>". */
+    internal val githubLatestReleaseJson = ConcurrentHashMap<String, String>()
+
+    /** JSON для `/gh-api/repos/<owner>/<repo>/releases`, ключ = "<owner>/<repo>". */
+    internal val githubReleasesListJson = ConcurrentHashMap<String, String>()
 
     /**
      * Базовый URL вида `http://127.0.0.1:<port>`. Без завершающего слеша.
@@ -82,6 +98,34 @@ class FakeGameServer {
             if (predicate(request)) return request
             skipped += "${request.method} ${request.path}"
         }
+    }
+
+    /**
+     * Регистрирует содержимое `<filename>`-asset для указанного релиза, чтобы
+     * dispatcher вернул его на запрос `github.com/<owner>/<repo>/releases/<tag>/download/<filename>`
+     * или `github.com/<owner>/<repo>/releases/latest/download/<filename>`.
+     *
+     * @param tag — либо конкретный тег вроде "v0.8.0", либо специальная строка "latest"
+     *   для запросов `/releases/latest/download/`.
+     */
+    fun stubScriptAsset(
+        owner: String,
+        repo: String,
+        tag: String,
+        filename: String,
+        content: String,
+    ) {
+        scriptAssets["$owner/$repo/$tag/$filename"] = content
+    }
+
+    /** Регистрирует ответ для `/gh-api/repos/<owner>/<repo>/releases/latest`. */
+    fun stubGithubReleaseLatest(owner: String, repo: String, json: String) {
+        githubLatestReleaseJson["$owner/$repo"] = json
+    }
+
+    /** Регистрирует ответ для `/gh-api/repos/<owner>/<repo>/releases`. */
+    fun stubGithubReleasesList(owner: String, repo: String, json: String) {
+        githubReleasesListJson["$owner/$repo"] = json
     }
 
     private companion object {

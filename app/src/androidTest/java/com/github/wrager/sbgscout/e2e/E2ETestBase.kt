@@ -10,6 +10,7 @@ import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.config.GameUrls
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.infra.FakeGameServer
+import com.github.wrager.sbgscout.e2e.infra.HttpRewriterFixture
 import com.github.wrager.sbgscout.e2e.infra.WebViewIdlingResource
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import org.junit.After
@@ -62,6 +63,10 @@ abstract class E2ETestBase {
         GameUrls.appUrlOverride = "$baseUrl/app"
         GameUrls.loginUrlOverride = "$baseUrl/login"
         GameUrls.hostMatchOverride = "127.0.0.1"
+        // HTTP rewriter: все сетевые запросы приложения к GitHub-хостам
+        // направляются на fake-сервер. Устанавливается даже если конкретный
+        // тест не использует GitHub — безопасно и даёт единое место контроля.
+        HttpRewriterFixture.install(baseUrl)
         disableAutoUpdateCheck()
         IdlingRegistry.getInstance().register(idling)
     }
@@ -91,6 +96,7 @@ abstract class E2ETestBase {
         GameUrls.appUrlOverride = null
         GameUrls.loginUrlOverride = null
         GameUrls.hostMatchOverride = null
+        HttpRewriterFixture.clear()
         server.shutdown()
     }
 
