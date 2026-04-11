@@ -6,6 +6,8 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.matcher.RootMatchers.isDialog
+import androidx.test.espresso.matcher.RootMatchers.isPlatformPopup
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.GameActivity
@@ -141,10 +143,16 @@ class ScriptManagerScreen(
     /** Клик «Delete» в overflow-меню карточки + подтверждение в MaterialAlertDialog. */
     fun deleteCardViaOverflow(cardName: String) {
         clickCardChildView(cardName, R.id.actionButton)
+        // PopupMenu живёт в отдельном root'е — inRoot(isPlatformPopup()) нужен,
+        // чтобы matcher искал именно в нём, не в hierarchy фрагмента. Без этого
+        // onView находит MaterialAlertDialog title (тот же текст "Delete script"),
+        // который появляется после того, как popup успевает закрыться.
         val deleteTitle = targetContext.getString(R.string.delete_script)
-        onView(withText(deleteTitle)).perform(click())
+        onView(withText(deleteTitle)).inRoot(isPlatformPopup()).perform(click())
+        // После клика по popup item открывается confirm dialog. Кнопка "Delete"
+        // в нём живёт в root'е диалога — inRoot(isDialog()).
         val confirmLabel = targetContext.getString(R.string.delete)
-        onView(withText(confirmLabel)).perform(click())
+        onView(withText(confirmLabel)).inRoot(isDialog()).perform(click())
     }
 
     /** Добавить скрипт через диалог "Add script" (ввод URL). */
@@ -174,11 +182,15 @@ class ScriptManagerScreen(
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
 
-        // Шаг 3: диалог открыт — ввод URL и клик Add.
+        // Шаг 3: диалог открыт в отдельном root — ввод URL и клик Add идут
+        // через inRoot(isDialog()), иначе Espresso RootViewPicker валится на
+        // focused-root timeout (GameActivity в overlay-режиме, дочерний диалог
+        // не становится focused root чисто).
         onView(androidx.test.espresso.matcher.ViewMatchers.withId(R.id.scriptUrlInput))
+            .inRoot(isDialog())
             .perform(androidx.test.espresso.action.ViewActions.replaceText(url))
         val addLabel = targetContext.getString(R.string.add)
-        onView(withText(addLabel)).perform(click())
+        onView(withText(addLabel)).inRoot(isDialog()).perform(click())
     }
 
     private fun scrollToCard(recyclerView: RecyclerView, cardName: String) {

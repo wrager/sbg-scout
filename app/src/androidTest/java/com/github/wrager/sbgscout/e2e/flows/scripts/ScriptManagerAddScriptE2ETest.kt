@@ -12,27 +12,22 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.fail
-import org.junit.Ignore
 import org.junit.Test
 
 /**
  * Добавление скрипта через "Add script" → dialog → ввод URL → Add.
  *
- * TODO(e2e-add-script): текущая реализация падает на RootViewPicker таймауте —
- *  AlertDialog открывается из embedded ScriptListFragment внутри overlay
- *  GameActivity, но Espresso 10 секунд не может получить focused root window.
- *  Корневая причина — GameActivity в immersive-режиме с WebView, диалог
- *  показывается, но focus не переходит на него чисто. Возможные варианты
- *  починки: UI Automator для клика внутри диалога; либо прод-правка flags
- *  диалога (setCancelable + фокус-flags); либо тест через публичный API
- *  addScript на viewModel, минуя UI. Текущие тесты @Ignore до решения.
+ * Диалог открывается из embedded ScriptListFragment внутри overlay GameActivity.
+ * GameActivity в immersive-режиме с WebView не передаёт focus дочернему диалогу
+ * чисто, поэтому Espresso RootViewPicker валится на default root matcher.
+ * Решение — явно указывать `inRoot(isDialog())` в ScriptManagerScreen, чтобы
+ * matcher искал элементы в отдельном root-window диалога.
  *
  * Happy path: valid header в ответе → скрипт сохраняется.
  * Negative path: нет header'а → скрипт НЕ сохраняется.
  */
 class ScriptManagerAddScriptE2ETest : E2ETestBase() {
 
-    @Ignore("RootViewPicker timeout в overlay GameActivity — см. kdoc класса")
     @Test
     fun addScriptViaUrl_validHeader_savesScriptInStorage() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -56,7 +51,6 @@ class ScriptManagerAddScriptE2ETest : E2ETestBase() {
         assertFalse("Кастомный скрипт не должен быть isPreset", saved.isPreset)
     }
 
-    @Ignore("RootViewPicker timeout в overlay GameActivity — см. kdoc класса")
     @Test
     fun addScriptViaUrl_invalidHeader_doesNotSaveScript() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
