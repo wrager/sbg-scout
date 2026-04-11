@@ -122,6 +122,7 @@ dependencies {
         // исключаем, чтобы избежать конфликта версий.
         exclude(group = "com.google.android.material", module = "material")
     }
+    androidTestImplementation(libs.androidx.espresso.intents)
     androidTestImplementation(libs.androidx.espresso.web)
     androidTestImplementation(libs.androidx.test.uiautomator)
     androidTestImplementation(libs.androidx.test.runner)
