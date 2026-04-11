@@ -104,14 +104,16 @@ class ScriptManagerScreen(
 
     fun clickCheckUpdates() {
         scenario.onActivity { activity ->
-            activity.findViewById<View>(R.id.checkUpdatesButton).performClick()
+            findFragmentView(activity, R.id.checkUpdatesButton)?.performClick()
+                ?: error("checkUpdatesButton не найден внутри ScriptListFragment")
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
     fun clickReloadGame() {
         scenario.onActivity { activity ->
-            activity.findViewById<View>(R.id.reloadButton).performClick()
+            findFragmentView(activity, R.id.reloadButton)?.performClick()
+                ?: error("reloadButton не найден внутри ScriptListFragment")
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
@@ -119,9 +121,21 @@ class ScriptManagerScreen(
     fun isReloadButtonVisible(): Boolean {
         var visible = false
         scenario.onActivity { activity ->
-            visible = activity.findViewById<View>(R.id.reloadButton).visibility == View.VISIBLE
+            // R.id.reloadButton объявлен сразу в activity_game.xml (кнопка перезагрузки
+            // WebView на экране загрузки игры) и в fragment_script_list.xml.
+            // activity.findViewById вернёт первую — game reloadButton, который в этот
+            // момент скрыт через hideLabelAndReload(). Нам нужна кнопка фрагмента —
+            // ищем её внутри fragment view иерархии.
+            visible = findFragmentView(activity, R.id.reloadButton)?.visibility == View.VISIBLE
         }
         return visible
+    }
+
+    private fun findFragmentView(activity: GameActivity, viewId: Int): View? {
+        val fragment = activity.supportFragmentManager
+            .findFragmentById(R.id.settingsContainer)
+            ?: return null
+        return fragment.view?.findViewById(viewId)
     }
 
     /** Клик «Delete» в overflow-меню карточки + подтверждение в MaterialAlertDialog. */

@@ -41,12 +41,15 @@ class ScriptManagerInstallPresetE2ETest : E2ETestBase() {
 
         // BundledScriptInstaller.installBundled в GameActivity.setupWebView
         // установил SVP из app/src/main/assets/scripts/sbg-vanilla-plus.user.js.
+        // header.namespace хранит оригинальную строку из @namespace — у bundled
+        // SVP это "https://github.com/wrager/sbg-vanilla-plus" (с префиксом).
+        // Проверяем по @name — он стабильный "SBG Vanilla+".
         val storage = ScriptStorageFixture.storage()
-        val svp = storage.getAll().find {
-            it.header.namespace == "github.com/wrager/sbg-vanilla-plus"
-        } ?: fail("SVP должен быть автоматически установлен BundledScriptInstaller").let {
-            throw AssertionError("unreachable")
-        }
+        val svp = storage.getAll().find { it.header.name == "SBG Vanilla+" }
+            ?: run {
+                fail("SVP должен быть автоматически установлен BundledScriptInstaller")
+                throw AssertionError("unreachable")
+            }
 
         assertTrue("Bundled SVP помечен isPreset=true", svp.isPreset)
         assertTrue(
