@@ -1,5 +1,6 @@
 package com.github.wrager.sbgscout.script.updater
 
+import androidx.annotation.VisibleForTesting
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -20,7 +21,7 @@ class DefaultHttpFetcher : HttpFetcher {
         headers: Map<String, String>,
         onProgress: ((Int) -> Unit)?,
     ): String = withContext(Dispatchers.IO) {
-        val connection = URL(url).openConnection() as HttpURLConnection
+        val connection = URL(rewriteUrl(url)).openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = CONNECT_TIMEOUT_MS
             connection.readTimeout = READ_TIMEOUT_MS
@@ -75,7 +76,7 @@ class DefaultHttpFetcher : HttpFetcher {
         headers: Map<String, String>,
         onProgress: ((Int) -> Unit)?,
     ): Unit = withContext(Dispatchers.IO) {
-        val connection = URL(url).openConnection() as HttpURLConnection
+        val connection = URL(rewriteUrl(url)).openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = CONNECT_TIMEOUT_MS
             connection.readTimeout = READ_TIMEOUT_MS
@@ -173,5 +174,22 @@ class DefaultHttpFetcher : HttpFetcher {
 
         /** Время ожидания завершения потока после disconnect. */
         private const val DISCONNECT_JOIN_TIMEOUT_MS = 2_000L
+
+        /**
+         * Хук перенаправления URL для e2e-тестов. В проде всегда `null` —
+         * используется исходный URL. В androidTest выставляется через
+         * `HttpRewriterRule` так, чтобы GitHub-адреса (github.com, api.github.com,
+         * raw.githubusercontent.com, objects.githubusercontent.com) шли на
+         * локальный `FakeGameServer`, а не на реальный интернет.
+         *
+         * Volatile — вызывается из coroutine-ов в `Dispatchers.IO`, возможен
+         * конкурентный доступ между тестовыми потоками и IO-потоками.
+         */
+        @VisibleForTesting
+        @Volatile
+        @JvmStatic
+        internal var urlRewriter: ((String) -> String)? = null
+
+        private fun rewriteUrl(url: String): String = urlRewriter?.invoke(url) ?: url
     }
 }
