@@ -23,9 +23,18 @@ class FakeGameServer {
 
     @Volatile var loginPageBody: String = "<html><body>fake login (no body set)</body></html>"
 
-    /** Базовый URL вида `http://127.0.0.1:<port>`. Без завершающего слеша. */
+    /**
+     * Базовый URL вида `http://127.0.0.1:<port>`. Без завершающего слеша.
+     *
+     * Нельзя использовать `server.hostName` — это `canonicalHostName` от
+     * InetAddress.getByName("127.0.0.1"), которое делает reverse DNS lookup
+     * и возвращает `"localhost"`. WebView при загрузке и SbgWebViewClient в
+     * guard `GameUrls.isGameAppPage` ожидают буквально `"127.0.0.1"` (строка
+     * из `GameUrls.hostMatchOverride`). Mismatch = guard не срабатывает =
+     * IdlingResource никогда не становится idle = тесты виснут в timeout.
+     */
     val baseUrl: String
-        get() = "http://${server.hostName}:${server.port}"
+        get() = "http://127.0.0.1:${server.port}"
 
     fun start() {
         server.dispatcher = FakeGameDispatcher(this)
