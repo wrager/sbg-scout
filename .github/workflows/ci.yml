@@ -1,12 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches-ignore:
-      # Игнорируем временные ветки, которые GitHub делает под stash/diff.
-      - 'gh-readonly-queue/**'
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
