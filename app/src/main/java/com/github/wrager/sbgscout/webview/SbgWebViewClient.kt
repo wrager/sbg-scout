@@ -25,13 +25,25 @@ class SbgWebViewClient(
     /** Вызывается при старте загрузки страницы игры (в т.ч. при reload). */
     var onGamePageStarted: (() -> Unit)? = null
 
+    @Volatile
+    private var gamePageFinishedAtLeastOnce = false
+
     /**
      * Вызывается после `onPageFinished` страницы игры.
      * Используется в androidTest как сигнал для IdlingResource:
      * на этом моменте JS-мосты уже зарегистрированы и WebView готова
      * к вызовам `evaluateJavascript`.
+     *
+     * Setter idempotent по истории: если к моменту установки страница уже
+     * была загружена хотя бы раз, callback вызывается сразу. Это лечит race
+     * condition в e2e: на localhost загрузка может завершиться раньше, чем
+     * тест успеет подписаться через `scenario.onActivity`.
      */
     var onGamePageFinished: (() -> Unit)? = null
+        set(value) {
+            field = value
+            if (gamePageFinishedAtLeastOnce) value?.invoke()
+        }
 
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
@@ -61,6 +73,7 @@ class SbgWebViewClient(
                     callback(unescapeJsString(result))
                 }
             }
+            gamePageFinishedAtLeastOnce = true
             onGamePageFinished?.invoke()
         }
     }
