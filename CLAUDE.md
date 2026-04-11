@@ -11,9 +11,11 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 ## CI (перед каждым коммитом)
 
-`./gradlew ktlintCheck detekt testDebugUnitTest assembleDebug`
+`./gradlew ktlintCheck detekt testE2eUnitTest assembleDebug assembleE2e`
 
 Если сборка падает — пофиксить и повторить.
+
+**Почему `testE2eUnitTest`, а не `testDebugUnitTest`.** Из-за `testBuildType = "e2e"` в `app/build.gradle.kts` AGP генерирует задачу unit-тестов только для e2e-варианта. Unit-тесты не зависят от buildType по содержанию — они одинаковы, просто собираются против другого `BuildConfig`. `assembleE2e` добавлен в CI, чтобы убедиться, что e2e-сборка не сломана.
 
 ## Исследование
 
