@@ -45,6 +45,7 @@ import com.github.wrager.sbgscout.bridge.DownloadBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
 import com.github.wrager.sbgscout.bridge.ScoutBridge
 import com.github.wrager.sbgscout.bridge.ShareBridge
+import com.github.wrager.sbgscout.config.GameUrls
 import com.github.wrager.sbgscout.diagnostic.ConsoleLogBuffer
 import com.github.wrager.sbgscout.game.GameSettingsReader
 import com.github.wrager.sbgscout.launcher.LauncherActivity
@@ -162,7 +163,7 @@ class GameActivity : AppCompatActivity() {
             if (scriptProvisioner.hasPendingScripts()) {
                 startProvisioning()
             } else {
-                webView.loadUrl(GAME_URL)
+                webView.loadUrl(GameUrls.appUrl)
             }
         }
     }
@@ -235,7 +236,7 @@ class GameActivity : AppCompatActivity() {
             applyKeepScreenOn(prefs.getBoolean(KEY_KEEP_SCREEN_ON, true))
             if (prefs.getBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, false)) {
                 prefs.edit().remove(LauncherActivity.KEY_RELOAD_REQUESTED).apply()
-                webView.loadUrl(GAME_URL)
+                webView.loadUrl(GameUrls.appUrl)
             }
         }
     }
@@ -596,7 +597,7 @@ class GameActivity : AppCompatActivity() {
             .commit()
 
         settingsButton.setOnClickListener { openSettings() }
-        reloadButton.setOnClickListener { webView.loadUrl(GAME_URL) }
+        reloadButton.setOnClickListener { webView.loadUrl(GameUrls.appUrl) }
         closeButton.setOnClickListener { closeSettings() }
 
         // Настройки — отдельный экран поверх WebView; закрытие программное
@@ -710,7 +711,7 @@ class GameActivity : AppCompatActivity() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         if (prefs.getBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, false)) {
             prefs.edit().remove(LauncherActivity.KEY_RELOAD_REQUESTED).apply()
-            webView.loadUrl(GAME_URL)
+            webView.loadUrl(GameUrls.appUrl)
         }
     }
 
@@ -806,7 +807,7 @@ class GameActivity : AppCompatActivity() {
 
         overlay.visibility = View.GONE
         topButtons.visibility = View.VISIBLE
-        webView.loadUrl(GAME_URL)
+        webView.loadUrl(GameUrls.appUrl)
     }
 
     /**
@@ -1188,7 +1189,6 @@ class GameActivity : AppCompatActivity() {
     )
 
     companion object {
-        private const val GAME_URL = "https://sbg-game.ru/app"
         private const val LOG_TAG = "SbgWebView"
         private const val KEY_FULLSCREEN_MODE = "fullscreen_mode"
         private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"

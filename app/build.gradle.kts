@@ -21,6 +21,10 @@ android {
         versionName = "$versionMajor.$versionMinor.$versionPatch"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "GAME_APP_URL", "\"https://sbg-game.ru/app\"")
+        buildConfigField("String", "GAME_LOGIN_URL", "\"https://sbg-game.ru/login\"")
+        buildConfigField("String", "GAME_HOST_MATCH", "\"sbg-game.ru\"")
     }
 
     signingConfigs {

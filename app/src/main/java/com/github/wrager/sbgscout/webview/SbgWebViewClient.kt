@@ -11,6 +11,7 @@ import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.bridge.DownloadBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
 import com.github.wrager.sbgscout.bridge.ScoutBridge
+import com.github.wrager.sbgscout.config.GameUrls
 import com.github.wrager.sbgscout.script.injector.InjectionResult
 import com.github.wrager.sbgscout.script.injector.ScriptInjector
 
@@ -26,7 +27,7 @@ class SbgWebViewClient(
 
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
-        if (url?.contains("sbg-game.ru/app") == true && view != null) {
+        if (GameUrls.isGameAppPage(url) && view != null) {
             // Перехватчики blob-скачиваний и localStorage ПЕРЕД инжекцией скриптов.
             // Download-перехват должен быть установлен до того, как юзерскрипт
             // успеет вызвать URL.createObjectURL — иначе blob не попадёт в кеш.
@@ -44,7 +45,7 @@ class SbgWebViewClient(
 
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
-        if (url?.contains("sbg-game.ru/app") == true && view != null) {
+        if (GameUrls.isGameAppPage(url) && view != null) {
             // Начальное чтение настроек (на случай если localStorage уже заполнен
             // до инжекции обёртки, например при навигации по истории)
             onGameSettingsRead?.let { callback ->
