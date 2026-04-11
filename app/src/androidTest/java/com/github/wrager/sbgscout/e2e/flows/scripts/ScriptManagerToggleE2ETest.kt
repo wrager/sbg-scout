@@ -1,44 +1,27 @@
 package com.github.wrager.sbgscout.e2e.flows.scripts
 
 import android.os.SystemClock
-import androidx.recyclerview.widget.RecyclerView
-import androidx.test.core.app.ActivityScenario
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.contrib.RecyclerViewActions.actionOnItem
-import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
-import androidx.test.espresso.matcher.ViewMatchers.withId
-import androidx.test.espresso.matcher.ViewMatchers.withText
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.wrager.sbgscout.R
-import com.github.wrager.sbgscout.e2e.infra.RecyclerViewChildAction.clickChildViewWithId
+import com.github.wrager.sbgscout.e2e.E2ETestBase
+import com.github.wrager.sbgscout.e2e.infra.AssetLoader
+import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.infra.ScriptStorageFixture
-import com.github.wrager.sbgscout.launcher.LauncherActivity
-import org.junit.After
-import org.junit.Assert.assertTrue
+import com.github.wrager.sbgscout.e2e.screens.GameScreen
+import com.github.wrager.sbgscout.script.storage.ScriptStorage
 import org.junit.Assert.fail
 import org.junit.Test
-import org.junit.runner.RunWith
 
 /**
- * Проверяет, что клик по SwitchCompat карточки скрипта пишет новое
- * значение `enabled` в ScriptStorage (через `LauncherViewModel.toggleScript`).
- *
- * Контракт: переключение в UI → немедленное сохранение в SharedPreferences
- * без ожидания перезагрузки экрана. Тест использует programmatic sideload
- * установленного скрипта, чтобы изолировать тест от HTTP-flow установки.
+ * Клик по SwitchCompat карточки скрипта в embedded-менеджере пишет новое
+ * значение `enabled` в ScriptStorage через LauncherViewModel.toggleScript.
  */
-@RunWith(AndroidJUnit4::class)
-class ScriptManagerToggleE2ETest {
-
-    private var scenario: ActivityScenario<LauncherActivity>? = null
-
-    @After
-    fun tearDown() {
-        scenario?.close()
-    }
+class ScriptManagerToggleE2ETest : E2ETestBase() {
 
     @Test
     fun toggle_enablesDisabledScript() {
+        server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
+        CookieFixtures.injectFakeAuth(server.baseUrl)
+
         val script = ScriptStorageFixture.minimalScript(
             name = "Toggle Test",
             enabled = false,
@@ -47,20 +30,20 @@ class ScriptManagerToggleE2ETest {
         val storage = ScriptStorageFixture.storage()
         storage.save(script)
 
-        scenario = ActivityScenario.launch(LauncherActivity::class.java)
+        val scenario = launchGameActivity()
+        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
+            .openSettings().openManageScripts()
 
-        onView(withId(R.id.scriptList)).perform(
-            actionOnItem<RecyclerView.ViewHolder>(
-                hasDescendant(withText("Toggle Test")),
-                clickChildViewWithId(R.id.scriptToggle),
-            ),
-        )
+        scriptManager.clickCardChildView("Toggle Test", R.id.scriptToggle)
 
         waitUntilEnabled(storage, script.identifier.value, expected = true)
     }
 
     @Test
     fun toggle_disablesEnabledScript() {
+        server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
+        CookieFixtures.injectFakeAuth(server.baseUrl)
+
         val script = ScriptStorageFixture.minimalScript(
             name = "Toggle Test",
             enabled = true,
@@ -69,30 +52,24 @@ class ScriptManagerToggleE2ETest {
         val storage = ScriptStorageFixture.storage()
         storage.save(script)
 
-        scenario = ActivityScenario.launch(LauncherActivity::class.java)
+        val scenario = launchGameActivity()
+        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
+            .openSettings().openManageScripts()
 
-        onView(withId(R.id.scriptList)).perform(
-            actionOnItem<RecyclerView.ViewHolder>(
-                hasDescendant(withText("Toggle Test")),
-                clickChildViewWithId(R.id.scriptToggle),
-            ),
-        )
+        scriptManager.clickCardChildView("Toggle Test", R.id.scriptToggle)
 
         waitUntilEnabled(storage, script.identifier.value, expected = false)
     }
 
     private fun waitUntilEnabled(
-        storage: com.github.wrager.sbgscout.script.storage.ScriptStorage,
+        storage: ScriptStorage,
         identifierValue: String,
         expected: Boolean,
     ) {
         val deadline = SystemClock.uptimeMillis() + TIMEOUT_MS
         while (SystemClock.uptimeMillis() < deadline) {
             val actual = storage.getAll().find { it.identifier.value == identifierValue }?.enabled
-            if (actual == expected) {
-                assertTrue("enabled=$expected должен сохраниться в storage", true)
-                return
-            }
+            if (actual == expected) return
             Thread.sleep(POLL_INTERVAL_MS)
         }
         fail(
@@ -102,7 +79,7 @@ class ScriptManagerToggleE2ETest {
     }
 
     private companion object {
-        const val TIMEOUT_MS = 2_000L
+        const val TIMEOUT_MS = 3_000L
         const val POLL_INTERVAL_MS = 50L
     }
 }

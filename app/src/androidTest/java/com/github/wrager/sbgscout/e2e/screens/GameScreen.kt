@@ -2,8 +2,14 @@ package com.github.wrager.sbgscout.e2e.screens
 
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.GameActivity
+import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.infra.WebViewIdlingResource
+import com.github.wrager.sbgscout.settings.SettingsFragment
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -53,7 +59,44 @@ class GameScreen(
         return result.get() ?: "null"
     }
 
+    /**
+     * Открывает settings overlay кликом по большой кнопке «⚙ Scout» в верхней
+     * панели. Кнопка остаётся видимой на fake-странице, потому что ScoutBridge
+     * bootstrap не находит `.settings-content` и не вызывает `onHtmlButtonInjected`.
+     *
+     * После клика GameActivity делает `findViewById(R.id.settingsContainer).visibility
+     * = VISIBLE` — в контейнере уже сидит SettingsFragment, прикреплённый в onCreate.
+     * Возвращает [SettingsOverlayScreen] для цепочечных вызовов.
+     */
+    fun openSettings(): SettingsOverlayScreen {
+        onView(withId(R.id.settingsButton)).perform(click())
+        // Дождаться, пока SettingsFragment будет attached и PreferenceFragmentCompat
+        // закончит inflate — без этого onView(withText(...)) не найдёт preference.
+        waitUntilSettingsFragmentReady()
+        return SettingsOverlayScreen(scenario)
+    }
+
+    private fun waitUntilSettingsFragmentReady() {
+        val deadline = System.currentTimeMillis() + SETTINGS_READY_TIMEOUT_MS
+        while (System.currentTimeMillis() < deadline) {
+            var ready = false
+            scenario.onActivity { activity ->
+                val fragment = activity.supportFragmentManager
+                    .findFragmentById(R.id.settingsContainer)
+                ready = fragment is SettingsFragment && fragment.isResumed
+            }
+            if (ready) {
+                InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+                return
+            }
+            Thread.sleep(POLL_INTERVAL_MS)
+        }
+        throw AssertionError("SettingsFragment не стал RESUMED за ${SETTINGS_READY_TIMEOUT_MS}ms")
+    }
+
     companion object {
         private const val EVAL_TIMEOUT_MS = 5_000L
+        private const val SETTINGS_READY_TIMEOUT_MS = 3_000L
+        private const val POLL_INTERVAL_MS = 50L
     }
 }

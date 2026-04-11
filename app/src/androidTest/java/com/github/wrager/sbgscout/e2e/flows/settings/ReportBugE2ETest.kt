@@ -5,78 +5,55 @@ import android.app.Instrumentation
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import androidx.recyclerview.widget.RecyclerView
-import androidx.test.core.app.ActivityScenario
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.contrib.RecyclerViewActions.scrollTo
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.matcher.IntentMatchers.anyIntent
 import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
 import androidx.test.espresso.intent.matcher.IntentMatchers.hasDataString
-import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
-import androidx.test.espresso.matcher.ViewMatchers.withId
-import androidx.test.espresso.matcher.ViewMatchers.withText
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.R
-import com.github.wrager.sbgscout.settings.SettingsActivity
-import org.hamcrest.core.CombinableMatcher.both
+import com.github.wrager.sbgscout.e2e.E2ETestBase
+import com.github.wrager.sbgscout.e2e.infra.AssetLoader
+import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
+import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.startsWith
-import org.junit.After
+import org.hamcrest.core.CombinableMatcher.both
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.junit.runner.RunWith
 
 /**
- * Клик по «Сообщить об ошибке» в настройках (в контексте SettingsActivity)
- * должен:
- * 1. Скопировать диагностический отчёт в системный буфер обмена.
- * 2. Запустить `Intent.ACTION_VIEW` на `https://github.com/wrager/sbg-scout/issues/new`
- *    с query-параметрами, описывающими версию, устройство и список скриптов.
- *
- * Содержимое отчёта проверяется unit-тестами [BugReportCollectorTest]; здесь
- * мы фиксируем только сам факт клик → clipboard + Intent на корректный URL,
- * т.к. это e2e-контракт клик-обработчика [SettingsFragment.reportBug].
+ * Клик "Report bug" в settings overlay GameActivity копирует диагностику в
+ * ClipboardManager и запускает Intent.ACTION_VIEW на github.com/.../issues/new
+ * с query-параметрами (apk-version, android-version, device и т.д.).
  */
-@RunWith(AndroidJUnit4::class)
-class ReportBugE2ETest {
-
-    private var scenario: ActivityScenario<SettingsActivity>? = null
-
-    @After
-    fun tearDown() {
-        scenario?.close()
-    }
+class ReportBugE2ETest : E2ETestBase() {
 
     @Test
     fun reportBugPreference_copiesDiagnosticsAndLaunchesGithubIssueIntent() {
-        scenario = ActivityScenario.launch(SettingsActivity::class.java)
-        val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
-        val title = targetContext.getString(R.string.settings_report_bug)
+        server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
+        CookieFixtures.injectFakeAuth(server.baseUrl)
 
-        onView(withId(androidx.preference.R.id.recycler_view))
-            .perform(scrollTo<RecyclerView.ViewHolder>(hasDescendant(withText(title))))
+        val scenario = launchGameActivity()
+        val game = GameScreen(scenario, idling).waitForLoaded()
+        val overlay = game.openSettings()
 
         Intents.init()
         try {
             Intents.intending(anyIntent())
                 .respondWith(Instrumentation.ActivityResult(Activity.RESULT_OK, null))
 
-            onView(withText(title)).perform(click())
+            overlay.clickPreferenceByTitle(R.string.settings_report_bug)
 
-            // 1. Intent на github.com/wrager/sbg-scout/issues/new — с query-параметрами.
+            // Intent на github.com/wrager/sbg-scout/issues/new — с query.
             Intents.intended(
                 both(hasAction(Intent.ACTION_VIEW))
                     .and(hasDataString(startsWith(ISSUE_URL_PREFIX)))
                     .and(hasDataString(containsString("apk-version="))),
             )
 
-            // 2. Clipboard — должна быть скопирована диагностика (полный текст
-            // проверяется BugReportCollectorTest, здесь достаточно убедиться, что
-            // в буфере что-то осмысленное есть и содержит имя приложения SBG Scout).
+            // Clipboard — должна содержать осмысленную диагностику.
+            val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
             val clipboardText = readClipboardOnMainSync(targetContext)
             assertNotNull("Clipboard должен содержать отчёт", clipboardText)
             assertTrue(
