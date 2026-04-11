@@ -25,6 +25,14 @@ class SbgWebViewClient(
     /** Вызывается при старте загрузки страницы игры (в т.ч. при reload). */
     var onGamePageStarted: (() -> Unit)? = null
 
+    /**
+     * Вызывается после `onPageFinished` страницы игры.
+     * Используется в androidTest как сигнал для IdlingResource:
+     * на этом моменте JS-мосты уже зарегистрированы и WebView готова
+     * к вызовам `evaluateJavascript`.
+     */
+    var onGamePageFinished: (() -> Unit)? = null
+
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
         if (GameUrls.isGameAppPage(url) && view != null) {
@@ -53,6 +61,7 @@ class SbgWebViewClient(
                     callback(unescapeJsString(result))
                 }
             }
+            onGamePageFinished?.invoke()
         }
     }
 

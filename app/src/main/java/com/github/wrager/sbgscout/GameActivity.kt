@@ -21,6 +21,7 @@ import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.core.content.ContextCompat
@@ -82,7 +83,12 @@ import kotlinx.coroutines.launch
 class GameActivity : AppCompatActivity() {
 
     private lateinit var rootLayout: FrameLayout
-    private lateinit var webView: WebView
+
+    @VisibleForTesting
+    internal lateinit var webView: WebView
+
+    @VisibleForTesting
+    internal lateinit var sbgWebViewClient: SbgWebViewClient
     private lateinit var scriptStorage: ScriptStorage
     val consoleLogBuffer = ConsoleLogBuffer()
     private lateinit var scriptProvisioner: DefaultScriptProvisioner
@@ -439,9 +445,9 @@ class GameActivity : AppCompatActivity() {
             versionName = BuildConfig.VERSION_NAME,
             injectionStateStorage = injectionStateStorage,
         )
-        val webViewClient = SbgWebViewClient(scriptInjector)
-        webViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
-        webViewClient.onGamePageStarted = {
+        sbgWebViewClient = SbgWebViewClient(scriptInjector)
+        sbgWebViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
+        sbgWebViewClient.onGamePageStarted = {
             runOnUiThread {
                 gameReady = false
                 scoutButtonReplaced = false
@@ -449,7 +455,7 @@ class GameActivity : AppCompatActivity() {
                 showLoadingOverlay()
             }
         }
-        webView.webViewClient = webViewClient
+        webView.webViewClient = sbgWebViewClient
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
