@@ -93,7 +93,9 @@ class GameActivity : AppCompatActivity() {
     val consoleLogBuffer = ConsoleLogBuffer()
     private lateinit var scriptProvisioner: DefaultScriptProvisioner
     private var injectionStateStorage: InjectionStateStorage? = null
-    private var isFullscreen = false
+    @VisibleForTesting
+    internal var isFullscreen = false
+        private set
     private val gameSettingsReader = GameSettingsReader()
     private var lastAppliedTheme: GameSettingsReader.ThemeMode? = null
     private var lastAppliedLanguage: String? = null
