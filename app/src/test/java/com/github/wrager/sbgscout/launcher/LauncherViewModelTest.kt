@@ -1514,6 +1514,33 @@ class LauncherViewModelTest {
     }
 
     @Test
+    fun `enabled script with null version does not produce ScriptVersion conflict detection`() = runTest {
+        // Покрывает `script.header.version?.let(::ScriptVersion)` = null ветку
+        // в refreshScriptList и conflictDetector.detectConflicts с null version.
+        val svpNullVersion = testScript(
+            identifier = PresetScripts.SVP.identifier,
+            name = "SVP",
+            enabled = true,
+        ).copy(
+            header = ScriptHeader(name = "SVP", version = null),
+        )
+        val euiScript = testScript(
+            identifier = PresetScripts.EUI.identifier,
+            name = "EUI",
+            version = "8.1.0",
+            enabled = true,
+        )
+        every { scriptStorage.getAll() } returns listOf(svpNullVersion, euiScript)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // Не падает на null version, UI строится корректно.
+        val svpItem = viewModel.uiState.value.scripts.first { it.identifier == PresetScripts.SVP.identifier }
+        assertNull(svpItem.version)
+    }
+
+    @Test
     fun `checkUpdates with UpdateAvailable populates release notes summary in CheckCompleted`() = runTest {
         val script = testScript(
             version = "1.0.0",
