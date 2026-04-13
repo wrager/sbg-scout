@@ -15,6 +15,7 @@ androidxTestRunner = "1.6.2"
 androidxTestRules = "1.6.1"
 androidxTestCore = "1.6.1"
 androidxTestOrchestrator = "1.5.1"
+androidxTestServices = "1.5.0"
 mockwebserver = "4.12.0"
 mockk = "1.13.12"
 json = "20250107"
@@ -43,6 +44,7 @@ androidx-test-rules = { group = "androidx.test", name = "rules", version.ref = "
 androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 androidx-test-core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }
 androidx-test-orchestrator = { group = "androidx.test", name = "orchestrator", version.ref = "androidxTestOrchestrator" }
+androidx-test-services = { group = "androidx.test.services", name = "test-services", version.ref = "androidxTestServices" }
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "mockwebserver" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 json = { group = "org.json", name = "json", version.ref = "json" }
