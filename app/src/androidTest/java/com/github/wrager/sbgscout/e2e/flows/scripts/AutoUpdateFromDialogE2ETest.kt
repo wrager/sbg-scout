@@ -41,8 +41,7 @@ import org.junit.Test
  * 3. Script check находит обновление SVP v0.8.0 → v0.8.1 →
  *    `showScriptUpdatesDialog` с title `script_updates_available` и кнопкой
  *    `update`.
- * 4. Клик «Update» → `PendingScriptUpdateStorage.save(details)` +
- *    `openScriptManagerWithAutoUpdate` → overlay открывается,
+ * 4. Клик «Update» → `openScriptManagerWithAutoUpdate` → overlay открывается,
  *    `SettingsFragment` заменяется на `ScriptListFragment.newEmbeddedAutoUpdateInstance()`.
  * 5. Фрагмент в `onViewCreated` видит `ARG_AUTO_UPDATE = true` и запускает
  *    `viewModel.checkAndUpdateAll` — checker + downloader для каждого

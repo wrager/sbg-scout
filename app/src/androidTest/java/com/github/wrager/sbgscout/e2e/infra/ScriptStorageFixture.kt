@@ -16,7 +16,8 @@ import java.io.File
  * Обходит необходимость HTTP-установки скриптов: тест создаёт [UserScript]
  * в памяти, сохраняет через тот же контракт storage, что и прод-код
  * ([ScriptStorageImpl]: SharedPreferences "scripts" + filesDir/scripts/),
- * и после этого LauncherActivity читает установленные скрипты как обычно.
+ * и после этого GameActivity + ScriptListFragment читают установленные
+ * скрипты как обычно.
  */
 object ScriptStorageFixture {
 

@@ -41,11 +41,9 @@ import java.io.File
 import kotlinx.coroutines.launch
 
 /**
- * Фрагмент со списком скриптов и управлением ими.
- *
- * Используется в двух контекстах:
- * - Внутри [LauncherActivity] как standalone экран (с кнопкой «Запустить»)
- * - Внутри drawer в GameActivity (embedded mode, без кнопки запуска)
+ * Фрагмент со списком скриптов и управлением ими. Используется только
+ * внутри [com.github.wrager.sbgscout.GameActivity] как overlay поверх WebView
+ * (контейнер `R.id.settingsContainer`); standalone-запуска нет.
  */
 class ScriptListFragment : Fragment() {
 
@@ -80,9 +78,6 @@ class ScriptListFragment : Fragment() {
         )
     }
 
-    private val isEmbedded: Boolean
-        get() = arguments?.getBoolean(ARG_EMBEDDED, false) == true
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -104,15 +99,10 @@ class ScriptListFragment : Fragment() {
         }
     }
 
-    private fun setupToolbar(view: View) {
-        val toolbar = view.findViewById<MaterialToolbar>(R.id.toolbar)
-        if (isEmbedded) {
-            // В embedded-режиме нет кнопки «Назад» в toolbar — возврат к
-            // SettingsFragment выполняется через плавающую кнопку [x] в GameActivity.
-            // В drawer не показываем пункт «Настройки» — мы уже в настройках.
-        } else {
-            toolbar.inflateMenu(R.menu.menu_launcher)
-        }
+    private fun setupToolbar(@Suppress("UNUSED_PARAMETER") view: View) {
+        // Toolbar без меню: возврат к SettingsFragment выполняется через
+        // плавающую кнопку [x] в GameActivity. `menu_launcher` был нужен
+        // только для standalone LauncherActivity, которая удалена.
     }
 
     private fun setupCheckUpdatesButton(view: View) {
@@ -155,16 +145,15 @@ class ScriptListFragment : Fragment() {
         val reloadButton = view.findViewById<MaterialButton>(R.id.reloadButton)
         reloadButton.setOnClickListener {
             PreferenceManager.getDefaultSharedPreferences(requireContext())
-                .edit().putBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, true).apply()
-            if (isEmbedded) {
-                // В игровом экране: форсированно закрываем экран настроек целиком
-                // (сбрасывая ScriptListFragment из back stack), reload произойдёт
-                // в applySettingsAfterClose. closeSettings() здесь не подходит —
-                // он сделал бы popBackStack обратно в SettingsFragment.
-                (requireActivity() as com.github.wrager.sbgscout.GameActivity).dismissSettings()
-            }
+                .edit()
+                .putBoolean(com.github.wrager.sbgscout.GameActivity.KEY_RELOAD_REQUESTED, true)
+                .apply()
+            // Форсированно закрываем экран настроек целиком (сбрасывая
+            // ScriptListFragment из back stack), reload произойдёт в
+            // GameActivity.applySettingsAfterClose. closeSettings() здесь не
+            // подходит — он сделал бы popBackStack обратно в SettingsFragment.
+            (requireActivity() as com.github.wrager.sbgscout.GameActivity).dismissSettings()
         }
-
     }
 
     private fun observeViewModel(view: View) {
@@ -397,25 +386,22 @@ class ScriptListFragment : Fragment() {
     }
 
     companion object {
-        private const val ARG_EMBEDDED = "embedded"
         private const val ARG_AUTO_CHECK = "auto_check"
         private const val ARG_AUTO_UPDATE = "auto_update"
         private const val RELEASE_NOTES_MAX_HEIGHT_DP = 200
         private const val RELEASE_NOTES_PADDING_DP = 24
 
-        /** Создать фрагмент для использования внутри drawer (embedded mode). */
-        fun newEmbeddedInstance(): ScriptListFragment = ScriptListFragment().apply {
-            arguments = bundleOf(ARG_EMBEDDED to true)
-        }
+        /** Создать embedded-фрагмент в GameActivity.settingsContainer. */
+        fun newEmbeddedInstance(): ScriptListFragment = ScriptListFragment()
 
-        /** Создать embedded фрагмент, который автоматически проверит обновления. */
+        /** Создать embedded-фрагмент, который автоматически проверит обновления при onResume. */
         fun newEmbeddedAutoCheckInstance(): ScriptListFragment = ScriptListFragment().apply {
-            arguments = bundleOf(ARG_EMBEDDED to true, ARG_AUTO_CHECK to true)
+            arguments = bundleOf(ARG_AUTO_CHECK to true)
         }
 
-        /** Создать embedded фрагмент, который автоматически проверит и обновит все скрипты. */
+        /** Создать embedded-фрагмент, который автоматически проверит и обновит все скрипты. */
         fun newEmbeddedAutoUpdateInstance(): ScriptListFragment = ScriptListFragment().apply {
-            arguments = bundleOf(ARG_EMBEDDED to true, ARG_AUTO_UPDATE to true)
+            arguments = bundleOf(ARG_AUTO_UPDATE to true)
         }
     }
 }

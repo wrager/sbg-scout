@@ -49,7 +49,6 @@ import com.github.wrager.sbgscout.bridge.ShareBridge
 import com.github.wrager.sbgscout.config.GameUrls
 import com.github.wrager.sbgscout.diagnostic.ConsoleLogBuffer
 import com.github.wrager.sbgscout.game.GameSettingsReader
-import com.github.wrager.sbgscout.launcher.LauncherActivity
 import com.github.wrager.sbgscout.launcher.ScriptListFragment
 import com.github.wrager.sbgscout.script.injector.InjectionStateStorage
 import com.github.wrager.sbgscout.script.injector.ScriptInjector
@@ -59,7 +58,6 @@ import com.github.wrager.sbgscout.script.storage.ScriptStorage
 import com.github.wrager.sbgscout.script.storage.ScriptStorageImpl
 import com.github.wrager.sbgscout.script.updater.DefaultHttpFetcher
 import com.github.wrager.sbgscout.script.updater.GithubReleaseProvider
-import com.github.wrager.sbgscout.script.updater.PendingScriptUpdateStorage
 import com.github.wrager.sbgscout.script.updater.ScriptReleaseNotesProvider
 import com.github.wrager.sbgscout.script.updater.ScriptUpdateChecker
 import com.github.wrager.sbgscout.script.updater.ScriptUpdateResult
@@ -242,8 +240,8 @@ class GameActivity : AppCompatActivity() {
             val prefs = PreferenceManager.getDefaultSharedPreferences(this)
             applyFullscreen(prefs.getBoolean(KEY_FULLSCREEN_MODE, false))
             applyKeepScreenOn(prefs.getBoolean(KEY_KEEP_SCREEN_ON, true))
-            if (prefs.getBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, false)) {
-                prefs.edit().remove(LauncherActivity.KEY_RELOAD_REQUESTED).apply()
+            if (prefs.getBoolean(KEY_RELOAD_REQUESTED, false)) {
+                prefs.edit().remove(KEY_RELOAD_REQUESTED).apply()
                 webView.loadUrl(GameUrls.appUrl)
             }
         }
@@ -717,8 +715,8 @@ class GameActivity : AppCompatActivity() {
     /** Выполнить отложенные действия при закрытии настроек (перезагрузка игры). */
     private fun applySettingsAfterClose() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        if (prefs.getBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, false)) {
-            prefs.edit().remove(LauncherActivity.KEY_RELOAD_REQUESTED).apply()
+        if (prefs.getBoolean(KEY_RELOAD_REQUESTED, false)) {
+            prefs.edit().remove(KEY_RELOAD_REQUESTED).apply()
             webView.loadUrl(GameUrls.appUrl)
         }
     }
@@ -1149,11 +1147,6 @@ class GameActivity : AppCompatActivity() {
             .setTitle(R.string.script_updates_available)
             .setView(container)
             .setPositiveButton(R.string.update) { _, _ ->
-                // Сохраняем описание обновлений для показа при следующем открытии лаунчера
-                val pendingStorage = PendingScriptUpdateStorage(
-                    getSharedPreferences("scripts", MODE_PRIVATE),
-                )
-                pendingStorage.save(details)
                 openScriptManagerWithAutoUpdate()
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -1209,6 +1202,14 @@ class GameActivity : AppCompatActivity() {
         private const val UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
         private const val RELEASE_NOTES_MAX_HEIGHT_DP = 200
         private const val RELEASE_NOTES_PADDING_DP = 24
+
+        /**
+         * Флаг отложенной перезагрузки страницы игры. Ставится из
+         * [SettingsFragment] (preference `reload_game`) и [ScriptListFragment]
+         * (кнопка `reloadButton`) перед закрытием overlay; применяется в
+         * [applySettingsAfterClose] при следующем `dismissSettings()`.
+         */
+        const val KEY_RELOAD_REQUESTED = "reload_requested"
     }
 }
 
