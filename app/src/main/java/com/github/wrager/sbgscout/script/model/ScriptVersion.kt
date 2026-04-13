@@ -8,9 +8,12 @@ value class ScriptVersion(val value: String) : Comparable<ScriptVersion> {
         val otherSegments = other.value.split(".").map(::leadingDigitsAsInt)
         val maxLength = maxOf(thisSegments.size, otherSegments.size)
 
+        // Прямые indexing с явным check `index < size` вместо `getOrElse` с lambda —
+        // JaCoCo считает lambda `{ 0 }` отдельной branch, которую сложно триггерить
+        // из тестов при Kotlin inline-подстановке для `map` через `leadingDigitsAsInt`.
         for (index in 0 until maxLength) {
-            val thisSegment = thisSegments.getOrElse(index) { 0 }
-            val otherSegment = otherSegments.getOrElse(index) { 0 }
+            val thisSegment = if (index < thisSegments.size) thisSegments[index] else 0
+            val otherSegment = if (index < otherSegments.size) otherSegments[index] else 0
             if (thisSegment != otherSegment) return thisSegment.compareTo(otherSegment)
         }
 

@@ -37,6 +37,7 @@ class ClipboardBridgeTest {
         val clipItem = mockk<ClipData.Item>()
         val clipData = mockk<ClipData>()
         every { clipItem.text } returns "hello"
+        every { clipData.itemCount } returns 1
         every { clipData.getItemAt(0) } returns clipItem
         every { clipboardManager.primaryClip } returns clipData
 
@@ -52,11 +53,33 @@ class ClipboardBridgeTest {
 
     @Test
     fun `readText returns empty string when first item text is null`() {
-        // Покрывает ветку `?.text?.toString() ?: ""` — ClipData.Item.text = null.
+        // Покрывает ветку `?.text ?: return ""` — ClipData.Item.text = null.
         val clipItem = mockk<ClipData.Item>()
         val clipData = mockk<ClipData>()
         every { clipItem.text } returns null
+        every { clipData.itemCount } returns 1
         every { clipData.getItemAt(0) } returns clipItem
+        every { clipboardManager.primaryClip } returns clipData
+
+        assertEquals("", bridge.readText())
+    }
+
+    @Test
+    fun `readText returns empty string when ClipData has zero items`() {
+        // Покрывает ветку `clip.itemCount == 0 → return ""`.
+        val clipData = mockk<ClipData>()
+        every { clipData.itemCount } returns 0
+        every { clipboardManager.primaryClip } returns clipData
+
+        assertEquals("", bridge.readText())
+    }
+
+    @Test
+    fun `readText returns empty string when getItemAt returns null`() {
+        // Покрывает ветку `clip.getItemAt(0)?.text ?: return ""` — getItemAt=null.
+        val clipData = mockk<ClipData>()
+        every { clipData.itemCount } returns 1
+        every { clipData.getItemAt(0) } returns null
         every { clipboardManager.primaryClip } returns clipData
 
         assertEquals("", bridge.readText())
@@ -69,6 +92,7 @@ class ClipboardBridgeTest {
         val clipItem = mockk<ClipData.Item>()
         val clipData = mockk<ClipData>()
         every { clipItem.text } returns StringBuilder("stringbuilder")
+        every { clipData.itemCount } returns 1
         every { clipData.getItemAt(0) } returns clipItem
         every { clipboardManager.primaryClip } returns clipData
 

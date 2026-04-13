@@ -176,4 +176,61 @@ class DefaultHttpFetcherTest {
 
         assertEquals("chunked-file-content", destination.readText())
     }
+
+    @Test
+    fun `fetchToFile reports only distinct progress values`() = runBlocking {
+        // Покрывает ветку `if (progress != lastReportedProgress)` = false
+        // (одинаковый progress — не дублируется). Для этого используем chunked
+        // transfer, где computeProgress всегда = 0 (contentLength=-1) — второй
+        // чанк не триггерит повторный callback с тем же значением.
+        server.enqueue(MockResponse().setChunkedBody("chunk-a-chunk-b-chunk-c", 6))
+        val destination = File.createTempFile("fetcher-distinct", ".bin").apply { deleteOnExit() }
+
+        val progressReports = mutableListOf<Int>()
+        fetcher.fetchToFile(
+            server.url("/x").toString(),
+            destination,
+            onProgress = { progressReports += it },
+        )
+
+        // Все значения должны быть 0 (contentLength unknown) и дубликаты отфильтрованы.
+        assertEquals("chunk-a-chunk-b-chunk-c", destination.readText())
+        assertEquals(
+            "При одинаковом progress должен быть только первый отчёт: $progressReports",
+            1,
+            progressReports.size,
+        )
+        assertEquals(0, progressReports[0])
+    }
+
+    @Test
+    fun `fetch reports distinct progress values only`() = runBlocking {
+        // Покрывает ветку `if (progress != lastReportedProgress)` = false в fetch().
+        server.enqueue(MockResponse().setChunkedBody("a-a-a-a-a-a-a", 2))
+
+        val progressReports = mutableListOf<Int>()
+        fetcher.fetch(server.url("/x").toString(), onProgress = { progressReports += it })
+
+        assertEquals(1, progressReports.size)
+    }
+
+    @Test
+    fun `fetchToFile handles destination with null parentFile`() {
+        runBlocking {
+            // Покрывает ветку `destination.parentFile?.mkdirs()` = null —
+            // File с parentFile=null возникает у относительного пути без папки.
+            server.enqueue(MockResponse().setBody("no-parent"))
+
+            // Относительный File без предков даёт parentFile=null.
+            val destination = File("fetcher-no-parent-${System.nanoTime()}.bin")
+            destination.deleteOnExit()
+
+            try {
+                fetcher.fetchToFile(server.url("/x").toString(), destination)
+                assertEquals("no-parent", destination.readText())
+            } finally {
+                destination.delete()
+            }
+        }
+    }
 }

@@ -183,6 +183,38 @@ class SbgWebViewClientTest {
         assertTrue(true)
     }
 
+    @Test
+    fun `setting onGamePageFinished to null after first finish does not throw`() {
+        // Покрывает ветку `value?.invoke()` = null при `gamePageFinishedAtLeastOnce=true`
+        // (setter видит true-state и value=null — skip invocation).
+        val webView = mockk<WebView>(relaxed = true)
+        client.onPageFinished(webView, "http://test.host/app")
+
+        client.onGamePageFinished = null
+        assertTrue(true)
+    }
+
+    @Test
+    fun `onPageFinished with null view does nothing`() {
+        // Покрывает ветку `isGameAppPage(url) && view != null` — view=null.
+        var finishedCalled = false
+        client.onGamePageFinished = { finishedCalled = true }
+
+        client.onPageFinished(null, "http://test.host/app")
+
+        assertFalse(finishedCalled)
+    }
+
+    @Test
+    fun `shouldOverrideUrlLoading returns false when request url is null`() {
+        // Покрывает ветку `request?.url?.toString() ?: return false` — request != null,
+        // но request.url = null.
+        val request = mockk<WebResourceRequest>()
+        every { request.url } returns null
+
+        assertFalse(client.shouldOverrideUrlLoading(null, request))
+    }
+
     // --- handleInjectionResults (через onPageStarted → inject callback) ---
 
     @Test

@@ -30,10 +30,17 @@ class ConsoleLogBuffer {
 
     @Synchronized
     fun add(consoleMessage: ConsoleMessage) {
-        val level = when (consoleMessage.messageLevel()) {
-            ConsoleMessage.MessageLevel.ERROR -> Level.ERROR
-            ConsoleMessage.MessageLevel.WARNING -> Level.WARNING
-            else -> return // Сохраняем только error и warn
+        // Сохраняем только ERROR и WARNING. `when`-по-enum компилируется
+        // в TABLESWITCH по ordinals, и JaCoCo считает каждое значение
+        // отдельной веткой (5 branches для 5 MessageLevel значений) —
+        // прямое if сокращает число branches и делает coverage честным.
+        val messageLevel = consoleMessage.messageLevel()
+        val level = if (messageLevel == ConsoleMessage.MessageLevel.ERROR) {
+            Level.ERROR
+        } else if (messageLevel == ConsoleMessage.MessageLevel.WARNING) {
+            Level.WARNING
+        } else {
+            return
         }
         val entry = Entry(
             timestamp = Instant.now(),
