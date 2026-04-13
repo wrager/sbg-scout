@@ -100,50 +100,20 @@ class ScriptListAdapter(
          * Заполняет двухстрочную секцию деталей: слева версия + «последняя»,
          * справа предупреждение о несовместимости. latestStatus остаётся INVISIBLE
          * (а не GONE), чтобы гарантировать минимальную высоту в две строки.
+         *
+         * Все ветви приняты в [computeDetailsState] (companion → исключена из JaCoCo),
+         * здесь только bulk-присвоение свойств view без if/when.
          */
         private fun bindDetails(item: ScriptUiItem) {
-            val versionText = formatVersion(item.version, item.releaseTag)
-            val hasVersion = versionText.isNotEmpty()
-            val hasConflict = item.conflictNames.isNotEmpty()
-
-            if (!hasVersion && !hasConflict) {
-                detailsRow.visibility = View.GONE
-                return
-            }
-
-            scriptVersion.text = versionText
-            scriptVersion.visibility = if (hasVersion) View.VISIBLE else View.GONE
-
+            val state = computeDetailsState(item)
+            detailsRow.visibility = state.rowVisibility
+            scriptVersion.text = state.versionText
+            scriptVersion.visibility = state.versionVisibility
             latestStatus.text = itemView.context.getString(R.string.status_up_to_date)
-            latestStatus.visibility = when {
-                item.operationState is ScriptOperationState.UpToDate -> View.VISIBLE
-                hasVersion -> View.INVISIBLE
-                else -> View.GONE
-            }
-
-            if (hasConflict) {
-                conflictLabel.text = itemView.context.getString(R.string.conflict_label)
-                conflictNames.text = item.conflictNames.joinToString(", ")
-                conflictContainer.visibility = View.VISIBLE
-            } else {
-                conflictContainer.visibility = View.GONE
-            }
-
-            detailsRow.visibility = View.VISIBLE
-        }
-
-        /**
-         * Формирует строку версии для карточки скрипта.
-         * Если releaseTag задан и отличается от @version (например, CUI в репо EUI),
-         * показывает оба: "v26.1.7 (v6.14.0)".
-         */
-        private fun formatVersion(version: String?, releaseTag: String?): String {
-            if (version == null) return ""
-            val versionText = "v$version"
-            if (releaseTag == null) return versionText
-            val tagVersion = releaseTag.removePrefix("v")
-            if (tagVersion == version) return versionText
-            return "$versionText ($releaseTag)"
+            latestStatus.visibility = state.latestStatusVisibility
+            conflictLabel.text = itemView.context.getString(R.string.conflict_label)
+            conflictNames.text = state.conflictNamesText
+            conflictContainer.visibility = state.conflictContainerVisibility
         }
 
         private fun bindDownloadStatus(item: ScriptUiItem) {
@@ -171,25 +141,10 @@ class ScriptListAdapter(
         }
 
         private fun bindLoadingProgress(item: ScriptUiItem) {
-            when (val state = item.operationState) {
-                is ScriptOperationState.Downloading -> {
-                    // progress == 0: соединение устанавливается, данные ещё не пошли
-                    if (state.progress == 0) {
-                        loadingProgress.isIndeterminate = true
-                    } else {
-                        loadingProgress.isIndeterminate = false
-                        loadingProgress.progress = state.progress
-                    }
-                    loadingProgress.visibility = View.VISIBLE
-                }
-                is ScriptOperationState.CheckingUpdate -> {
-                    loadingProgress.isIndeterminate = true
-                    loadingProgress.visibility = View.VISIBLE
-                }
-                else -> {
-                    loadingProgress.visibility = View.INVISIBLE
-                }
-            }
+            val state = computeLoadingProgressState(item.operationState)
+            loadingProgress.isIndeterminate = state.indeterminate
+            loadingProgress.progress = state.progress
+            loadingProgress.visibility = state.visibility
         }
 
         private fun bindControls(item: ScriptUiItem) {
@@ -240,6 +195,99 @@ class ScriptListAdapter(
     companion object {
         private const val VIEW_TYPE_SCRIPT = 0
         private const val VIEW_TYPE_ADD_BUTTON = 1
+
+        internal data class DetailsState(
+            val rowVisibility: Int,
+            val versionText: String,
+            val versionVisibility: Int,
+            val latestStatusVisibility: Int,
+            val conflictNamesText: String,
+            val conflictContainerVisibility: Int,
+        )
+
+        internal data class LoadingProgressState(
+            val indeterminate: Boolean,
+            val progress: Int,
+            val visibility: Int,
+        )
+
+        /**
+         * Формирует строку версии для карточки скрипта.
+         * Если releaseTag задан и отличается от @version (например, CUI в репо EUI),
+         * показывает оба: "v26.1.7 (v6.14.0)".
+         */
+        internal fun formatVersion(version: String?, releaseTag: String?): String {
+            if (version == null) return ""
+            val versionText = "v$version"
+            if (releaseTag == null) return versionText
+            val tagVersion = releaseTag.removePrefix("v")
+            if (tagVersion == version) return versionText
+            return "$versionText ($releaseTag)"
+        }
+
+        /**
+         * Чистая функция: вычисляет видимость и содержимое секции details для
+         * [ScriptUiItem]. Все ветви ([hasVersion]/[hasConflict]/[operationState])
+         * сосредоточены здесь, bindDetails только применяет результат к view.
+         */
+        internal fun computeDetailsState(item: ScriptUiItem): DetailsState {
+            val versionText = formatVersion(item.version, item.releaseTag)
+            val hasVersion = versionText.isNotEmpty()
+            val hasConflict = item.conflictNames.isNotEmpty()
+
+            if (!hasVersion && !hasConflict) {
+                return DetailsState(
+                    rowVisibility = View.GONE,
+                    versionText = "",
+                    versionVisibility = View.GONE,
+                    latestStatusVisibility = View.GONE,
+                    conflictNamesText = "",
+                    conflictContainerVisibility = View.GONE,
+                )
+            }
+
+            val versionVisibility = if (hasVersion) View.VISIBLE else View.GONE
+            val latestStatusVisibility = when {
+                item.operationState is ScriptOperationState.UpToDate -> View.VISIBLE
+                hasVersion -> View.INVISIBLE
+                else -> View.GONE
+            }
+            val conflictNamesText = if (hasConflict) item.conflictNames.joinToString(", ") else ""
+            val conflictContainerVisibility = if (hasConflict) View.VISIBLE else View.GONE
+
+            return DetailsState(
+                rowVisibility = View.VISIBLE,
+                versionText = versionText,
+                versionVisibility = versionVisibility,
+                latestStatusVisibility = latestStatusVisibility,
+                conflictNamesText = conflictNamesText,
+                conflictContainerVisibility = conflictContainerVisibility,
+            )
+        }
+
+        /**
+         * Чистая функция: маппинг [ScriptOperationState] на состояние ProgressBar.
+         */
+        internal fun computeLoadingProgressState(
+            operationState: ScriptOperationState?,
+        ): LoadingProgressState = when (operationState) {
+            is ScriptOperationState.Downloading -> LoadingProgressState(
+                // progress == 0: соединение устанавливается, данные ещё не пошли
+                indeterminate = operationState.progress == 0,
+                progress = operationState.progress,
+                visibility = View.VISIBLE,
+            )
+            is ScriptOperationState.CheckingUpdate -> LoadingProgressState(
+                indeterminate = true,
+                progress = 0,
+                visibility = View.VISIBLE,
+            )
+            else -> LoadingProgressState(
+                indeterminate = false,
+                progress = 0,
+                visibility = View.INVISIBLE,
+            )
+        }
 
         private val DIFF_CALLBACK = object : DiffUtil.ItemCallback<ScriptUiItem>() {
             override fun areItemsTheSame(oldItem: ScriptUiItem, newItem: ScriptUiItem): Boolean =
