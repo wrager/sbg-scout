@@ -22,37 +22,37 @@ class SbgScoutApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        applyTheme(prefs)
-        applyLanguage(prefs)
-    }
-
-    private fun applyTheme(prefs: android.content.SharedPreferences) {
-        val themeName = prefs.getString(KEY_APPLIED_GAME_THEME, null) ?: return
-        val theme = try {
-            GameSettingsReader.ThemeMode.valueOf(themeName)
-        } catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
-            return
-        }
-        val nightMode = when (theme) {
-            GameSettingsReader.ThemeMode.AUTO -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-            GameSettingsReader.ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
-            GameSettingsReader.ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
-        }
-        AppCompatDelegate.setDefaultNightMode(nightMode)
-    }
-
-    private fun applyLanguage(prefs: android.content.SharedPreferences) {
-        val language = prefs.getString(KEY_APPLIED_GAME_LANGUAGE, null) ?: return
-        val locales = if (language == "sys") {
-            LocaleListCompat.getEmptyLocaleList()
-        } else {
-            LocaleListCompat.forLanguageTags(language)
-        }
-        AppCompatDelegate.setApplicationLocales(locales)
+        applyStoredTheme(prefs.getString(KEY_APPLIED_GAME_THEME, null))
+        applyStoredLanguage(prefs.getString(KEY_APPLIED_GAME_LANGUAGE, null))
     }
 
     companion object {
         const val KEY_APPLIED_GAME_THEME = "applied_game_theme"
         const val KEY_APPLIED_GAME_LANGUAGE = "applied_game_language"
+
+        internal fun applyStoredTheme(themeName: String?) {
+            if (themeName == null) return
+            val theme = try {
+                GameSettingsReader.ThemeMode.valueOf(themeName)
+            } catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
+                return
+            }
+            val nightMode = when (theme) {
+                GameSettingsReader.ThemeMode.AUTO -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                GameSettingsReader.ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+                GameSettingsReader.ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            }
+            AppCompatDelegate.setDefaultNightMode(nightMode)
+        }
+
+        internal fun applyStoredLanguage(language: String?) {
+            if (language == null) return
+            val locales = if (language == "sys") {
+                LocaleListCompat.getEmptyLocaleList()
+            } else {
+                LocaleListCompat.forLanguageTags(language)
+            }
+            AppCompatDelegate.setApplicationLocales(locales)
+        }
     }
 }
