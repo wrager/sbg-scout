@@ -26,9 +26,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.preferences, rootKey)
 
-        findPreference<Preference>("app_version")?.summary = BuildConfig.VERSION_NAME
+        // `requirePref` падает с понятным сообщением, если XML не содержит
+        // preference — это недостижимо в проде, но даёт non-null reference
+        // и устраняет synthetic `?.` branches, которые JaCoCo считает
+        // непокрытыми.
+        requirePref<Preference>("app_version").summary = BuildConfig.VERSION_NAME
 
-        findPreference<Preference>("manage_scripts")?.setOnPreferenceClickListener {
+        requirePref<Preference>("manage_scripts").setOnPreferenceClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.settingsContainer, ScriptListFragment.newEmbeddedInstance())
                 .addToBackStack(null)
@@ -36,19 +40,19 @@ class SettingsFragment : PreferenceFragmentCompat() {
             true
         }
 
-        findPreference<Preference>("reload_game")?.setOnPreferenceClickListener {
+        requirePref<Preference>("reload_game").setOnPreferenceClickListener {
             PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .edit().putBoolean(GameActivity.KEY_RELOAD_REQUESTED, true).apply()
             (requireActivity() as GameActivity).closeSettings()
             true
         }
 
-        findPreference<Preference>("check_app_update")?.setOnPreferenceClickListener {
+        requirePref<Preference>("check_app_update").setOnPreferenceClickListener {
             (requireActivity() as GameActivity).showAppUpdateCheckDialog()
             true
         }
 
-        findPreference<Preference>("check_script_updates")?.setOnPreferenceClickListener {
+        requirePref<Preference>("check_script_updates").setOnPreferenceClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.settingsContainer, ScriptListFragment.newEmbeddedAutoCheckInstance())
                 .addToBackStack(null)
@@ -56,15 +60,20 @@ class SettingsFragment : PreferenceFragmentCompat() {
             true
         }
 
-        findPreference<Preference>("report_bug")?.setOnPreferenceClickListener {
+        requirePref<Preference>("report_bug").setOnPreferenceClickListener {
             reportBug()
             true
         }
     }
 
     fun scrollToTop() {
-        listView?.scrollToPosition(0)
+        // listView nullable только когда view ещё не inflated — вызов после
+        // onResume гарантирует, что он установлен.
+        requireNotNull(listView).scrollToPosition(0)
     }
+
+    private inline fun <reified T : Preference> requirePref(key: String): T =
+        requireNotNull(findPreference<T>(key)) { "Preference '$key' missing in R.xml.preferences" }
 
     /**
      * Собирает диагностику, копирует в буфер обмена, показывает Toast и открывает GitHub Issues.
