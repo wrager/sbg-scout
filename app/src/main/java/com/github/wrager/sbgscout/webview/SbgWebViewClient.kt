@@ -96,7 +96,8 @@ class SbgWebViewClient(
     }
 
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-        val url = request?.url?.toString() ?: return false
+        val uri = request?.url ?: return false
+        val url = uri.toString()
         if (url.contains("window.close")) {
             val context = view?.context
             if (context is Activity) context.finish()
