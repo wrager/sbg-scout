@@ -195,8 +195,8 @@ class GameActivity : AppCompatActivity() {
         theme.resolveAttribute(android.R.attr.colorBackground, typedValue, true)
         @Suppress("ResourceType") // colorBackground — цвет, не drawable
         val backgroundColor = ContextCompat.getColor(this, typedValue.resourceId)
-        findViewById<View>(R.id.settingsContainer)?.setBackgroundColor(backgroundColor)
-        findViewById<View>(R.id.closeSettingsFooterPanel)?.setBackgroundColor(backgroundColor)
+        findViewById<View>(R.id.settingsContainer).setBackgroundColor(backgroundColor)
+        findViewById<View>(R.id.closeSettingsFooterPanel).setBackgroundColor(backgroundColor)
 
         // Перечитать цвета кнопок «Scout»/«Reload»/«[x]» и сепаратора из текущей
         // темы (resources тянут значения из values-night при dark-режиме).
@@ -225,13 +225,13 @@ class GameActivity : AppCompatActivity() {
         val contentTint = android.content.res.ColorStateList.valueOf(content)
         val strokeTint = android.content.res.ColorStateList.valueOf(stroke)
         for (id in intArrayOf(R.id.settingsButton, R.id.reloadButton, R.id.closeSettingsButton)) {
-            val button = findViewById<MaterialButton>(id) ?: continue
+            val button = findViewById<MaterialButton>(id)
             button.backgroundTintList = backgroundTint
             button.setTextColor(content)
             button.iconTint = contentTint
             button.strokeColor = strokeTint
         }
-        findViewById<android.widget.TextView>(R.id.gameInitializingLabel)?.setTextColor(content)
+        findViewById<android.widget.TextView>(R.id.gameInitializingLabel).setTextColor(content)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
