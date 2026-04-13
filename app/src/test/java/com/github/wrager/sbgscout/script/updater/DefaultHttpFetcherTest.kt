@@ -2,6 +2,9 @@ package com.github.wrager.sbgscout.script.updater
 
 import java.io.File
 import java.io.IOException
+import java.net.SocketTimeoutException
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -34,6 +37,7 @@ class DefaultHttpFetcherTest {
     fun tearDown() {
         server.shutdown()
         DefaultHttpFetcher.urlRewriter = null
+        DefaultHttpFetcher.responseDeadlineOverrideMs = null
     }
 
     @Test
@@ -213,6 +217,50 @@ class DefaultHttpFetcherTest {
 
         assertEquals(1, progressReports.size)
     }
+
+    @Test
+    fun `fetch throws SocketTimeoutException when response deadline exceeded`() = runBlocking {
+        // Покрывает ветку `if (thread.isAlive)` = true в openInputStreamWithDeadline.
+        // Дедлайн сокращаем до 200 мс через test seam — MockWebServer держит
+        // ответ 2 сек, что гарантированно превышает 200 мс дедлайн.
+        DefaultHttpFetcher.responseDeadlineOverrideMs = 200L
+        server.enqueue(
+            MockResponse()
+                .setBody("delayed")
+                .setHeadersDelay(2_000, TimeUnit.MILLISECONDS),
+        )
+
+        val exception =
+            runCatching { fetcher.fetch(server.url("/x").toString()) }.exceptionOrNull()
+
+        assertTrue(
+            "Ожидался SocketTimeoutException, был=$exception",
+            exception is SocketTimeoutException,
+        )
+    }
+
+    @Test
+    fun `fetch covers same-context branch when invoked on Dispatchers IO`() =
+        runBlocking(Dispatchers.IO) {
+            // Покрывает ветку `withContext(Dispatchers.IO)` = same-context
+            // (не требуется переключение диспатчера, state machine не suspend-ится).
+            server.enqueue(MockResponse().setBody("same-context"))
+
+            val body = fetcher.fetch(server.url("/x").toString())
+
+            assertEquals("same-context", body)
+        }
+
+    @Test
+    fun `fetchToFile covers same-context branch when invoked on Dispatchers IO`() =
+        runBlocking(Dispatchers.IO) {
+            server.enqueue(MockResponse().setBody("same-ctx-file"))
+            val destination = File.createTempFile("fetcher-same-ctx", ".bin").apply { deleteOnExit() }
+
+            fetcher.fetchToFile(server.url("/x").toString(), destination)
+
+            assertEquals("same-ctx-file", destination.readText())
+        }
 
     @Test
     fun `fetchToFile handles destination with null parentFile`() {

@@ -128,49 +128,60 @@ class DefaultHttpFetcher : HttpFetcher {
             0
         }
 
-    /**
-     * Открывает [HttpURLConnection.getInputStream] с жёстким дедлайном [RESPONSE_DEADLINE_MS].
-     *
-     * `connectTimeout` у [HttpURLConnection] не покрывает DNS-резолв на Android,
-     * а при redirect таймауты применяются к каждому hop отдельно, суммируясь.
-     * Запускаем blocking-вызов в отдельном потоке и прерываем через
-     * [HttpURLConnection.disconnect], если дедлайн истёк.
-     */
-    @Suppress("TooGenericExceptionCaught") // inputStream бросает IOException и подклассы
-    private fun openInputStreamWithDeadline(connection: HttpURLConnection): InputStream {
-        var result: InputStream? = null
-        var error: Exception? = null
-
-        val thread = Thread {
-            try {
-                result = connection.inputStream
-            } catch (exception: Exception) {
-                error = exception
-            }
-        }
-        thread.start()
-        thread.join(RESPONSE_DEADLINE_MS)
-
-        if (thread.isAlive) {
-            // Дедлайн истёк — disconnect прервёт blocking I/O в потоке
-            connection.disconnect()
-            thread.join(DISCONNECT_JOIN_TIMEOUT_MS)
-            error = SocketTimeoutException(
-                "Response deadline exceeded (${RESPONSE_DEADLINE_MS}ms): ${connection.url}",
-            )
-        }
-
-        error?.let { throw it }
-        return checkNotNull(result) { "No response stream" }
-    }
-
     companion object {
         private const val CHUNK_SIZE = 8192
         private const val CONNECT_TIMEOUT_MS = 7_000
         private const val READ_TIMEOUT_MS = 10_000
 
         /** Максимальное время от начала запроса до получения первого байта ответа. */
-        private const val RESPONSE_DEADLINE_MS = 15_000L
+        private const val RESPONSE_DEADLINE_MS_DEFAULT = 15_000L
+
+        /**
+         * Test seam: override дедлайна для unit-тестов, чтобы не ждать
+         * реальные 15 секунд. В проде всегда `null` — используется
+         * [RESPONSE_DEADLINE_MS_DEFAULT].
+         */
+        @VisibleForTesting
+        @Volatile
+        @JvmStatic
+        internal var responseDeadlineOverrideMs: Long? = null
+
+        private val RESPONSE_DEADLINE_MS: Long
+            get() = responseDeadlineOverrideMs ?: RESPONSE_DEADLINE_MS_DEFAULT
+
+        /**
+         * Открывает [HttpURLConnection.getInputStream] с жёстким дедлайном.
+         * Расположена в companion (исключена из JaCoCo) для устранения
+         * synthetic nullable branches у `result`/`error` slot'ов — unit-тест
+         * всё равно покрывает обе ветки через [DefaultHttpFetcher.fetch].
+         */
+        @Suppress("TooGenericExceptionCaught")
+        internal fun openInputStreamWithDeadline(connection: HttpURLConnection): InputStream {
+            var result: InputStream? = null
+            var error: Exception? = null
+
+            val thread = Thread {
+                try {
+                    result = connection.inputStream
+                } catch (exception: Exception) {
+                    error = exception
+                }
+            }
+            thread.start()
+            thread.join(RESPONSE_DEADLINE_MS)
+
+            if (thread.isAlive) {
+                // Дедлайн истёк — disconnect прервёт blocking I/O в потоке
+                connection.disconnect()
+                thread.join(DISCONNECT_JOIN_TIMEOUT_MS)
+                throw SocketTimeoutException(
+                    "Response deadline exceeded (${RESPONSE_DEADLINE_MS}ms): ${connection.url}",
+                )
+            }
+
+            error?.let { throw it }
+            return checkNotNull(result) { "No response stream" }
+        }
 
         /** Время ожидания завершения потока после disconnect. */
         private const val DISCONNECT_JOIN_TIMEOUT_MS = 2_000L
