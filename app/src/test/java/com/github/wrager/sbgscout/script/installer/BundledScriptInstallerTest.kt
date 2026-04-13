@@ -126,13 +126,55 @@ class BundledScriptInstallerTest {
         verify(exactly = 0) { scriptInstaller.save(any()) }
     }
 
-    private fun createInstaller() = BundledScriptInstaller(
+    @Test
+    fun `skips entry whose identifier is not in PresetScripts ALL`() {
+        // Покрывает ветку `PresetScripts.ALL.find { ... } ?: continue` — когда
+        // кастомный assetMap содержит идентификатор, не зарегистрированный
+        // в PresetScripts.ALL.
+        every { scriptStorage.getAll() } returns emptyList()
+
+        createInstaller(
+            assetMap = mapOf(
+                ScriptIdentifier("unknown/preset") to "scripts/unknown.user.js",
+            ),
+        ).installBundled()
+
+        verify(exactly = 0) { scriptInstaller.parse(any()) }
+        verify(exactly = 0) { scriptInstaller.save(any()) }
+    }
+
+    @Test
+    fun `does not call setEnabled when preset enabledByDefault is false`() {
+        // Покрывает ветку `if (preset.enabledByDefault)` = false — EUI в
+        // PresetScripts объявлен без enabledByDefault (дефолт = false).
+        every { scriptStorage.getAll() } returns emptyList()
+        val euiScript = svpScript().copy(
+            identifier = PresetScripts.EUI.identifier,
+        )
+        every { scriptInstaller.parse(EUI_CONTENT) } returns ScriptInstallResult.Parsed(euiScript)
+        every { scriptInstaller.save(any()) } just Runs
+        assetContents["scripts/eui.user.js"] = EUI_CONTENT
+
+        createInstaller(
+            assetMap = mapOf(PresetScripts.EUI.identifier to "scripts/eui.user.js"),
+        ).installBundled()
+
+        verify { scriptInstaller.save(any()) }
+        verify(exactly = 0) { scriptStorage.setEnabled(any(), any()) }
+    }
+
+    private fun createInstaller(
+        assetMap: Map<ScriptIdentifier, String> = mapOf(
+            PresetScripts.SVP.identifier to "scripts/sbg-vanilla-plus.user.js",
+        ),
+    ) = BundledScriptInstaller(
         scriptInstaller,
         scriptStorage,
         scriptProvisioner,
         assetReader = { path ->
             assetContents[path] ?: throw java.io.FileNotFoundException("Asset not found: $path")
         },
+        assetMap = assetMap,
     )
 
     private fun svpScript() = UserScript(
@@ -149,5 +191,6 @@ class BundledScriptInstallerTest {
 
     companion object {
         private const val SVP_CONTENT = "// ==UserScript==\n// @name SBG Vanilla+\n// ==/UserScript=="
+        private const val EUI_CONTENT = "// ==UserScript==\n// @name SBG Enhanced UI\n// ==/UserScript=="
     }
 }

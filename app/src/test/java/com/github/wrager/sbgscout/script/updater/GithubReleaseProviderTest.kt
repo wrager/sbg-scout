@@ -92,6 +92,42 @@ class GithubReleaseProviderTest {
         assertEquals(emptyList<GithubRelease>(), releases)
     }
 
+    @Test
+    fun `fetchReleases propagates httpFetcher exceptions`() = runTest {
+        val httpFetcher = mockk<HttpFetcher>()
+        coEvery { httpFetcher.fetch(any(), any()) } throws java.io.IOException("network down")
+
+        val provider = GithubReleaseProvider(httpFetcher)
+        val exception = runCatching { provider.fetchReleases("owner", "repo") }.exceptionOrNull()
+        assertEquals("network down", exception?.message)
+        assertEquals(java.io.IOException::class, exception?.let { it::class })
+    }
+
+    @Test
+    fun `fetchReleases parses JSON returned by httpFetcher`() = runTest {
+        val httpFetcher = mockk<HttpFetcher>()
+        coEvery { httpFetcher.fetch(any(), any()) } returns """
+            [
+                {
+                    "tag_name": "v1.0.0",
+                    "prerelease": false,
+                    "assets": [
+                        {
+                            "name": "app.apk",
+                            "browser_download_url": "https://github.com/owner/repo/releases/download/v1.0.0/app.apk"
+                        }
+                    ]
+                }
+            ]
+        """.trimIndent()
+
+        val releases = GithubReleaseProvider(httpFetcher).fetchReleases("owner", "repo")
+
+        assertEquals(1, releases.size)
+        assertEquals("v1.0.0", releases[0].tagName)
+        assertEquals("app.apk", releases[0].assets.single().name)
+    }
+
     companion object {
         private val RELEASES_JSON = """
             [

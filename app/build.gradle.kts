@@ -130,6 +130,9 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.json)
     testImplementation(libs.kotlinx.coroutines.test)
+    // MockWebServer в unit-тестах для покрытия DefaultHttpFetcher и других
+    // HTTP-потребителей без выхода в androidTest.
+    testImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.espresso.contrib) {

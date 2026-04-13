@@ -81,4 +81,42 @@ class ScriptVersionTest {
     fun `single segment versions compare correctly`() {
         assertTrue(ScriptVersion("2") > ScriptVersion("1"))
     }
+
+    @Test
+    fun `value accessor returns original string`() {
+        // Покрывает сгенерированный getValue() у inline value-class — иначе JaCoCo
+        // считает его методом без вызовов.
+        assertEquals("1.2.3", ScriptVersion("1.2.3").value)
+    }
+
+    @Test
+    fun `compareTo works through Comparable bridge in sortedBy`() {
+        // Синтетический compareTo(Any) bridge у inline value-class вызывается,
+        // когда ScriptVersion используется как Comparable в stdlib алгоритмах.
+        val sorted = listOf(
+            ScriptVersion("1.10.0"),
+            ScriptVersion("1.2.0"),
+            ScriptVersion("2.0.0"),
+        ).sorted()
+        assertEquals(ScriptVersion("1.2.0"), sorted[0])
+        assertEquals(ScriptVersion("1.10.0"), sorted[1])
+        assertEquals(ScriptVersion("2.0.0"), sorted[2])
+    }
+
+    @Test
+    fun `empty string version compared to numeric version`() {
+        // value.split(".") для "" даёт [""], leadingDigitsAsInt("") → 0.
+        // Левая сторона короче → getOrElse default срабатывает для левых segments.
+        assertTrue(ScriptVersion("") < ScriptVersion("1.0.0"))
+        assertTrue(ScriptVersion("1.0.0") > ScriptVersion(""))
+    }
+
+    @Test
+    fun `difference at first segment short-circuits rest`() {
+        // this > other уже на index=0 — for-loop делает return до getOrElse на
+        // последующих индексах. Покрывает ветку, где правый getOrElse вообще не
+        // вызывается за отсутствием итераций.
+        assertTrue(ScriptVersion("2.0.0") > ScriptVersion("1.99.99"))
+        assertTrue(ScriptVersion("1.0.0") < ScriptVersion("2.0.0"))
+    }
 }

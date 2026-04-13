@@ -95,10 +95,24 @@ class ConsoleLogBufferTest {
         assertEquals("", buffer.format())
     }
 
+    @Test
+    fun `format omits location section when source is null`() {
+        // Покрывает ветку `entry.source?.let {..}.orEmpty()` = "" — когда sourceId
+        // у ConsoleMessage null, в итоговой строке после текста сообщения не
+        // должно быть хвоста с [source:line].
+        buffer.add(consoleMessage(ConsoleMessage.MessageLevel.ERROR, "no source", source = null, line = 0))
+
+        val line = buffer.format()
+        assertTrue(line.contains("[error]"))
+        assertTrue(line.contains("no source"))
+        val afterMessage = line.substringAfter("no source")
+        assertEquals("", afterMessage)
+    }
+
     private fun consoleMessage(
         level: ConsoleMessage.MessageLevel,
         message: String,
-        source: String,
+        source: String?,
         line: Int,
     ): ConsoleMessage {
         val mock = mockk<ConsoleMessage>()

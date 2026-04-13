@@ -51,6 +51,31 @@ class ClipboardBridgeTest {
     }
 
     @Test
+    fun `readText returns empty string when first item text is null`() {
+        // Покрывает ветку `?.text?.toString() ?: ""` — ClipData.Item.text = null.
+        val clipItem = mockk<ClipData.Item>()
+        val clipData = mockk<ClipData>()
+        every { clipItem.text } returns null
+        every { clipData.getItemAt(0) } returns clipItem
+        every { clipboardManager.primaryClip } returns clipData
+
+        assertEquals("", bridge.readText())
+    }
+
+    @Test
+    fun `readText converts non-string CharSequence to toString`() {
+        // `.text` объявлен как CharSequence — ClipboardBridge вызывает toString()
+        // явно. Покрывает путь, когда text не String, а SpannedString/Editable.
+        val clipItem = mockk<ClipData.Item>()
+        val clipData = mockk<ClipData>()
+        every { clipItem.text } returns StringBuilder("stringbuilder")
+        every { clipData.getItemAt(0) } returns clipItem
+        every { clipboardManager.primaryClip } returns clipData
+
+        assertEquals("stringbuilder", bridge.readText())
+    }
+
+    @Test
     fun `writeText puts text into clipboard`() {
         mockkStatic(ClipData::class)
         val mockClipData = mockk<ClipData>()

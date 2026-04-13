@@ -67,6 +67,21 @@ class ScriptInstallerTest {
     }
 
     @Test
+    fun `parse keeps namespace as-is when it has no http or https prefix`() {
+        // Покрывает ветку `removePrefix("http://")` = не удалил (prefix отсутствует).
+        val content = """
+            // ==UserScript==
+            // @name Test Script
+            // @namespace e2e-custom-namespace
+            // @version 1.0.0
+            // ==/UserScript==
+        """.trimIndent()
+
+        val result = installer.parse(content) as ScriptInstallResult.Parsed
+        assertEquals("e2e-custom-namespace/Test Script", result.script.identifier.value)
+    }
+
+    @Test
     fun `parse strips http prefix from namespace`() {
         val content = """
             // ==UserScript==
