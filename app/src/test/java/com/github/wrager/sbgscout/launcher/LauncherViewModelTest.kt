@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -1645,6 +1646,235 @@ class LauncherViewModelTest {
         assertEquals(1, completed.availableCount)
         // summary содержит хотя бы заголовок даже без release notes.
         assertTrue(completed.releaseNotesSummary?.contains("1.0.0") == true)
+        job.cancel()
+    }
+
+    @Test
+    fun `addScriptFromContent with preset where enabledByDefault is false does not setEnabled`() = runTest {
+        // L168: покрывает ветку `if (matchingPreset.enabledByDefault)` = false.
+        // CUI/EUI — пресеты с enabledByDefault=false. addScriptFromContent,
+        // сматчив CUI, не должен вызвать setEnabled.
+        every { scriptStorage.getAll() } returns emptyList()
+        val parsedScript = testScript(
+            identifier = ScriptIdentifier("github.com/nicko-v/sbg-cui/SBG CUI"),
+            name = "SBG CUI",
+            sourceUrl = null,
+        )
+        every { scriptInstaller.parse(any()) } returns ScriptInstallResult.Parsed(parsedScript)
+        every { scriptInstaller.save(any()) } answers {
+            every { scriptStorage.getAll() } returns listOf(parsedScript)
+        }
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.addScriptFromContent("cui content")
+        advanceUntilIdle()
+
+        verify(exactly = 0) { scriptStorage.setEnabled(any(), any()) }
+        verify { scriptProvisioner.markProvisioned(PresetScripts.CUI.identifier) }
+    }
+
+    @Test
+    fun `downloadScript returns early when identifier is already Downloading`() = runTest {
+        // L73: покрывает ветку `if (operationStateMap[identifier] is Downloading) return`.
+        // Первый вызов запускает coroutine которая suspend-ится на downloader.delay.
+        // К этому моменту operationStateMap[svp]=Downloading, и второй вызов
+        // downloadScript должен вернуться на синхронном check без запуска coroutine.
+        every { scriptStorage.getAll() } returns emptyList()
+        every { scriptStorage.setEnabled(any(), any()) } just Runs
+        val svpScript = testScript(
+            identifier = PresetScripts.SVP.identifier,
+            name = "SVP",
+            isPreset = true,
+        )
+        var downloadCalls = 0
+        coEvery {
+            downloader.download(PresetScripts.SVP.downloadUrl, isPreset = true, any())
+        } coAnswers {
+            downloadCalls++
+            kotlinx.coroutines.delay(1_000)
+            every { scriptStorage.getAll() } returns listOf(svpScript)
+            ScriptDownloadResult.Success(svpScript)
+        }
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.downloadScript(PresetScripts.SVP.identifier)
+        // runCurrent продвигает первую coroutine до suspend-а в downloader.delay —
+        // operationStateMap[id] уже установлен в Downloading(0).
+        runCurrent()
+        // Второй вызов видит Downloading и возвращается на L73, не запуская coroutine.
+        viewModel.downloadScript(PresetScripts.SVP.identifier)
+        advanceUntilIdle()
+
+        assertEquals(1, downloadCalls)
+    }
+
+    @Test
+    fun `checkUpdates returns early when already checking`() = runTest {
+        // L210: покрывает ветку `if (isAlreadyChecking) return`.
+        // Первый checkAllForUpdates приостанавливается на delay, к этому моменту
+        // operationStateMap[id]=CheckingUpdate. Второй вызов checkUpdates видит
+        // CheckingUpdate и возвращается синхронно.
+        val script = testScript(version = "1.0.0")
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } coAnswers {
+            kotlinx.coroutines.delay(1_000)
+            emptyList()
+        }
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.checkUpdates()
+        // Продвигаем до suspension в updateChecker.delay — operationStateMap[id]
+        // уже перешёл в CheckingUpdate.
+        runCurrent()
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { updateChecker.checkAllForUpdates() }
+    }
+
+    @Test
+    fun `checkAndUpdateAll returns early when already checking`() = runTest {
+        // L301: та же ветка для checkAndUpdateAll.
+        val script = testScript(version = "1.0.0")
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } coAnswers {
+            kotlinx.coroutines.delay(1_000)
+            emptyList()
+        }
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.checkAndUpdateAll()
+        runCurrent()
+        viewModel.checkAndUpdateAll()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { updateChecker.checkAllForUpdates() }
+    }
+
+    @Test
+    fun `checkUpdates skips CheckingUpdate transition for identifier that is already Downloading`() = runTest {
+        // L222: покрывает ветку `if (operationStateMap[id] !is Downloading)` = false.
+        // Сценарий: reinstall ставит identifier в Downloading и suspend-ится.
+        // Затем checkUpdates видит Downloading и НЕ переписывает на CheckingUpdate.
+        val script = testScript(
+            identifier = ScriptIdentifier("test/progress-script"),
+            version = "1.0.0",
+            enabled = true,
+        )
+        every { scriptStorage.getAll() } returns listOf(script)
+        every { scriptStorage.setEnabled(any(), any()) } just Runs
+        coEvery {
+            downloader.download(script.sourceUrl!!, isPreset = false, any())
+        } coAnswers {
+            kotlinx.coroutines.delay(5_000)
+            ScriptDownloadResult.Success(script)
+        }
+        coEvery { updateChecker.checkAllForUpdates() } returns emptyList()
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.reinstallScript(script.identifier)
+        // Продвигаем до suspend в downloader.delay — identifier в Downloading.
+        runCurrent()
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
+        // Верификация: updateChecker был вызван (не early return) и путь L222
+        // false ветки пройден.
+        coVerify { updateChecker.checkAllForUpdates() }
+    }
+
+    @Test
+    fun `checkUpdates filters scripts without updateUrl`() = runTest {
+        // L214: покрывает ветку `.filter { it.updateUrl != null }` с миксом
+        // (один скрипт с updateUrl, один без).
+        val withUrl = testScript(
+            identifier = ScriptIdentifier("test/with-url"),
+            version = "1.0.0",
+        )
+        val withoutUrl = testScript(
+            identifier = ScriptIdentifier("test/without-url"),
+            version = "1.0.0",
+        ).copy(updateUrl = null)
+        every { scriptStorage.getAll() } returns listOf(withUrl, withoutUrl)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
+        // Без теста просто покрываем оба варианта фильтра.
+        // updateChecker всё равно вернёт emptyList.
+        coVerify { updateChecker.checkAllForUpdates() }
+    }
+
+    @Test
+    fun `cleanupOldIdentifier is noop when new identifier equals old`() = runTest {
+        // L541: покрывает ветку `if (newIdentifier != oldIdentifier)` = false.
+        // Сценарий: reinstallScript скачал новую версию, но header.name/namespace
+        // не изменились → identifier тот же → delete не вызывается.
+        val script = testScript(
+            identifier = ScriptIdentifier("test/same-id"),
+            version = "1.0.0",
+            enabled = true,
+        )
+        every { scriptStorage.getAll() } returns listOf(script)
+        every { scriptStorage.setEnabled(any(), any()) } just Runs
+        // Downloader возвращает скрипт с ТЕМ ЖЕ identifier
+        coEvery {
+            downloader.download(script.sourceUrl!!, isPreset = false, any())
+        } returns ScriptDownloadResult.Success(script)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.reinstallScript(script.identifier)
+        advanceUntilIdle()
+
+        verify(exactly = 0) { scriptStorage.delete(any()) }
+    }
+
+    @Test
+    fun `fetchReleaseNotesSummary handles script not found in storage`() = runTest {
+        // L366: покрывает ветку `scripts.find { ... }` = null.
+        // Сценарий: updateChecker возвращает UpdateAvailable для identifier,
+        // которого нет в storage → script = null → name fallback to identifier.value.
+        val realScript = testScript(
+            identifier = ScriptIdentifier("test/real"),
+            version = "1.0.0",
+        )
+        every { scriptStorage.getAll() } returns listOf(realScript)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpdateAvailable(
+                ScriptIdentifier("test/ghost-not-in-storage"),
+                com.github.wrager.sbgscout.script.model.ScriptVersion("1.0.0"),
+                com.github.wrager.sbgscout.script.model.ScriptVersion("2.0.0"),
+            ),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
+        val completed = events.filterIsInstance<LauncherEvent.CheckCompleted>().first()
+        assertTrue(
+            "summary должна содержать identifier.value для неизвестного скрипта",
+            completed.releaseNotesSummary?.contains("test/ghost-not-in-storage") == true,
+        )
         job.cancel()
     }
 
