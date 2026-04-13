@@ -140,6 +140,20 @@ class ScriptManagerScreen(
         return fragment.view?.findViewById(viewId)
     }
 
+    /**
+     * Клик «Reinstall» в overflow-меню карточки скрипта. Пункт присутствует
+     * только для не-github-hosted скриптов
+     * ([com.github.wrager.sbgscout.launcher.ScriptUiItem.isGithubHosted] = false),
+     * иначе в меню будет «Select version». Подтверждения нет —
+     * [com.github.wrager.sbgscout.launcher.LauncherViewModel.reinstallScript]
+     * запускается сразу.
+     */
+    fun reinstallCardViaOverflow(cardName: String) {
+        clickCardChildView(cardName, R.id.actionButton)
+        val reinstallLabel = targetContext.getString(R.string.reinstall)
+        onView(withText(reinstallLabel)).inRoot(isPlatformPopup()).perform(click())
+    }
+
     /** Клик «Delete» в overflow-меню карточки + подтверждение в MaterialAlertDialog. */
     fun deleteCardViaOverflow(cardName: String) {
         clickCardChildView(cardName, R.id.actionButton)
