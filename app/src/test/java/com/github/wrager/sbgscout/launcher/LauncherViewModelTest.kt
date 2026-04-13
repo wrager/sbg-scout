@@ -960,6 +960,667 @@ class LauncherViewModelTest {
         assertTrue(viewModel.uiState.value.reloadNeeded)
     }
 
+    // ---- Error/edge path coverage ----
+
+    @Test
+    fun `downloadScript ignores unknown identifier`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val unknownId = ScriptIdentifier("unknown/preset")
+        viewModel.downloadScript(unknownId)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { downloader.download(any(), any(), any()) }
+    }
+
+    @Test
+    fun `downloadScript sends ScriptAddFailed with error toString when message is null`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        val errorWithoutMessage = RuntimeException() // message = null
+        coEvery {
+            downloader.download(PresetScripts.SVP.downloadUrl, isPreset = true, any())
+        } returns ScriptDownloadResult.Failure(PresetScripts.SVP.downloadUrl, errorWithoutMessage)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.downloadScript(PresetScripts.SVP.identifier)
+        advanceUntilIdle()
+
+        val failed = events.filterIsInstance<LauncherEvent.ScriptAddFailed>().first()
+        assertTrue(
+            "error без message → должен fallback на toString(): ${failed.errorMessage}",
+            failed.errorMessage.contains("RuntimeException"),
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun `addScript sends ScriptAddFailed when downloader returns Failure`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        coEvery { downloader.download("https://example.com/bad.user.js", isPreset = false) } returns
+            ScriptDownloadResult.Failure("https://example.com/bad.user.js", RuntimeException("parse error"))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.addScript("https://example.com/bad.user.js")
+        advanceUntilIdle()
+
+        assertTrue(events.any { it is LauncherEvent.ScriptAddFailed })
+        job.cancel()
+    }
+
+    @Test
+    fun `addScript falls back to error toString when message is null`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        coEvery { downloader.download(any(), isPreset = false) } returns
+            ScriptDownloadResult.Failure("url", RuntimeException())
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.addScript("url")
+        advanceUntilIdle()
+
+        val failed = events.filterIsInstance<LauncherEvent.ScriptAddFailed>().first()
+        assertTrue(failed.errorMessage.contains("RuntimeException"))
+        job.cancel()
+    }
+
+    @Test
+    fun `deleteScript is noop when identifier is not in storage`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.deleteScript(ScriptIdentifier("ghost/script"))
+        advanceUntilIdle()
+
+        verify(exactly = 0) { scriptStorage.delete(any()) }
+    }
+
+    @Test
+    fun `checkUpdates handles CheckFailed result`() = runTest {
+        val script = testScript()
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.CheckFailed(script.identifier, RuntimeException("fail")),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
+        // После CheckFailed state = null, identifier удалён из operationStateMap
+        val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
+        assertNull(item.operationState)
+    }
+
+    @Test
+    fun `checkUpdates clears existing UpToDate and UpdateAvailable before re-check`() = runTest {
+        val script = testScript()
+        every { scriptStorage.getAll() } returns listOf(script)
+        // Первая проверка → UpToDate
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpToDate(script.identifier),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+        assertEquals(
+            ScriptOperationState.UpToDate,
+            viewModel.uiState.value.scripts.first { it.identifier == script.identifier }.operationState,
+        )
+
+        // Вторая проверка с UpdateAvailable — должна заменить UpToDate.
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpdateAvailable(
+                script.identifier,
+                com.github.wrager.sbgscout.script.model.ScriptVersion("1.0.0"),
+                com.github.wrager.sbgscout.script.model.ScriptVersion("2.0.0"),
+            ),
+        )
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
+        assertEquals(
+            ScriptOperationState.UpdateAvailable,
+            viewModel.uiState.value.scripts.first { it.identifier == script.identifier }.operationState,
+        )
+    }
+
+    @Test
+    fun `updateScript resets state when applyUpdate returns null`() = runTest {
+        val script = testScript(version = "1.0.0", enabled = true)
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { downloader.download(script.sourceUrl!!, isPreset = false, any()) } returns
+            ScriptDownloadResult.Failure("url", RuntimeException("download failed"))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.updateScript(script.identifier)
+        advanceUntilIdle()
+
+        val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
+        assertNull(item.operationState)
+        assertEquals(0, events.filterIsInstance<LauncherEvent.UpdatesCompleted>().first().updatedCount)
+        job.cancel()
+    }
+
+    @Test
+    fun `updateAll returns early when no UpdateAvailable in map`() = runTest {
+        val script = testScript()
+        every { scriptStorage.getAll() } returns listOf(script)
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.updateAll()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { downloader.download(any(), any(), any()) }
+        // Без UpdateAvailable — событие UpdatesCompleted не отправляется (early return).
+        assertTrue(events.filterIsInstance<LauncherEvent.UpdatesCompleted>().isEmpty())
+        job.cancel()
+    }
+
+    @Test
+    fun `updateAll counts failed update as zero and continues`() = runTest {
+        val script = testScript(version = "1.0.0", enabled = true)
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpdateAvailable(
+                script.identifier,
+                com.github.wrager.sbgscout.script.model.ScriptVersion("1.0.0"),
+                com.github.wrager.sbgscout.script.model.ScriptVersion("2.0.0"),
+            ),
+        )
+        coEvery { downloader.download(script.sourceUrl!!, isPreset = false, any()) } returns
+            ScriptDownloadResult.Failure("url", RuntimeException("download failed"))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+        viewModel.updateAll()
+        advanceUntilIdle()
+
+        val completed = events.filterIsInstance<LauncherEvent.UpdatesCompleted>().first()
+        assertEquals(0, completed.updatedCount)
+        job.cancel()
+    }
+
+    @Test
+    fun `checkAndUpdateAll handles CheckFailed and succeeds on none available`() = runTest {
+        val script = testScript()
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.CheckFailed(script.identifier, RuntimeException("fail")),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.checkAndUpdateAll()
+        advanceUntilIdle()
+
+        val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
+        assertNull(item.operationState)
+        val completed = events.filterIsInstance<LauncherEvent.UpdatesCompleted>().first()
+        assertEquals(0, completed.updatedCount)
+        job.cancel()
+    }
+
+    @Test
+    fun `checkAndUpdateAll updates UpdateAvailable scripts`() = runTest {
+        val script = testScript(version = "1.0.0", enabled = true)
+        val updatedScript = testScript(version = "2.0.0", enabled = false)
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpdateAvailable(
+                script.identifier,
+                com.github.wrager.sbgscout.script.model.ScriptVersion("1.0.0"),
+                com.github.wrager.sbgscout.script.model.ScriptVersion("2.0.0"),
+            ),
+        )
+        coEvery { downloader.download(script.sourceUrl!!, isPreset = false, any()) } answers {
+            every { scriptStorage.getAll() } returns listOf(updatedScript)
+            ScriptDownloadResult.Success(updatedScript)
+        }
+        every { scriptStorage.setEnabled(any(), any()) } just Runs
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.checkAndUpdateAll()
+        advanceUntilIdle()
+
+        val completed = events.filterIsInstance<LauncherEvent.UpdatesCompleted>().first()
+        assertEquals(1, completed.updatedCount)
+        job.cancel()
+    }
+
+    @Test
+    fun `checkAndUpdateAll handles applyUpdate failure in update phase`() = runTest {
+        val script = testScript(version = "1.0.0", enabled = true)
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpdateAvailable(
+                script.identifier,
+                com.github.wrager.sbgscout.script.model.ScriptVersion("1.0.0"),
+                com.github.wrager.sbgscout.script.model.ScriptVersion("2.0.0"),
+            ),
+        )
+        coEvery { downloader.download(script.sourceUrl!!, isPreset = false, any()) } returns
+            ScriptDownloadResult.Failure("url", RuntimeException("fail"))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.checkAndUpdateAll()
+        advanceUntilIdle()
+
+        val completed = events.filterIsInstance<LauncherEvent.UpdatesCompleted>().first()
+        assertEquals(0, completed.updatedCount)
+        job.cancel()
+    }
+
+    @Test
+    fun `loadVersions is noop when script is not in storage`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.loadVersions(ScriptIdentifier("missing/script"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { githubReleaseProvider.fetchReleases(any(), any()) }
+    }
+
+    @Test
+    fun `loadVersions is noop when sourceUrl is null`() = runTest {
+        val script = testScript(sourceUrl = null)
+        every { scriptStorage.getAll() } returns listOf(script)
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.loadVersions(script.identifier)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { githubReleaseProvider.fetchReleases(any(), any()) }
+    }
+
+    @Test
+    fun `loadVersions is noop when sourceUrl is not a github URL`() = runTest {
+        val script = testScript(sourceUrl = "https://example.com/custom.user.js")
+        every { scriptStorage.getAll() } returns listOf(script)
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.loadVersions(script.identifier)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { githubReleaseProvider.fetchReleases(any(), any()) }
+    }
+
+    @Test
+    fun `loadVersions sends VersionInstallFailed when fetchReleases throws`() = runTest {
+        val script = testScript(
+            sourceUrl = "https://github.com/owner/repo/releases/latest/download/script.user.js",
+        )
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { githubReleaseProvider.fetchReleases("owner", "repo") } throws
+            java.io.IOException("network down")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.loadVersions(script.identifier)
+        advanceUntilIdle()
+
+        assertTrue(events.any { it is LauncherEvent.VersionInstallFailed })
+        job.cancel()
+    }
+
+    @Test
+    fun `loadVersions uses exception toString when message is null`() = runTest {
+        val script = testScript(
+            sourceUrl = "https://github.com/owner/repo/releases/latest/download/script.user.js",
+        )
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { githubReleaseProvider.fetchReleases("owner", "repo") } throws RuntimeException()
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.loadVersions(script.identifier)
+        advanceUntilIdle()
+
+        val failed = events.filterIsInstance<LauncherEvent.VersionInstallFailed>().first()
+        assertTrue(failed.errorMessage.contains("RuntimeException"))
+        job.cancel()
+    }
+
+    @Test
+    fun `installVersion is noop when script not in storage`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.installVersion(
+            ScriptIdentifier("missing/script"),
+            "https://example.com/v.user.js",
+            isLatest = true,
+            tagName = "v1.0.0",
+        )
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { downloader.download(any(), any(), any()) }
+    }
+
+    @Test
+    fun `installVersion sends VersionInstallFailed on download failure`() = runTest {
+        val script = testScript()
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery {
+            downloader.download("https://example.com/v.user.js", isPreset = false, any())
+        } returns ScriptDownloadResult.Failure("url", RuntimeException("download error"))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.installVersion(
+            script.identifier,
+            "https://example.com/v.user.js",
+            isLatest = true,
+            tagName = "v1.0.0",
+        )
+        advanceUntilIdle()
+
+        val failed = events.filterIsInstance<LauncherEvent.VersionInstallFailed>().first()
+        assertTrue(failed.errorMessage.contains("download error"))
+        job.cancel()
+    }
+
+    @Test
+    fun `installVersion falls back to toString when exception message is null`() = runTest {
+        val script = testScript()
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { downloader.download(any(), any(), any()) } returns
+            ScriptDownloadResult.Failure("url", RuntimeException())
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.installVersion(
+            script.identifier,
+            "https://example.com/v.user.js",
+            isLatest = true,
+            tagName = "v1.0.0",
+        )
+        advanceUntilIdle()
+
+        val failed = events.filterIsInstance<LauncherEvent.VersionInstallFailed>().first()
+        assertTrue(failed.errorMessage.contains("RuntimeException"))
+        job.cancel()
+    }
+
+    @Test
+    fun `reinstallScript is noop when script not in storage`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.reinstallScript(ScriptIdentifier("ghost/script"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { downloader.download(any(), any(), any()) }
+    }
+
+    @Test
+    fun `reinstallScript is noop when script has no sourceUrl`() = runTest {
+        val script = testScript(sourceUrl = null)
+        every { scriptStorage.getAll() } returns listOf(script)
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.reinstallScript(script.identifier)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { downloader.download(any(), any(), any()) }
+    }
+
+    @Test
+    fun `reinstallScript sends ReinstallFailed on download failure`() = runTest {
+        val script = testScript()
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery {
+            downloader.download(script.sourceUrl!!, isPreset = false, any())
+        } returns ScriptDownloadResult.Failure("url", RuntimeException("reinstall error"))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.reinstallScript(script.identifier)
+        advanceUntilIdle()
+
+        val failed = events.filterIsInstance<LauncherEvent.ReinstallFailed>().first()
+        assertTrue(failed.errorMessage.contains("reinstall error"))
+        job.cancel()
+    }
+
+    @Test
+    fun `reinstallScript sends toString when exception message is null`() = runTest {
+        val script = testScript()
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { downloader.download(any(), any(), any()) } returns
+            ScriptDownloadResult.Failure("url", RuntimeException())
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.reinstallScript(script.identifier)
+        advanceUntilIdle()
+
+        val failed = events.filterIsInstance<LauncherEvent.ReinstallFailed>().first()
+        assertTrue(failed.errorMessage.contains("RuntimeException"))
+        job.cancel()
+    }
+
+    @Test
+    fun `updateScript is noop when script has no sourceUrl`() = runTest {
+        // applyUpdate возвращает null → updateScript сбрасывает state.
+        val script = testScript(sourceUrl = null)
+        every { scriptStorage.getAll() } returns listOf(script)
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+        viewModel.updateScript(script.identifier)
+        advanceUntilIdle()
+
+        val completed = events.filterIsInstance<LauncherEvent.UpdatesCompleted>().first()
+        assertEquals(0, completed.updatedCount)
+        coVerify(exactly = 0) { downloader.download(any(), any(), any()) }
+        job.cancel()
+    }
+
+    @Test
+    fun `updateScript is noop when script not in storage`() = runTest {
+        every { scriptStorage.getAll() } returns emptyList()
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+        viewModel.updateScript(ScriptIdentifier("ghost/script"))
+        advanceUntilIdle()
+
+        assertEquals(0, events.filterIsInstance<LauncherEvent.UpdatesCompleted>().first().updatedCount)
+        job.cancel()
+    }
+
+    @Test
+    fun `buildScriptUiItem handles script with null version`() = runTest {
+        val script = testScript().copy(
+            header = ScriptHeader(name = "NoVersion", version = null),
+        )
+        every { scriptStorage.getAll() } returns listOf(script)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val item = viewModel.uiState.value.scripts.first { it.identifier == script.identifier }
+        assertNull(item.version)
+    }
+
+    @Test
+    fun `checkUpdates with UpdateAvailable populates release notes summary in CheckCompleted`() = runTest {
+        val script = testScript(
+            version = "1.0.0",
+            sourceUrl = "https://github.com/owner/repo/releases/latest/download/script.user.js",
+        )
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpdateAvailable(
+                script.identifier,
+                com.github.wrager.sbgscout.script.model.ScriptVersion("1.0.0"),
+                com.github.wrager.sbgscout.script.model.ScriptVersion("2.0.0"),
+            ),
+        )
+        // ScriptReleaseNotesProvider использует githubReleaseProvider внутри;
+        // вернём несколько релизов с body.
+        coEvery { githubReleaseProvider.fetchReleases("owner", "repo") } returns listOf(
+            GithubRelease(
+                tagName = "v2.0.0",
+                body = "Release notes v2",
+                assets = listOf(GithubAsset("script.user.js", "https://example.com/v2/script.user.js")),
+            ),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
+        val completed = events.filterIsInstance<LauncherEvent.CheckCompleted>().first()
+        assertEquals(1, completed.availableCount)
+        assertTrue(
+            "summary должен содержать имя скрипта: ${completed.releaseNotesSummary}",
+            completed.releaseNotesSummary?.contains("Test Script") == true,
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun `checkUpdates handles fetchReleaseNotesSummary for script with null sourceUrl`() = runTest {
+        // Покрывает ветку `script?.sourceUrl?.let` = null (sourceUrl null) в
+        // fetchReleaseNotesSummary. Скрипт с null sourceUrl может получить
+        // UpdateAvailable, если updateUrl non-null (но пока возьмём случай,
+        // когда identifier совпадает, а sourceUrl null — просто доказываем
+        // что summary всё равно формируется).
+        val script = testScript(
+            version = "1.0.0",
+            sourceUrl = null,
+        )
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpdateAvailable(
+                script.identifier,
+                com.github.wrager.sbgscout.script.model.ScriptVersion("1.0.0"),
+                com.github.wrager.sbgscout.script.model.ScriptVersion("2.0.0"),
+            ),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
+        val completed = events.filterIsInstance<LauncherEvent.CheckCompleted>().first()
+        // sourceUrl=null → notes=null → секция только header → summary non-null.
+        assertTrue(completed.releaseNotesSummary?.contains("Test Script") == true)
+        job.cancel()
+    }
+
+    @Test
+    fun `checkUpdates fetchReleaseNotesSummary recovers when notes provider throws`() = runTest {
+        val script = testScript(
+            version = "1.0.0",
+            sourceUrl = "https://github.com/owner/repo/releases/latest/download/script.user.js",
+        )
+        every { scriptStorage.getAll() } returns listOf(script)
+        coEvery { updateChecker.checkAllForUpdates() } returns listOf(
+            ScriptUpdateResult.UpdateAvailable(
+                script.identifier,
+                com.github.wrager.sbgscout.script.model.ScriptVersion("1.0.0"),
+                com.github.wrager.sbgscout.script.model.ScriptVersion("2.0.0"),
+            ),
+        )
+        // Провайдер бросает — внутри try/catch должен вернуть null, secsion только header.
+        coEvery { githubReleaseProvider.fetchReleases("owner", "repo") } throws
+            java.io.IOException("provider error")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val events = mutableListOf<LauncherEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+
+        viewModel.checkUpdates()
+        advanceUntilIdle()
+
+        val completed = events.filterIsInstance<LauncherEvent.CheckCompleted>().first()
+        assertEquals(1, completed.availableCount)
+        // summary содержит хотя бы заголовок даже без release notes.
+        assertTrue(completed.releaseNotesSummary?.contains("1.0.0") == true)
+        job.cancel()
+    }
+
     @Test
     fun `orphaned preset script appears in custom section`() = runTest {
         // Скрипт с isPreset=true, но sourceUrl не совпадает ни с одним пресетом
