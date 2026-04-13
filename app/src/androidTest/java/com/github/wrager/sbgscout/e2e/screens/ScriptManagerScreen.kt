@@ -154,6 +154,20 @@ class ScriptManagerScreen(
         onView(withText(reinstallLabel)).inRoot(isPlatformPopup()).perform(click())
     }
 
+    /**
+     * Клик «Select version» в overflow-меню карточки скрипта. Пункт присутствует
+     * только для github-hosted скриптов. После клика
+     * [com.github.wrager.sbgscout.launcher.LauncherViewModel.loadVersions] фетчит
+     * список релизов и отправляет событие VersionsLoaded, которое
+     * [com.github.wrager.sbgscout.launcher.ScriptListFragment.showVersionSelectionDialog]
+     * превращает в диалог выбора версии.
+     */
+    fun selectVersionCardViaOverflow(cardName: String) {
+        clickCardChildView(cardName, R.id.actionButton)
+        val selectVersionLabel = targetContext.getString(R.string.select_version)
+        onView(withText(selectVersionLabel)).inRoot(isPlatformPopup()).perform(click())
+    }
+
     /** Клик «Delete» в overflow-меню карточки + подтверждение в MaterialAlertDialog. */
     fun deleteCardViaOverflow(cardName: String) {
         clickCardChildView(cardName, R.id.actionButton)
