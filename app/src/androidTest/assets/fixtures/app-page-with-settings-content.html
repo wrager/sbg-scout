@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>sbg fake app with settings-content</title>
+</head>
+<body>
+    <div id="game-root">fake app page</div>
+    <div class="settings-content"></div>
+    <script>
+        // Подменяем navigator.language до того как bootstrap ScoutBridge
+        // на DOMContentLoaded вызовет injectButton → pickStrings. Нужно для
+        // детерминированной проверки резолва lang='sys': pickStrings должен
+        // брать язык из navigator.language, а не от локали эмулятора.
+        try {
+            Object.defineProperty(Navigator.prototype, 'language', {
+                get: function() { return 'ru-RU'; },
+                configurable: true
+            });
+        } catch (e) {
+            Object.defineProperty(navigator, 'language', {
+                value: 'ru-RU',
+                configurable: true
+            });
+        }
+        // Игровые настройки c lang='sys' — дефолтное значение initSettings в игре.
+        // LOCAL_STORAGE_WRAPPER, инжектированный в onPageStarted, перехватит эту
+        // запись и уведомит GameActivity через GameSettingsBridge; для цели теста
+        // важно только, чтобы pickStrings позже прочитал lang='sys' из localStorage.
+        localStorage.setItem('settings', JSON.stringify({ lang: 'sys', theme: 'auto' }));
+        // i18next-заглушка: bootstrap ScoutBridge поллит window.i18next.isInitialized
+        // пока не true. Без заглушки polling бесконечный и тест виснет.
+        window.i18next = { isInitialized: true };
+        window.__sbgFakeReady = true;
+        window.__sbgFakePage = "app";
+    </script>
+</body>
+</html>

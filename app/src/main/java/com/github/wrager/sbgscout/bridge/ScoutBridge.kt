@@ -50,7 +50,9 @@ class ScoutBridge(
          * onPageStarted выполняется до того как реальный document создан.
          *
          * Локализация HTML-кнопки: читается `localStorage['settings'].lang`;
-         * если язык начинается с "ru" — русские строки, иначе английские.
+         * при значении `sys` (или пустом) язык резолвится через `navigator.language`
+         * — так же, как делает сама игра в `script.js` через `getLanguage()`.
+         * Если итоговый язык начинается с "ru" — русские строки, иначе английские.
          *
          * Нет таймаута: polling продолжается пока i18next не инициализируется.
          * Если этого не случится (нет сети) — подложка загрузки не снимается,
@@ -65,12 +67,16 @@ class ScoutBridge(
 
                 function pickStrings() {
                     try {
+                        var lang = '';
                         var raw = localStorage.getItem('settings');
                         if (raw) {
                             var parsed = JSON.parse(raw);
-                            var lang = (parsed && parsed.lang) || '';
-                            if (lang.indexOf('ru') === 0) return STRINGS.ru;
+                            lang = (parsed && parsed.lang) || '';
                         }
+                        if (lang === '' || lang === 'sys') {
+                            lang = navigator.language || '';
+                        }
+                        if (lang.indexOf('ru') === 0) return STRINGS.ru;
                     } catch (e) {}
                     return STRINGS.en;
                 }
