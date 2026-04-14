@@ -21,6 +21,11 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 
 [Скачать последний APK][releases-latest]
 
+## Требования
+
+- Android 8.0+ (API 26)
+- Для сборки: JDK 17, Android SDK 35
+
 ## Скриншоты
 
 <table>
@@ -32,11 +37,6 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 <td valign="top"><img src=".github/images/screenshots/script-manager.png" alt="Менеджер скриптов"></td>
 </tr>
 </table>
-
-## Требования
-
-- Android 8.0+ (API 26)
-- Для сборки: JDK 17, Android SDK 35
 
 ## Сборка
 
