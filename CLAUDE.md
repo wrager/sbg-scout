@@ -11,7 +11,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 ## CI (перед каждым коммитом)
 
-`./gradlew ktlintCheck detekt testInstrUnitTest assembleDebug assembleInstr assembleRelease`
+`./gradlew ktlintCheck detekt lintInstr testInstrUnitTest assembleDebug assembleInstr assembleRelease`
 
 Если сборка падает — пофиксить и повторить.
 

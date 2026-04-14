@@ -61,6 +61,7 @@
     <string name="settings_keep_screen_on">Не гасить экран</string>
     <string name="settings_keep_screen_on_summary">Не выключать экран во время игры</string>
     <string name="settings_category_scripts">Скрипты</string>
+    <string name="settings_category_game">Игра</string>
     <string name="settings_auto_update">Проверять обновления раз в день при загрузке игры</string>
     <string name="settings_category_updates">Обновления</string>
     <string name="settings_auto_check_updates">Автоматическая проверка</string>

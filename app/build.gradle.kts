@@ -17,7 +17,7 @@ android {
 
     defaultConfig {
         applicationId = "com.github.wrager.sbgscout"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 35
         val versionMajor = 0
         val versionMinor = 15
