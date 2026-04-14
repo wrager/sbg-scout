@@ -30,7 +30,7 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 
 ## Требования
 
-- Android 7.0+ (API 24)
+- Android 8.0+ (API 26)
 - Для сборки: JDK 17, Android SDK 35
 
 ## Сборка
