@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
@@ -142,12 +143,36 @@ abstract class E2ETestBase {
      */
     protected fun launchGameActivity(): ActivityScenario<GameActivity> {
         val scenario = ActivityScenario.launch(GameActivity::class.java)
+        attachIdling(scenario)
+        activeScenario = scenario
+        return scenario
+    }
+
+    /**
+     * Запускает [GameActivity] с произвольным [intent] — используется для
+     * проверки deep-link сценария (`ACTION_VIEW` + `data=sbg-game.ru/...`).
+     * Компонент выставляется явно, чтобы `ActivityScenario` разрешил запуск
+     * независимо от intent-filter манифеста (в instr-сборке host отличается
+     * от прод-фильтра `sbg-game.ru`).
+     */
+    protected fun launchGameActivityWithIntent(
+        intent: Intent,
+    ): ActivityScenario<GameActivity> {
+        intent.setClass(
+            InstrumentationRegistry.getInstrumentation().targetContext,
+            GameActivity::class.java,
+        )
+        val scenario = ActivityScenario.launch<GameActivity>(intent)
+        attachIdling(scenario)
+        activeScenario = scenario
+        return scenario
+    }
+
+    private fun attachIdling(scenario: ActivityScenario<GameActivity>) {
         scenario.onActivity { activity ->
             activity.sbgWebViewClient.onGamePageFinished = {
                 idling.markLoaded()
             }
         }
-        activeScenario = scenario
-        return scenario
     }
 }

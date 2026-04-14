@@ -2,6 +2,7 @@ package com.github.wrager.sbgscout
 
 import android.Manifest
 import android.content.ContentValues
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -104,6 +105,17 @@ class GameActivity : AppCompatActivity() {
     /** true если HTML-кнопка в `.settings-content` успешно инжектирована (нативную «Scout» можно скрыть). */
     private var scoutButtonReplaced = false
 
+    /**
+     * Deep-link URL, отложенный до окончания provisioning'а. Когда Activity
+     * запускается по `ACTION_VIEW` на `sbg-game.ru`, но при этом нужно
+     * скачать pending-пресеты, URL сохраняется сюда и применяется в
+     * [finishProvisioning] вместо дефолтного [GameUrls.appUrl].
+     */
+    private var pendingDeepLinkUrl: String? = null
+
+    /** true пока виден provisioning-overlay — в этот момент loadUrl откладывается. */
+    private var isProvisioning = false
+
     /** Применяет настройки немедленно при переключении в UI (без ожидания закрытия drawer). */
     private val preferenceChangeListener =
         android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
@@ -166,12 +178,46 @@ class GameActivity : AppCompatActivity() {
         scheduleAutoUpdateCheck(prefs)
 
         if (savedInstanceState == null) {
+            val deepLink = extractDeepLinkUrl(intent)
             if (scriptProvisioner.hasPendingScripts()) {
+                pendingDeepLinkUrl = deepLink
                 startProvisioning()
             } else {
-                webView.loadUrl(GameUrls.appUrl)
+                webView.loadUrl(deepLink ?: GameUrls.appUrl)
             }
         }
+    }
+
+    /**
+     * Обрабатывает deep-link `ACTION_VIEW` на живую Activity (`launchMode=singleTop`).
+     *
+     * Сценарий: приложение уже открыто/свёрнуто, пользователь кликнул по ссылке
+     * `https://sbg-game.ru/...` в другом приложении. Android доставляет intent
+     * в существующий инстанс `GameActivity` через `onNewIntent`, мы грузим URL
+     * в тот же единственный WebView. Если в этот момент идёт provisioning —
+     * откладываем URL до его окончания.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val deepLink = extractDeepLinkUrl(intent) ?: return
+        if (isProvisioning) {
+            pendingDeepLinkUrl = deepLink
+        } else {
+            webView.loadUrl(deepLink)
+        }
+    }
+
+    /**
+     * Возвращает URL из `ACTION_VIEW`-интента, если он принадлежит игровому
+     * хосту. Строгая проверка хоста через [GameUrls.isGameUrl] обязательна:
+     * Activity `exported=true`, и любой процесс может послать нам intent с
+     * произвольным Uri напрямую, минуя intent-filter манифеста.
+     */
+    private fun extractDeepLinkUrl(intent: Intent?): String? {
+        if (intent?.action != Intent.ACTION_VIEW) return null
+        val dataString = intent.dataString ?: return null
+        return if (GameUrls.isGameUrl(dataString)) dataString else null
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -739,6 +785,7 @@ class GameActivity : AppCompatActivity() {
 
         overlay.visibility = View.VISIBLE
         topButtons.visibility = View.GONE
+        isProvisioning = true
 
         // Сброс в состояние загрузки (актуально при повторных попытках)
         progress.isIndeterminate = true
@@ -813,7 +860,10 @@ class GameActivity : AppCompatActivity() {
 
         overlay.visibility = View.GONE
         topButtons.visibility = View.VISIBLE
-        webView.loadUrl(GameUrls.appUrl)
+        isProvisioning = false
+        val startUrl = pendingDeepLinkUrl ?: GameUrls.appUrl
+        pendingDeepLinkUrl = null
+        webView.loadUrl(startUrl)
     }
 
     /**

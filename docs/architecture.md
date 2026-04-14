@@ -8,7 +8,7 @@ Android-приложение с WebView, загружающее игру SBG (`s
 
 | Activity | Назначение |
 |---|---|
-| `GameActivity` | **LAUNCHER.** WebView с игрой, экран настроек поверх WebView, provisioning при первом запуске, автообновления |
+| `GameActivity` | **LAUNCHER.** WebView с игрой, экран настроек поверх WebView, provisioning при первом запуске, автообновления. Deep-link target для `https://sbg-game.ru/*` (`launchMode=singleTop`) |
 | `MainActivity` | Legacy-shim для совместимости с v0.1: перенаправляет в `GameActivity` и завершается |
 
 ## UI-архитектура
@@ -86,6 +86,13 @@ Android-приложение с WebView, загружающее игру SBG (`s
 - Последние применённые значения сохраняются в SharedPreferences для предотвращения recreation loop
 - `SbgScoutApplication.onCreate` применяет сохранённую тему/язык до создания любой Activity — иначе при холодном старте Activity успевает инфлейтить layout с дефолтной (не night) конфигурацией, пока `GameActivity.onCreate` не добежит до `setDefaultNightMode`
 - `GameActivity.onConfigurationChanged` (configChanges=uiMode) перечитывает цвета кнопок «Scout»/«Reload»/«[x]»/label'а/сепаратора из текущей темы, т.к. при не-пересоздании Activity view-хи держат значения цветов, разрезолвенные при инфляции
+
+### Deep-linking (открытие URL игры из внешних приложений)
+
+- Intent-filter в `AndroidManifest.xml` на `GameActivity` — `ACTION_VIEW` + `BROWSABLE` + `<data android:scheme="https" android:host="sbg-game.ru" />`: весь домен игры отдаётся нашему приложению как вариант «чем открыть». Auto-verified App Links не настроены (требуют `.well-known/assetlinks.json` на `sbg-game.ru`, домен не наш) — значит Android показывает системный picker, пользователь один раз выбирает «SBG Scout → всегда».
+- `launchMode="singleTop"` гарантирует, что deep-link-клик, пришедший пока `GameActivity` на вершине task'а, доставляется в уже живой инстанс через `onNewIntent`, а не создаёт второй `GameActivity` со своим WebView/состоянием/cookie-сессией. `singleTop` (а не `singleTask`) выбран для совместимости с `ActivityScenario` в e2e-тестах — `singleTask` ломает lifecycle-модель scenario на tearDown. У нас в task всего одна Activity-компонента (`MainActivity` — legacy-shim с `noHistory`, finish'ится сразу), поэтому `singleTop` функционально эквивалентен `singleTask` для этого сценария.
+- `GameActivity.onCreate` и `onNewIntent` извлекают URL из intent через `extractDeepLinkUrl` (строгая проверка `GameUrls.isGameUrl` — `Uri.host == GAME_HOST_MATCH`, защита от произвольного intent, посланного напрямую минуя фильтр манифеста). Если deep-link валиден — грузится в WebView, иначе — дефолтный `GameUrls.appUrl`.
+- Deep-link, пришедший во время provisioning'а (pending-пресеты качаются из сети), откладывается в `pendingDeepLinkUrl` и применяется в `finishProvisioning` вместо дефолта.
 
 ### Обработка кнопки «Назад»
 

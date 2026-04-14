@@ -1,5 +1,6 @@
 package com.github.wrager.sbgscout.config
 
+import android.net.Uri
 import androidx.annotation.VisibleForTesting
 import com.github.wrager.sbgscout.BuildConfig
 
@@ -34,5 +35,24 @@ object GameUrls {
         if (url == null) return false
         val host = hostMatchOverride ?: BuildConfig.GAME_HOST_MATCH
         return url.contains(host) && url.contains("/app")
+    }
+
+    /**
+     * Строгая проверка принадлежности URL игровому хосту по `Uri.host`
+     * (а не `contains`, чтобы `https://evil.com/?q=sbg-game.ru` не прошёл).
+     *
+     * Используется для валидации deep-link URL из внешнего `Intent.ACTION_VIEW`
+     * перед передачей в `WebView.loadUrl`. Intent-filter в манифесте уже
+     * ограничивает источники до `sbg-game.ru`, но компонент `exported`, и
+     * приложение может получить intent с произвольным Uri напрямую — без
+     * этой проверки мы загрузили бы чужой URL внутри игрового WebView.
+     */
+    fun isGameUrl(url: String?): Boolean {
+        if (url.isNullOrEmpty()) return false
+        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+        val scheme = uri.scheme?.lowercase()
+        if (scheme != "http" && scheme != "https") return false
+        val host = hostMatchOverride ?: BuildConfig.GAME_HOST_MATCH
+        return uri.host == host
     }
 }
