@@ -23,6 +23,12 @@ import com.github.wrager.sbgscout.launcher.ScriptListFragment
  */
 class SettingsFragment : PreferenceFragmentCompat() {
 
+    // Инвариант "фрагмент живёт только как overlay внутри GameActivity" закреплён
+    // KDoc на классе: точка входа приложения одна (GameActivity), standalone-запуска нет.
+    // Каст безопасен; property устраняет дублирование в местах обращения к host-активити.
+    private val gameActivity: GameActivity
+        get() = requireActivity() as GameActivity
+
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.preferences, rootKey)
 
@@ -43,12 +49,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
         requirePref<Preference>("reload_game").setOnPreferenceClickListener {
             PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .edit().putBoolean(GameActivity.KEY_RELOAD_REQUESTED, true).apply()
-            (requireActivity() as GameActivity).closeSettings()
+            gameActivity.closeSettings()
             true
         }
 
         requirePref<Preference>("check_app_update").setOnPreferenceClickListener {
-            (requireActivity() as GameActivity).showAppUpdateCheckDialog()
+            gameActivity.showAppUpdateCheckDialog()
             true
         }
 
@@ -88,10 +94,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
      * снапшот инжекции, необходимые для полного баг-репорта.
      */
     private fun reportBug() {
-        val gameActivity = requireActivity() as GameActivity
-        val consoleLogBuffer = gameActivity.consoleLogBuffer
-        val allScripts = gameActivity.getAllScripts()
-        val injectedSnapshot = gameActivity.getInjectedSnapshot()
+        val activity = gameActivity
+        val consoleLogBuffer = activity.consoleLogBuffer
+        val allScripts = activity.getAllScripts()
+        val injectedSnapshot = activity.getInjectedSnapshot()
 
         val collector = BugReportCollector(BuildConfig.VERSION_NAME, consoleLogBuffer)
         val report = collector.collect(allScripts, injectedSnapshot)
