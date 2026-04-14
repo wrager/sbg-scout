@@ -1,6 +1,9 @@
 package com.github.wrager.sbgscout.e2e
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
@@ -51,6 +54,20 @@ abstract class E2ETestBase {
         )
 
     private var activeScenario: ActivityScenario<GameActivity>? = null
+    private var savedClip: ClipData? = null
+
+    @Before
+    fun saveClipboard() {
+        // ClipboardBridgeE2ETest и ReportBugE2ETest пишут в системный clipboard
+        // эмулятора. Emulator по умолчанию синхронизирует clipboard с хостом
+        // (Windows/macOS), что затирает буфер пользователя во время тестов.
+        // Снимаем содержимое до теста и восстанавливаем в @After, чтобы тесты
+        // не имели побочных эффектов на host clipboard.
+        val manager = clipboardManager() ?: return
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            savedClip = manager.primaryClip
+        }
+    }
 
     @Before
     fun setUpE2E() {
@@ -98,6 +115,25 @@ abstract class E2ETestBase {
         GameUrls.hostMatchOverride = null
         HttpRewriterFixture.clear()
         server.shutdown()
+    }
+
+    @After
+    fun restoreClipboard() {
+        // Возвращаем clipboard к состоянию до теста. setPrimaryClip(null) —
+        // NPE, поэтому для пустого исходного буфера ставим пустой ClipData
+        // (работает с API 1, в отличие от clearPrimaryClip, доступной только
+        // с API 28).
+        val manager = clipboardManager() ?: return
+        val snapshot = savedClip ?: ClipData.newPlainText("", "")
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            manager.setPrimaryClip(snapshot)
+        }
+        savedClip = null
+    }
+
+    private fun clipboardManager(): ClipboardManager? {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        return context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
     }
 
     /**
