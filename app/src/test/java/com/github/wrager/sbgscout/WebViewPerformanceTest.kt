@@ -18,18 +18,8 @@ class WebViewPerformanceTest {
     }
 
     @Test
-    fun `configureWebViewPerformance skips renderer priority below API 26`() {
-        // В JVM unit-тестах Build.VERSION.SDK_INT = 0, поэтому ветка API 26+ пропускается.
+    fun `configureWebViewPerformance sets renderer priority to important`() {
         configureWebViewPerformance(webView)
-
-        verify(exactly = 0) {
-            webView.setRendererPriorityPolicy(any(), any())
-        }
-    }
-
-    @Test
-    fun `setImportantRendererPriority sets renderer priority to important`() {
-        setImportantRendererPriority(webView)
 
         verify {
             webView.setRendererPriorityPolicy(

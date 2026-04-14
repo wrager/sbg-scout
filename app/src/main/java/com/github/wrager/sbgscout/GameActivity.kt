@@ -21,7 +21,6 @@ import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -1230,14 +1229,6 @@ internal fun configureWebViewPerformance(webView: WebView) {
     // Не позволяет системе понижать приоритет renderer-процесса WebView.
     // Без этого под нагрузкой renderer получает меньше CPU time →
     // UI thread блокируется в ожидании кадров → ANR.
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        setImportantRendererPriority(webView)
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-@VisibleForTesting
-internal fun setImportantRendererPriority(webView: WebView) {
     webView.setRendererPriorityPolicy(
         WebView.RENDERER_PRIORITY_IMPORTANT,
         true, // понижать приоритет когда Activity невидима
