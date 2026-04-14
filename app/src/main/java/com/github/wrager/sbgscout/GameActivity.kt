@@ -21,6 +21,7 @@ import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -1220,10 +1221,7 @@ class GameActivity : AppCompatActivity() {
  * с Android RenderThread. При тяжёлом canvas (OpenLayers карта) UI thread
  * блокируется на syncFrameState, что может вызывать ANR на слабых устройствах.
  */
-internal fun configureWebViewPerformance(
-    webView: WebView,
-    sdkVersion: Int = Build.VERSION.SDK_INT,
-) {
+internal fun configureWebViewPerformance(webView: WebView) {
     // Промотировать WebView в hardware layer: контент кэшируется как GPU-текстура,
     // что улучшает compositor scheduling при тяжёлом canvas-рендеринге.
     // Референс: Anmiles (refs/anmiles/) использует ту же настройку.
@@ -1232,10 +1230,16 @@ internal fun configureWebViewPerformance(
     // Не позволяет системе понижать приоритет renderer-процесса WebView.
     // Без этого под нагрузкой renderer получает меньше CPU time →
     // UI thread блокируется в ожидании кадров → ANR.
-    if (sdkVersion >= Build.VERSION_CODES.O) {
-        webView.setRendererPriorityPolicy(
-            WebView.RENDERER_PRIORITY_IMPORTANT,
-            true, // понижать приоритет когда Activity невидима
-        )
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        setImportantRendererPriority(webView)
     }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@VisibleForTesting
+internal fun setImportantRendererPriority(webView: WebView) {
+    webView.setRendererPriorityPolicy(
+        WebView.RENDERER_PRIORITY_IMPORTANT,
+        true, // понижать приоритет когда Activity невидима
+    )
 }
