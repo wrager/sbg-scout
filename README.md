@@ -16,6 +16,7 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 - **Менеджер юзерскриптов** — установка по URL или из файла, переустановка, тогглы, предустановленные Vanilla+ и EUI (CUI в один клик без ввода URL), выбор любой версии с GitHub, обнаружение конфликтов, безопасная инжекция с поддержкой `@run-at`, JS-бриджи (clipboard, share, настройки игры)
 - **Автообновление** — проверка приложения и скриптов при запуске, диалоги с release notes и прогрессом загрузки, кнопка «Обновить все» для скриптов
 - **WebView с игрой** — полноэкранный immersive-режим, геолокация, синхронизация темы и языка из настроек игры, перезагрузка из настроек
+- **Обработка ссылок sbg-game.ru** — если назначить SBG Scout обработчиком по умолчанию (кнопка в настройках ведёт на нужный системный экран Android одним тапом), ссылки на игру из других приложений будут открываться в SBG Scout
 
 ## Скачать
 
@@ -23,10 +24,15 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 
 ## Скриншоты
 
-<table><tr>
-<td valign="top"><img src=".github/images/screenshots/settings.png" alt="Настройки"></td>
+<table>
+<tr>
+<td valign="top"><img src=".github/images/screenshots/game_settings.png" alt="Настройки игры со встроенной кнопкой SBG Scout"></td>
+</tr>
+<tr>
+<td valign="top"><img src=".github/images/screenshots/settings.png" alt="Настройки приложения"></td>
 <td valign="top"><img src=".github/images/screenshots/script-manager.png" alt="Менеджер скриптов"></td>
-</tr></table>
+</tr>
+</table>
 
 ## Требования
 
