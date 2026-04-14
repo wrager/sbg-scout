@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>sbg fake login</title>
+</head>
+<body>
+    <div id="login-root">fake login page</div>
+    <button id="fake-telegram-auth" onclick="submitTelegramStub()">Sign in</button>
+    <script>
+        window.__sbgFakePage = "login";
+        // submitTelegramStub отправляет POST на /login/callback.
+        // FakeGameDispatcher отвечает 302 на /app + Set-Cookie.
+        function submitTelegramStub() {
+            fetch("/login/callback", { method: "POST", body: "stub" })
+                .then(function () { window.location.href = "/app"; });
+        }
+    </script>
+</body>
+</html>

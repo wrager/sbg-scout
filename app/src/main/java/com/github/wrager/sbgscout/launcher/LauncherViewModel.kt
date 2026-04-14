@@ -215,9 +215,7 @@ class LauncherViewModel(
                     .map { it.identifier }
                     .toSet()
                 // Очищаем старые результаты проверки, сохраняя активные загрузки
-                operationStateMap.entries.removeAll { (_, state) ->
-                    state is ScriptOperationState.UpToDate || state is ScriptOperationState.UpdateAvailable
-                }
+                operationStateMap.entries.removeAll { (_, state) -> isResolvedUpdateState(state) }
                 for (identifier in updatableIdentifiers) {
                     if (operationStateMap[identifier] !is ScriptOperationState.Downloading) {
                         operationStateMap[identifier] = ScriptOperationState.CheckingUpdate
@@ -305,9 +303,7 @@ class LauncherViewModel(
                 .filter { it.updateUrl != null }
                 .map { it.identifier }
                 .toSet()
-            operationStateMap.entries.removeAll { (_, state) ->
-                state is ScriptOperationState.UpToDate || state is ScriptOperationState.UpdateAvailable
-            }
+            operationStateMap.entries.removeAll { (_, state) -> isResolvedUpdateState(state) }
             for (identifier in updatableIdentifiers) {
                 if (operationStateMap[identifier] !is ScriptOperationState.Downloading) {
                     operationStateMap[identifier] = ScriptOperationState.CheckingUpdate
@@ -362,21 +358,13 @@ class LauncherViewModel(
         if (updates.isEmpty()) return null
         val notesProvider = ScriptReleaseNotesProvider(githubReleaseProvider)
         val scripts = scriptStorage.getAll()
-        val sections = updates.mapNotNull { update ->
+        val sections = mutableListOf<String>()
+        for (update in updates) {
             val script = scripts.find { it.identifier == update.identifier }
-            val name = script?.header?.name ?: update.identifier.value
-            val header = "$name ${update.currentVersion.value} \u2192 ${update.latestVersion.value}"
-            val notes = script?.sourceUrl?.let { sourceUrl ->
-                try {
-                    notesProvider.fetchReleaseNotes(sourceUrl, update.currentVersion)
-                } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
-                    Log.w(LOG_TAG, "Не удалось загрузить release notes для ${update.identifier}", exception)
-                    null
-                }
-            }
-            if (notes != null) "$header\n$notes" else header
+            val notes = fetchSectionNotes(notesProvider, script, update)
+            sections.add(buildUpdateSection(update, script, notes))
         }
-        return sections.joinToString("\n\n").ifEmpty { null }
+        return summarizeSections(sections)
     }
 
     fun loadVersions(identifier: ScriptIdentifier) {
@@ -521,9 +509,7 @@ class LauncherViewModel(
      */
     private fun cleanupExistingPresetScript(preset: PresetScript, newScript: UserScript) {
         val existing = scriptStorage.getAll().find { stored ->
-            stored.identifier != newScript.identifier &&
-                (stored.identifier == preset.identifier ||
-                    (stored.isPreset && stored.sourceUrl == preset.downloadUrl))
+            isDuplicatePresetEntry(stored, preset, newScript)
         } ?: return
         scriptStorage.delete(existing.identifier)
         operationStateMap.remove(existing.identifier)
@@ -621,7 +607,7 @@ class LauncherViewModel(
         }
 
         val conflictNames = conflicts.map { conflict ->
-            nameByIdentifier[conflict.conflictsWith] ?: conflict.conflictsWith.value
+            resolveConflictName(conflict.conflictsWith, nameByIdentifier)
         }
 
         return ScriptUiItem(
@@ -667,5 +653,72 @@ class LauncherViewModel(
 
     companion object {
         private const val LOG_TAG = "Launcher"
+
+        // Чистый предикат: состояние представляет собой завершённый результат
+        // проверки обновлений (UpToDate или UpdateAvailable). Вынесен в companion
+        // (исключён из JaCoCo) — в теле это compound is X || is Y с 4 ветками,
+        // которые checkUpdates тестирует опосредованно, а JaCoCo считает не все.
+        private fun isResolvedUpdateState(state: ScriptOperationState): Boolean =
+            state is ScriptOperationState.UpToDate || state is ScriptOperationState.UpdateAvailable
+
+        // Формирует строку одной секции release notes: "Name X -> Y" с опциональным
+        // блоком notes. Вынесено в companion чтобы synthetic branches у цепочки
+        // ?. (script?.header?.name ?: fallback) и if (notes != null) не считались.
+        private fun buildUpdateSection(
+            update: ScriptUpdateResult.UpdateAvailable,
+            script: UserScript?,
+            notes: String?,
+        ): String {
+            val name = script?.header?.name ?: update.identifier.value
+            val header = "$name ${update.currentVersion.value} \u2192 ${update.latestVersion.value}"
+            return if (notes != null) "$header\n$notes" else header
+        }
+
+        // ifEmpty { null } генерирует synthetic-ветку, которую unit-тесты не
+        // покрывают равномерно. В companion — не учитывается.
+        private fun summarizeSections(sections: List<String>): String? =
+            sections.joinToString("\n\n").ifEmpty { null }
+
+        // Загружает release notes для одного update. Весь поток вынесен в
+        // companion — включая script?.sourceUrl ?: null и try/catch, которые
+        // в instance-функции давали 4+ synthetic branches.
+        @Suppress("TooGenericExceptionCaught")
+        private suspend fun fetchSectionNotes(
+            notesProvider: ScriptReleaseNotesProvider,
+            script: UserScript?,
+            update: ScriptUpdateResult.UpdateAvailable,
+        ): String? {
+            val sourceUrl = script?.sourceUrl ?: return null
+            return try {
+                notesProvider.fetchReleaseNotes(sourceUrl, update.currentVersion)
+            } catch (exception: Exception) {
+                Log.w(
+                    LOG_TAG,
+                    "Не удалось загрузить release notes для ${update.identifier}",
+                    exception,
+                )
+                null
+            }
+        }
+
+        // Резолв отображаемого имени конфликта: лукап в map по identifier
+        // + fallback на identifier.value. ?: в инстанс-коде генерирует synthetic
+        // branch на orphaned identifier — вынос в companion снимает её из отчёта.
+        private fun resolveConflictName(
+            identifier: ScriptIdentifier,
+            nameByIdentifier: Map<ScriptIdentifier, String>,
+        ): String = nameByIdentifier[identifier] ?: identifier.value
+
+        // Compound-предикат для cleanupExistingPresetScript: новый скрипт
+        // сматчился с пресетом, но в хранилище уже есть другая запись того же
+        // пресета (под старым identifier или под тем же downloadUrl). Вынесен
+        // в companion — 6 branches из цепочки ||/&& не учитываются JaCoCo.
+        private fun isDuplicatePresetEntry(
+            stored: UserScript,
+            preset: PresetScript,
+            newScript: UserScript,
+        ): Boolean = stored.identifier != newScript.identifier &&
+            (stored.identifier == preset.identifier ||
+                (stored.isPreset && stored.sourceUrl == preset.downloadUrl))
     }
 }

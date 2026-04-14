@@ -266,3 +266,74 @@ app/src/main/java/com/github/wrager/sbgscout/
 └── webview/
     └── SbgWebViewClient.kt  Загрузка страниц, инжекция, чтение настроек, close()
 ```
+
+## e2e-инфраструктура
+
+Тестирование пользовательских сценариев на реальном WebView идёт через отдельный buildType `instr` (сокращение от *instrumentation* — по задаче Gradle `connectedInstrAndroidTest`), локальный fake-сервер и source set `androidTest/`.
+
+### buildType `instr`
+
+- Наследуется от `debug` (`initWith(debug)`) c `applicationIdSuffix = ".instr"` — тестовый APK ставится параллельно debug-сборке на эмуляторе, не затирая её.
+- Свой `BuildConfig.GAME_APP_URL / GAME_LOGIN_URL / GAME_HOST_MATCH` указывает на `http://127.0.0.1` — вместо `sbg-game.ru`.
+- `testBuildType = "instr"` делает `connectedAndroidTest` запускающим именно instr-вариант APK (задача `connectedInstrAndroidTest`). Побочный эффект: AGP генерирует unit-тесты только как `testInstrUnitTest` (см. команду CI в корневом CLAUDE.md). Это обычные JVM unit-тесты из `app/src/test/`, не инструментированные — имя складывается по шаблону `test<BuildType>UnitTest`.
+- `testOptions.execution = "ANDROIDX_TEST_ORCHESTRATOR"` + `clearPackageData` — каждый e2e-тест стартует в своём процессе с чистым состоянием (SharedPreferences, WebView cookies, files).
+- Source set `app/src/instr/` содержит свой `network_security_config.xml` (cleartext разрешён только для `127.0.0.1` и `localhost`) и `AndroidManifest.xml` с `tools:replace` — прод-сборки остаются без послаблений network security.
+
+### Централизация URL игры
+
+Все URL игры читаются из единого объекта [`GameUrls`](../app/src/main/java/com/github/wrager/sbgscout/config/GameUrls.kt):
+
+- В прод-коде — возвращает значения из `BuildConfig.GAME_*`.
+- В androidTest — `appUrlOverride/loginUrlOverride/hostMatchOverride` (annotated `@VisibleForTesting internal`) переопределяются через `GameUrlsOverrideRule` на базовый URL `FakeGameServer` (`http://127.0.0.1:<port>`).
+- `GameUrls.isGameAppPage(url)` заменил захардкоженные `url?.contains("sbg-game.ru/app")` в `SbgWebViewClient` — guard работает одинаково в проде и на локальном loopback.
+
+### Fake-сервер (`FakeGameServer` + `FakeGameDispatcher`)
+
+Обёртка над OkHttp `MockWebServer`, поднимается на `127.0.0.1:<random-port>` в том же процессе, что и приложение (instrumented-тесты — один процесс, loopback работает без `10.0.2.2`).
+
+`FakeGameDispatcher` маршрутизирует запросы по путям:
+- `GET /app[*]` — при отсутствии cookie `hittoken=<fake>` отвечает `302 Location: /login`; иначе — HTML игровой страницы из `server.gamePageBody`.
+- `GET /login[*]` — HTML логина из `server.loginPageBody`.
+- `POST /login/callback` — `302 Location: /app` + `Set-Cookie` fake-сессии.
+- Остальные пути — `404`, `favicon.ico` — `204`.
+
+Тесты задают `gamePageBody` / `loginPageBody` перед стартом сценария. Фикстуры HTML лежат в `app/src/androidTest/assets/fixtures/` и читаются через `AssetLoader` (из `instrumentation.context`, не `targetContext`).
+
+### Синхронизация WebView
+
+`SbgWebViewClient.onGamePageFinished: (() -> Unit)?` — callback, вызываемый после `super.onPageFinished` для страницы, прошедшей `GameUrls.isGameAppPage`. Используется `WebViewIdlingResource` (`IdlingResource`) для ожидания Espresso до момента, когда JS-мосты зарегистрированы и `evaluateJavascript` безопасно вызывать.
+
+`GameActivity.webView` и `GameActivity.sbgWebViewClient` помечены `@VisibleForTesting internal` — `E2ETestBase` подписывает idling на `onGamePageFinished` через `scenario.onActivity { ... }`.
+
+### Структура androidTest
+
+```
+app/src/androidTest/java/com/github/wrager/sbgscout/e2e/
+├── E2ETestBase.kt                    Жизненный цикл сервера/idling, grant location permission, launchGameActivity
+├── infra/
+│   ├── FakeGameServer.kt             Обёртка над MockWebServer, gamePageBody/loginPageBody
+│   ├── FakeGameDispatcher.kt         Маршрутизация /app, /login, /login/callback
+│   ├── WebViewIdlingResource.kt      IdlingResource, становится idle по markLoaded
+│   ├── GameUrlsOverrideRule.kt       TestRule для runtime-override GameUrls
+│   ├── CookieFixtures.kt             Инъекция fake session-cookie через CookieManager
+│   └── AssetLoader.kt                Чтение фикстур из androidTest/assets
+├── screens/
+│   ├── Screen.kt, GameScreen.kt, SettingsScreen.kt, LoginScreen.kt
+└── flows/
+    ├── smoke/GameLoadsSmokeTest.kt, ClipboardBridgeE2ETest.kt
+    ├── settings/SettingsScreenE2ETest.kt
+    └── auth/LoginFlowE2ETest.kt
+app/src/androidTest/assets/fixtures/  Минимальные HTML/JSON фикстуры
+app/src/instr/
+├── AndroidManifest.xml               tools:replace android:networkSecurityConfig
+└── res/xml/network_security_config.xml  cleartext для 127.0.0.1 / localhost
+```
+
+### CI
+
+`.github/workflows/e2e.yml` — отдельный workflow на `reactivecircus/android-emulator-runner` (API 33, x86_64, pixel_4), запускается по `pull_request` с path-filter (`app/src/main/**`, `app/src/androidTest/**`, `app/src/instr/**`, `app/build.gradle.kts`, `gradle/libs.versions.toml`) и `workflow_dispatch`. AVD snapshot кэшируется между запусками. Не добавлен в `push: main`, чтобы не блокировать мердж долгим прогоном эмулятора. Основной `ci.yml` собирает instr-APK (`assembleInstr`) для быстрого ловли поломок сборки до запуска emulator runner.
+
+### Запрет обращений к прод-серверу
+
+e2e-тесты **никогда** не обращаются к реальному `sbg-game.ru`. Причина — правила игры квалифицируют автоматизированные обращения как нарушение, что приводит к блокировке аккаунта разработчика. Все HTTP-запросы WebView идут на `127.0.0.1:<port>` fake-сервера; централизация URL через `GameUrls` + `BuildConfig` делает это структурным инвариантом, а не договорённостью.
+

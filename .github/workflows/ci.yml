@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -30,10 +29,16 @@ jobs:
         run: ./gradlew detekt
 
       - name: Android Lint
-        run: ./gradlew lintDebug
+        run: ./gradlew lintInstr
 
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew testInstrUnitTest
 
       - name: Build debug APK
         run: ./gradlew assembleDebug
+
+      - name: Build instrumentation APK
+        run: ./gradlew assembleInstr
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease

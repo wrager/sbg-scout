@@ -1,6 +1,5 @@
 package com.github.wrager.sbgscout
 
-import android.os.Build
 import android.view.View
 import android.webkit.WebView
 import io.mockk.mockk
@@ -19,23 +18,14 @@ class WebViewPerformanceTest {
     }
 
     @Test
-    fun `configureWebViewPerformance sets renderer priority on API 26+`() {
-        configureWebViewPerformance(webView, sdkVersion = Build.VERSION_CODES.O)
+    fun `configureWebViewPerformance sets renderer priority to important`() {
+        configureWebViewPerformance(webView)
 
         verify {
             webView.setRendererPriorityPolicy(
                 WebView.RENDERER_PRIORITY_IMPORTANT,
                 true,
             )
-        }
-    }
-
-    @Test
-    fun `configureWebViewPerformance skips renderer priority below API 26`() {
-        configureWebViewPerformance(webView, sdkVersion = Build.VERSION_CODES.N_MR1)
-
-        verify(exactly = 0) {
-            webView.setRendererPriorityPolicy(any(), any())
         }
     }
 }

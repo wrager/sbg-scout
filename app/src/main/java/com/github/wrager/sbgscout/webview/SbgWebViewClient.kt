@@ -11,6 +11,7 @@ import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.bridge.DownloadBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
 import com.github.wrager.sbgscout.bridge.ScoutBridge
+import com.github.wrager.sbgscout.config.GameUrls
 import com.github.wrager.sbgscout.script.injector.InjectionResult
 import com.github.wrager.sbgscout.script.injector.ScriptInjector
 
@@ -24,9 +25,29 @@ class SbgWebViewClient(
     /** Вызывается при старте загрузки страницы игры (в т.ч. при reload). */
     var onGamePageStarted: (() -> Unit)? = null
 
+    @Volatile
+    private var gamePageFinishedAtLeastOnce = false
+
+    /**
+     * Вызывается после `onPageFinished` страницы игры.
+     * Используется в androidTest как сигнал для IdlingResource:
+     * на этом моменте JS-мосты уже зарегистрированы и WebView готова
+     * к вызовам `evaluateJavascript`.
+     *
+     * Setter idempotent по истории: если к моменту установки страница уже
+     * была загружена хотя бы раз, callback вызывается сразу. Это лечит race
+     * condition в e2e: на localhost загрузка может завершиться раньше, чем
+     * тест успеет подписаться через `scenario.onActivity`.
+     */
+    var onGamePageFinished: (() -> Unit)? = null
+        set(value) {
+            field = value
+            if (gamePageFinishedAtLeastOnce) value?.invoke()
+        }
+
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
-        if (url?.contains("sbg-game.ru/app") == true && view != null) {
+        if (GameUrls.isGameAppPage(url) && view != null) {
             // Перехватчики blob-скачиваний и localStorage ПЕРЕД инжекцией скриптов.
             // Download-перехват должен быть установлен до того, как юзерскрипт
             // успеет вызвать URL.createObjectURL — иначе blob не попадёт в кеш.
@@ -44,7 +65,7 @@ class SbgWebViewClient(
 
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
-        if (url?.contains("sbg-game.ru/app") == true && view != null) {
+        if (GameUrls.isGameAppPage(url) && view != null) {
             // Начальное чтение настроек (на случай если localStorage уже заполнен
             // до инжекции обёртки, например при навигации по истории)
             onGameSettingsRead?.let { callback ->
@@ -52,6 +73,8 @@ class SbgWebViewClient(
                     callback(unescapeJsString(result))
                 }
             }
+            gamePageFinishedAtLeastOnce = true
+            onGamePageFinished?.invoke()
         }
     }
 
@@ -73,7 +96,8 @@ class SbgWebViewClient(
     }
 
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-        val url = request?.url?.toString() ?: return false
+        val uri = request?.url ?: return false
+        val url = uri.toString()
         if (url.contains("window.close")) {
             val context = view?.context
             if (context is Activity) context.finish()

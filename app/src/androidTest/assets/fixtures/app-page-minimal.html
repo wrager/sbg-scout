@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>sbg fake app</title>
+</head>
+<body>
+    <div id="game-root">fake app page</div>
+    <script>
+        // i18next-заглушка: ScoutBridge.BOOTSTRAP_SCRIPT поллит каждые 100ms,
+        // пока window.i18next.isInitialized не станет true. Без заглушки polling
+        // бесконечный и держит main thread / Espresso в non-idle состоянии —
+        // тесты виснут. Устанавливаем сразу, до того как bootstrap стартует.
+        window.i18next = { isInitialized: true };
+        window.__sbgFakeReady = true;
+        window.__sbgFakePage = "app";
+    </script>
+</body>
+</html>

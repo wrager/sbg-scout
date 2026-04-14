@@ -137,6 +137,24 @@ class ScriptUpdateCheckerTest {
         assertEquals(2, results.size)
     }
 
+    @Test
+    fun `checkAllForUpdates filters out scripts with null updateUrl`() = runTest {
+        // Покрывает ветку `.filter { it.updateUrl != null }` = false —
+        // скрипт без updateUrl (sideloaded из файла) не должен попасть в
+        // результат, иначе checker дёрнет null URL и упадёт.
+        val scriptWithUpdate = createScript(version = "1.0.0")
+        val scriptWithoutUpdate = createScript(version = "1.0.0", updateUrl = null).copy(
+            identifier = ScriptIdentifier("test/no-update"),
+        )
+        coEvery { scriptStorage.getAll() } returns listOf(scriptWithUpdate, scriptWithoutUpdate)
+        coEvery { httpFetcher.fetch(any()) } returns META_VERSION_1
+
+        val results = checker.checkAllForUpdates()
+
+        assertEquals("Без-updateUrl скрипт должен быть отфильтрован", 1, results.size)
+        assertEquals(testIdentifier, (results.single() as ScriptUpdateResult.UpToDate).identifier)
+    }
+
     companion object {
         private val META_VERSION_1 = """
             // ==UserScript==

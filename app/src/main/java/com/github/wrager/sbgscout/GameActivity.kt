@@ -21,6 +21,7 @@ import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.core.content.ContextCompat
@@ -45,9 +46,9 @@ import com.github.wrager.sbgscout.bridge.DownloadBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
 import com.github.wrager.sbgscout.bridge.ScoutBridge
 import com.github.wrager.sbgscout.bridge.ShareBridge
+import com.github.wrager.sbgscout.config.GameUrls
 import com.github.wrager.sbgscout.diagnostic.ConsoleLogBuffer
 import com.github.wrager.sbgscout.game.GameSettingsReader
-import com.github.wrager.sbgscout.launcher.LauncherActivity
 import com.github.wrager.sbgscout.launcher.ScriptListFragment
 import com.github.wrager.sbgscout.script.injector.InjectionStateStorage
 import com.github.wrager.sbgscout.script.injector.ScriptInjector
@@ -57,7 +58,6 @@ import com.github.wrager.sbgscout.script.storage.ScriptStorage
 import com.github.wrager.sbgscout.script.storage.ScriptStorageImpl
 import com.github.wrager.sbgscout.script.updater.DefaultHttpFetcher
 import com.github.wrager.sbgscout.script.updater.GithubReleaseProvider
-import com.github.wrager.sbgscout.script.updater.PendingScriptUpdateStorage
 import com.github.wrager.sbgscout.script.updater.ScriptReleaseNotesProvider
 import com.github.wrager.sbgscout.script.updater.ScriptUpdateChecker
 import com.github.wrager.sbgscout.script.updater.ScriptUpdateResult
@@ -81,12 +81,19 @@ import kotlinx.coroutines.launch
 class GameActivity : AppCompatActivity() {
 
     private lateinit var rootLayout: FrameLayout
-    private lateinit var webView: WebView
+
+    @VisibleForTesting
+    internal lateinit var webView: WebView
+
+    @VisibleForTesting
+    internal lateinit var sbgWebViewClient: SbgWebViewClient
     private lateinit var scriptStorage: ScriptStorage
     val consoleLogBuffer = ConsoleLogBuffer()
     private lateinit var scriptProvisioner: DefaultScriptProvisioner
     private var injectionStateStorage: InjectionStateStorage? = null
-    private var isFullscreen = false
+    @VisibleForTesting
+    internal var isFullscreen = false
+        private set
     private val gameSettingsReader = GameSettingsReader()
     private var lastAppliedTheme: GameSettingsReader.ThemeMode? = null
     private var lastAppliedLanguage: String? = null
@@ -162,7 +169,7 @@ class GameActivity : AppCompatActivity() {
             if (scriptProvisioner.hasPendingScripts()) {
                 startProvisioning()
             } else {
-                webView.loadUrl(GAME_URL)
+                webView.loadUrl(GameUrls.appUrl)
             }
         }
     }
@@ -188,8 +195,8 @@ class GameActivity : AppCompatActivity() {
         theme.resolveAttribute(android.R.attr.colorBackground, typedValue, true)
         @Suppress("ResourceType") // colorBackground — цвет, не drawable
         val backgroundColor = ContextCompat.getColor(this, typedValue.resourceId)
-        findViewById<View>(R.id.settingsContainer)?.setBackgroundColor(backgroundColor)
-        findViewById<View>(R.id.closeSettingsFooterPanel)?.setBackgroundColor(backgroundColor)
+        findViewById<View>(R.id.settingsContainer).setBackgroundColor(backgroundColor)
+        findViewById<View>(R.id.closeSettingsFooterPanel).setBackgroundColor(backgroundColor)
 
         // Перечитать цвета кнопок «Scout»/«Reload»/«[x]» и сепаратора из текущей
         // темы (resources тянут значения из values-night при dark-режиме).
@@ -218,13 +225,13 @@ class GameActivity : AppCompatActivity() {
         val contentTint = android.content.res.ColorStateList.valueOf(content)
         val strokeTint = android.content.res.ColorStateList.valueOf(stroke)
         for (id in intArrayOf(R.id.settingsButton, R.id.reloadButton, R.id.closeSettingsButton)) {
-            val button = findViewById<MaterialButton>(id) ?: continue
+            val button = findViewById<MaterialButton>(id)
             button.backgroundTintList = backgroundTint
             button.setTextColor(content)
             button.iconTint = contentTint
             button.strokeColor = strokeTint
         }
-        findViewById<android.widget.TextView>(R.id.gameInitializingLabel)?.setTextColor(content)
+        findViewById<android.widget.TextView>(R.id.gameInitializingLabel).setTextColor(content)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -233,9 +240,9 @@ class GameActivity : AppCompatActivity() {
             val prefs = PreferenceManager.getDefaultSharedPreferences(this)
             applyFullscreen(prefs.getBoolean(KEY_FULLSCREEN_MODE, false))
             applyKeepScreenOn(prefs.getBoolean(KEY_KEEP_SCREEN_ON, true))
-            if (prefs.getBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, false)) {
-                prefs.edit().remove(LauncherActivity.KEY_RELOAD_REQUESTED).apply()
-                webView.loadUrl(GAME_URL)
+            if (prefs.getBoolean(KEY_RELOAD_REQUESTED, false)) {
+                prefs.edit().remove(KEY_RELOAD_REQUESTED).apply()
+                webView.loadUrl(GameUrls.appUrl)
             }
         }
     }
@@ -438,9 +445,9 @@ class GameActivity : AppCompatActivity() {
             versionName = BuildConfig.VERSION_NAME,
             injectionStateStorage = injectionStateStorage,
         )
-        val webViewClient = SbgWebViewClient(scriptInjector)
-        webViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
-        webViewClient.onGamePageStarted = {
+        sbgWebViewClient = SbgWebViewClient(scriptInjector)
+        sbgWebViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
+        sbgWebViewClient.onGamePageStarted = {
             runOnUiThread {
                 gameReady = false
                 scoutButtonReplaced = false
@@ -448,7 +455,7 @@ class GameActivity : AppCompatActivity() {
                 showLoadingOverlay()
             }
         }
-        webView.webViewClient = webViewClient
+        webView.webViewClient = sbgWebViewClient
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
@@ -596,7 +603,7 @@ class GameActivity : AppCompatActivity() {
             .commit()
 
         settingsButton.setOnClickListener { openSettings() }
-        reloadButton.setOnClickListener { webView.loadUrl(GAME_URL) }
+        reloadButton.setOnClickListener { webView.loadUrl(GameUrls.appUrl) }
         closeButton.setOnClickListener { closeSettings() }
 
         // Настройки — отдельный экран поверх WebView; закрытие программное
@@ -708,9 +715,9 @@ class GameActivity : AppCompatActivity() {
     /** Выполнить отложенные действия при закрытии настроек (перезагрузка игры). */
     private fun applySettingsAfterClose() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        if (prefs.getBoolean(LauncherActivity.KEY_RELOAD_REQUESTED, false)) {
-            prefs.edit().remove(LauncherActivity.KEY_RELOAD_REQUESTED).apply()
-            webView.loadUrl(GAME_URL)
+        if (prefs.getBoolean(KEY_RELOAD_REQUESTED, false)) {
+            prefs.edit().remove(KEY_RELOAD_REQUESTED).apply()
+            webView.loadUrl(GameUrls.appUrl)
         }
     }
 
@@ -806,7 +813,7 @@ class GameActivity : AppCompatActivity() {
 
         overlay.visibility = View.GONE
         topButtons.visibility = View.VISIBLE
-        webView.loadUrl(GAME_URL)
+        webView.loadUrl(GameUrls.appUrl)
     }
 
     /**
@@ -1140,11 +1147,6 @@ class GameActivity : AppCompatActivity() {
             .setTitle(R.string.script_updates_available)
             .setView(container)
             .setPositiveButton(R.string.update) { _, _ ->
-                // Сохраняем описание обновлений для показа при следующем открытии лаунчера
-                val pendingStorage = PendingScriptUpdateStorage(
-                    getSharedPreferences("scripts", MODE_PRIVATE),
-                )
-                pendingStorage.save(details)
                 openScriptManagerWithAutoUpdate()
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -1188,7 +1190,6 @@ class GameActivity : AppCompatActivity() {
     )
 
     companion object {
-        private const val GAME_URL = "https://sbg-game.ru/app"
         private const val LOG_TAG = "SbgWebView"
         private const val KEY_FULLSCREEN_MODE = "fullscreen_mode"
         private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
@@ -1201,6 +1202,14 @@ class GameActivity : AppCompatActivity() {
         private const val UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
         private const val RELEASE_NOTES_MAX_HEIGHT_DP = 200
         private const val RELEASE_NOTES_PADDING_DP = 24
+
+        /**
+         * Флаг отложенной перезагрузки страницы игры. Ставится из
+         * [SettingsFragment] (preference `reload_game`) и [ScriptListFragment]
+         * (кнопка `reloadButton`) перед закрытием overlay; применяется в
+         * [applySettingsAfterClose] при следующем `dismissSettings()`.
+         */
+        const val KEY_RELOAD_REQUESTED = "reload_requested"
     }
 }
 
@@ -1211,10 +1220,7 @@ class GameActivity : AppCompatActivity() {
  * с Android RenderThread. При тяжёлом canvas (OpenLayers карта) UI thread
  * блокируется на syncFrameState, что может вызывать ANR на слабых устройствах.
  */
-internal fun configureWebViewPerformance(
-    webView: WebView,
-    sdkVersion: Int = Build.VERSION.SDK_INT,
-) {
+internal fun configureWebViewPerformance(webView: WebView) {
     // Промотировать WebView в hardware layer: контент кэшируется как GPU-текстура,
     // что улучшает compositor scheduling при тяжёлом canvas-рендеринге.
     // Референс: Anmiles (refs/anmiles/) использует ту же настройку.
@@ -1223,10 +1229,8 @@ internal fun configureWebViewPerformance(
     // Не позволяет системе понижать приоритет renderer-процесса WebView.
     // Без этого под нагрузкой renderer получает меньше CPU time →
     // UI thread блокируется в ожидании кадров → ANR.
-    if (sdkVersion >= Build.VERSION_CODES.O) {
-        webView.setRendererPriorityPolicy(
-            WebView.RENDERER_PRIORITY_IMPORTANT,
-            true, // понижать приоритет когда Activity невидима
-        )
-    }
+    webView.setRendererPriorityPolicy(
+        WebView.RENDERER_PRIORITY_IMPORTANT,
+        true, // понижать приоритет когда Activity невидима
+    )
 }

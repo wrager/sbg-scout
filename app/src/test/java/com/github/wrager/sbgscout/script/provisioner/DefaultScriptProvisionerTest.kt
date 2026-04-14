@@ -132,6 +132,71 @@ class DefaultScriptProvisionerTest {
         verify { editor.putStringSet("provisioned_defaults", setOf("github.com/wrager/sbg-vanilla-plus")) }
     }
 
+    @Test
+    fun `hasPendingScripts returns true when no presets provisioned`() {
+        // Покрывает ветку isNotEmpty() = true в hasPendingScripts().
+        assertTrue(provisioner.hasPendingScripts())
+    }
+
+    @Test
+    fun `hasPendingScripts returns false when all enabled presets are provisioned`() {
+        // Покрывает ветку isNotEmpty() = false в hasPendingScripts().
+        // Только SVP имеет enabledByDefault=true — помечаем его как provisioned.
+        every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns
+            setOf("github.com/wrager/sbg-vanilla-plus")
+
+        assertFalse(provisioner.hasPendingScripts())
+    }
+
+    @Test
+    fun `isProvisioned returns true for identifier in provisioned set`() {
+        // Покрывает основную ветку isProvisioned = true.
+        every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns
+            setOf("github.com/wrager/sbg-vanilla-plus")
+
+        assertTrue(provisioner.isProvisioned(ScriptIdentifier("github.com/wrager/sbg-vanilla-plus")))
+    }
+
+    @Test
+    fun `isProvisioned returns false for identifier not in provisioned set`() {
+        // Покрывает ветку isProvisioned = false.
+        every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns
+            setOf("other/preset")
+
+        assertFalse(provisioner.isProvisioned(ScriptIdentifier("github.com/wrager/sbg-vanilla-plus")))
+    }
+
+    @Test
+    fun `provision treats null getStringSet as empty set`() = runTest {
+        // SharedPreferences API допускает null из getStringSet, `?: emptySet()`
+        // защитный elvis — тесты должны покрыть null-ветку.
+        every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns null
+        val script = testScript(identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus"))
+        coEvery { downloader.download(any(), isPreset = true) } returns
+            ScriptDownloadResult.Success(script)
+
+        val result = provisioner.provision()
+
+        assertTrue(result)
+        coVerify { downloader.download(any(), isPreset = true) }
+    }
+
+    @Test
+    fun `isProvisioned treats null getStringSet as empty set`() {
+        every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns null
+
+        assertFalse(provisioner.isProvisioned(ScriptIdentifier("github.com/wrager/sbg-vanilla-plus")))
+    }
+
+    @Test
+    fun `markProvisioned treats null current set as empty`() {
+        every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns null
+
+        provisioner.markProvisioned(ScriptIdentifier("some/preset"))
+
+        verify { editor.putStringSet("provisioned_defaults", setOf("some/preset")) }
+    }
+
     private fun testScript(
         identifier: ScriptIdentifier = ScriptIdentifier("test/script"),
         sourceUrl: String = "https://example.com/script.user.js",

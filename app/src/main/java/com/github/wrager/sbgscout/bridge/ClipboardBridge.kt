@@ -10,7 +10,10 @@ class ClipboardBridge(private val context: Context) {
     @JavascriptInterface
     fun readText(): String {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        return clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+        val clip = clipboard.primaryClip ?: return ""
+        if (clip.itemCount == 0) return ""
+        val text = clip.getItemAt(0)?.text ?: return ""
+        return text.toString()
     }
 
     @JavascriptInterface

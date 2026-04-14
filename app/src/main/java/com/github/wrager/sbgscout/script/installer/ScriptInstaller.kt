@@ -44,9 +44,10 @@ class ScriptInstaller(private val scriptStorage: ScriptStorage) {
     }
 
     private fun buildIdentifier(namespace: String?, name: String): ScriptIdentifier {
-        val prefix = namespace
-            ?.removePrefix("https://")
-            ?.removePrefix("http://")
+        // `removePrefix` возвращает non-null String, поэтому цепочка `?.` →
+        // `let { ... }` с одним null-check на namespace устраняет мёртвую
+        // ветку второго `?.`, которую JaCoCo считает непокрытой.
+        val prefix = namespace?.let { it.removePrefix("https://").removePrefix("http://") }
         return if (prefix != null) {
             ScriptIdentifier("$prefix/$name")
         } else {

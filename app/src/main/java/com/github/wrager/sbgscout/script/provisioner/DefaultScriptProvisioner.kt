@@ -47,17 +47,22 @@ class DefaultScriptProvisioner(
                 isPreset = true,
                 onProgress = onDownloadProgress,
             )
-            if (result is ScriptDownloadResult.Success) {
-                scriptStorage.setEnabled(result.script.identifier, true)
-                markProvisioned(preset.identifier)
-                Log.i(LOG_TAG, "Автозагрузка: ${preset.displayName}")
-            } else if (result is ScriptDownloadResult.Failure) {
-                allSucceeded = false
-                Log.w(
-                    LOG_TAG,
-                    "Автозагрузка: не удалось загрузить ${preset.displayName}",
-                    result.error,
-                )
+            // sealed class ScriptDownloadResult → when exhaustive, без `else if`
+            // с недостижимой false-веткой, которую JaCoCo считал непокрытой.
+            when (result) {
+                is ScriptDownloadResult.Success -> {
+                    scriptStorage.setEnabled(result.script.identifier, true)
+                    markProvisioned(preset.identifier)
+                    Log.i(LOG_TAG, "Автозагрузка: ${preset.displayName}")
+                }
+                is ScriptDownloadResult.Failure -> {
+                    allSucceeded = false
+                    Log.w(
+                        LOG_TAG,
+                        "Автозагрузка: не удалось загрузить ${preset.displayName}",
+                        result.error,
+                    )
+                }
             }
         }
         return allSucceeded

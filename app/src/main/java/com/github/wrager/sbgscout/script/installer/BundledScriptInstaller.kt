@@ -20,6 +20,10 @@ class BundledScriptInstaller(
     private val scriptStorage: ScriptStorage,
     private val scriptProvisioner: DefaultScriptProvisioner,
     private val assetReader: (String) -> String,
+    // Параметр для тестируемости: по умолчанию — дефолтный маппинг пресетов в ассеты.
+    // В unit-тестах подставляется произвольная map для покрытия edge case'ов
+    // (неизвестный идентификатор, preset с enabledByDefault=false).
+    private val assetMap: Map<ScriptIdentifier, String> = DEFAULT_ASSET_MAP,
 ) {
     /**
      * Устанавливает бандлированные скрипты для пресетов, которые ещё не установлены.
@@ -32,7 +36,7 @@ class BundledScriptInstaller(
             .mapNotNull { it.sourceUrl }
             .toSet()
 
-        for ((presetIdentifier, assetPath) in ASSET_MAP) {
+        for ((presetIdentifier, assetPath) in assetMap) {
             val preset = PresetScripts.ALL.find { it.identifier == presetIdentifier }
                 ?: continue
             val alreadyHandled = scriptProvisioner.isProvisioned(preset.identifier) ||
@@ -76,7 +80,7 @@ class BundledScriptInstaller(
         private const val LOG_TAG = "BundledInstaller"
 
         /** Маппинг идентификатор пресета → путь в assets. */
-        private val ASSET_MAP: Map<ScriptIdentifier, String> = mapOf(
+        private val DEFAULT_ASSET_MAP: Map<ScriptIdentifier, String> = mapOf(
             PresetScripts.SVP.identifier to "scripts/sbg-vanilla-plus.user.js",
         )
     }
