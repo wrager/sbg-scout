@@ -48,6 +48,11 @@ class SbgWebViewClient(
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
         if (GameUrls.isGameAppPage(url) && view != null) {
+            // UA override ПЕРВЫМ, до любых bootstrap/пользовательских скриптов:
+            // EUI читает navigator.userAgent в IsWebView() и отключает импорт/экспорт
+            // при наличии подстроки "wv". Подменяем геттер на JS-уровне, чтобы
+            // EUI/SVP видели очищенную строку; реальный UA не трогаем.
+            view.evaluateJavascript(UserAgentOverride.BOOTSTRAP_SCRIPT) {}
             // Перехватчики blob-скачиваний и localStorage ПЕРЕД инжекцией скриптов.
             // Download-перехват должен быть установлен до того, как юзерскрипт
             // успеет вызвать URL.createObjectURL — иначе blob не попадёт в кеш.

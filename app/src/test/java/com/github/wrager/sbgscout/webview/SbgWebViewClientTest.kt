@@ -23,6 +23,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -71,10 +72,16 @@ class SbgWebViewClientTest {
 
         client.onPageStarted(webView, "http://test.host/app", null)
 
-        verify { webView.evaluateJavascript(DownloadBridge.BOOTSTRAP_SCRIPT, any()) }
-        verify { webView.evaluateJavascript(GameSettingsBridge.LOCAL_STORAGE_WRAPPER, any()) }
-        verify { webView.evaluateJavascript(ScoutBridge.BOOTSTRAP_SCRIPT, any()) }
-        verify { scriptInjector.inject(webView, any()) }
+        // UA override обязан быть ПЕРВЫМ: EUI читает navigator.userAgent в
+        // пользовательских скриптах, которые `scriptInjector.inject` запускает
+        // после bootstrap'ов — к этому моменту геттер уже должен быть перехвачен.
+        verifyOrder {
+            webView.evaluateJavascript(UserAgentOverride.BOOTSTRAP_SCRIPT, any())
+            webView.evaluateJavascript(DownloadBridge.BOOTSTRAP_SCRIPT, any())
+            webView.evaluateJavascript(GameSettingsBridge.LOCAL_STORAGE_WRAPPER, any())
+            webView.evaluateJavascript(ScoutBridge.BOOTSTRAP_SCRIPT, any())
+            scriptInjector.inject(webView, any())
+        }
         assertTrue(startedCalled)
     }
 
