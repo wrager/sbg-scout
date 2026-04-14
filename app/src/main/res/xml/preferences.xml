@@ -44,6 +44,12 @@
             android:title="@string/reload_game"
             app:iconSpaceReserved="false" />
 
+        <Preference
+            android:key="open_links_in_app"
+            android:summary="@string/settings_open_links_in_app_summary"
+            android:title="@string/settings_open_links_in_app"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory

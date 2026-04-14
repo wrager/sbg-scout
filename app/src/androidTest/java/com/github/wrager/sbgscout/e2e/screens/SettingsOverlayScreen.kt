@@ -111,6 +111,7 @@ class SettingsOverlayScreen(
         const val KEY_AUTO_CHECK_UPDATES = "auto_check_updates"
         const val KEY_MANAGE_SCRIPTS = "manage_scripts"
         const val KEY_RELOAD_GAME = "reload_game"
+        const val KEY_OPEN_LINKS_IN_APP = "open_links_in_app"
         const val KEY_CHECK_APP_UPDATE = "check_app_update"
         const val KEY_CHECK_SCRIPT_UPDATES = "check_script_updates"
         const val KEY_APP_VERSION = "app_version"
