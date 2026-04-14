@@ -4,6 +4,24 @@
 
     <application
         android:networkSecurityConfig="@xml/network_security_config"
-        tools:replace="android:networkSecurityConfig" />
+        tools:replace="android:networkSecurityConfig">
+
+        <!--
+            В prod — launchMode=singleTask: гарантирует, что deep-link из
+            внешнего приложения (Telegram, браузер) открывает GameActivity в
+            собственном task'е, а не подшивает её поверх стэка вызывающего
+            приложения. В instr переопределяем на singleTop, потому что
+            ActivityScenario не умеет закрывать singleTask-Activity (застревает
+            в RESUMED на tearDown, см. DeepLinkE2ETest). Поведение логики
+            onNewIntent идентично: у нас в task всего одна Activity-компонента
+            (MainActivity — legacy-shim с noHistory), так что вершина task'а
+            и корень совпадают.
+        -->
+        <activity
+            android:name="com.github.wrager.sbgscout.GameActivity"
+            android:launchMode="singleTop"
+            tools:replace="android:launchMode" />
+
+    </application>
 
 </manifest>

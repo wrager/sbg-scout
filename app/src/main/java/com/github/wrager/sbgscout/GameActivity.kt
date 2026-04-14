@@ -189,7 +189,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     /**
-     * Обрабатывает deep-link `ACTION_VIEW` на живую Activity (`launchMode=singleTop`).
+     * Обрабатывает deep-link `ACTION_VIEW` на живую Activity (`launchMode=singleTask`).
      *
      * Сценарий: приложение уже открыто/свёрнуто, пользователь кликнул по ссылке
      * `https://sbg-game.ru/...` в другом приложении. Android доставляет intent
