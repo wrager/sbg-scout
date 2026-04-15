@@ -155,7 +155,7 @@ Android-приложение с WebView, загружающее игру SBG (`s
 2. Глобальные переменные (`__sbg_local`, `__sbg_package`, `__sbg_package_version`)
 3. Clipboard-полифил
 4. Скрипты (каждый в IIFE, обёрнут в try-catch)
-5. Группировка по `@run-at`: `document-start` выполняется сразу в `onPageStarted`, `document-end` и скрипты без `@run-at` ждут `DOMContentLoaded`, `document-idle` ждёт `window.load` (имитация семантики Tampermonkey — критично для CUI, который на старте делает `window.stop()` + `document.open()` + `document.write(fetched /app)`: при раннем запуске на DOMContentLoaded он гоняется с ещё не выполненным deferred module-скриптом игры `script@*.js`, что приводит к частичной потере настроек в EUI вроде Color Scheme и Show speed)
+5. Группировка по `@run-at`: document-start выполняется в `onPageStarted`, document-end/idle — по событию DOMContentLoaded
 6. Ошибки инжекции собираются через `window.__sbg_injection_errors` и показываются через Toast
 
 ## Обновление приложения

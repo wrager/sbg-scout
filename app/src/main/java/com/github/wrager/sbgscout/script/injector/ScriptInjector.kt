@@ -87,22 +87,11 @@ class ScriptInjector(
                 }
             """.trimIndent()
 
-            return when (runAt) {
-                "document-start" -> "(function() {\n$body\n})();"
-                "document-idle" -> """
-                    (function() {
-                        function run() {
-                            $body
-                        }
-                        if (document.readyState === 'complete') {
-                            run();
-                        } else {
-                            window.addEventListener('load', run, { once: true });
-                        }
-                    })();
-                """.trimIndent()
-                // document-end или не указано — ждём DOMContentLoaded
-                else -> """
+            return if (runAt == "document-start") {
+                "(function() {\n$body\n})();"
+            } else {
+                // document-end, document-idle, или не указано — ждём DOM
+                """
                     (function() {
                         function run() {
                             $body
