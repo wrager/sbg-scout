@@ -25,10 +25,11 @@ import org.junit.Test
  *
  * Flow:
  * 1. Sideload SVP v0.8.0 enabled (как preset через isPreset=true + preset.downloadUrl).
- * 2. Stub `.meta.js` и `.user.js` с v0.8.1 → ScriptUpdateChecker парсит header
- *    из meta, видит UpdateAvailable.
- * 3. Stub `/gh-api/repos/wrager/sbg-vanilla-plus/releases` с release notes v0.8.1
- *    — чтобы ScriptReleaseNotesProvider не падал в warning.
+ * 2. Stub `/gh-api/repos/wrager/sbg-vanilla-plus/releases` с v0.8.1 → ScriptUpdateChecker
+ *    видит в `tag_name` более новую версию, возвращает UpdateAvailable.
+ *    Этот же stub обслуживает ScriptReleaseNotesProvider.
+ * 3. Stub `.user.js` с v0.8.1 — ScriptDownloader дёргает его при реальном
+ *    скачивании обновления после клика Update all.
  * 4. Клик "Check for updates" в фрагменте → coroutine → CheckCompleted event
  *    → handleSpecialEvent открывает showUpdateReleaseNotesDialog с positive
  *    button "Update all".
@@ -44,12 +45,10 @@ class ScriptManagerUpdateE2ETest : E2ETestBase() {
         sideloadSvp("0.8.0")
         val svp081 = AssetLoader.read("fixtures/scripts/svp-v0.8.1.user.js")
         server.stubScriptAsset(
-            "wrager", "sbg-vanilla-plus", "latest", "sbg-vanilla-plus.meta.js", svp081,
-        )
-        server.stubScriptAsset(
             "wrager", "sbg-vanilla-plus", "latest", "sbg-vanilla-plus.user.js", svp081,
         )
-        // Release notes для ScriptReleaseNotesProvider.
+        // Releases list: ScriptUpdateChecker сравнивает по tag_name, а
+        // ScriptReleaseNotesProvider берёт отсюда же release notes.
         server.stubGithubReleasesList(
             "wrager",
             "sbg-vanilla-plus",

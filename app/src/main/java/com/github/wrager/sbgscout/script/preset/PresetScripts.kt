@@ -37,4 +37,10 @@ object PresetScripts {
     )
 
     val ALL: List<PresetScript> = listOf(SVP, EUI, CUI)
+
+    // Пресеты, реально вшитые в APK через assets/scripts/. BundledScriptInstaller
+    // ставит их из бандла без сетевого запроса, BundledScriptBeacon потом один
+    // раз на устройство пингует pinned релизный asset, чтобы счётчик downloads
+    // у автора скрипта учёл факт доставки именно этой версии.
+    val BUNDLED: List<PresetScript> = listOf(SVP)
 }

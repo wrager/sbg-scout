@@ -73,13 +73,10 @@ class AutoUpdateFromDialogE2ETest : E2ETestBase() {
         // Script update: v0.8.1 доступна по latest.
         val svp081 = AssetLoader.read("fixtures/scripts/svp-v0.8.1.user.js")
         server.stubScriptAsset(
-            "wrager", "sbg-vanilla-plus", "latest", "sbg-vanilla-plus.meta.js", svp081,
-        )
-        server.stubScriptAsset(
             "wrager", "sbg-vanilla-plus", "latest", "sbg-vanilla-plus.user.js", svp081,
         )
-        // Releases list для ScriptReleaseNotesProvider и для самого ScriptUpdateChecker
-        // (checkScriptUpdates → fetchReleaseNotes).
+        // Releases list: ScriptUpdateChecker сравнивает по tag_name через
+        // GitHub API, ScriptReleaseNotesProvider берёт отсюда же release notes.
         server.stubGithubReleasesList(
             "wrager",
             "sbg-vanilla-plus",

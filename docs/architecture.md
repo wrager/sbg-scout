@@ -139,12 +139,13 @@ Android-приложение с WebView, загружающее игру SBG (`s
 - `ScriptInstaller.parse()` — парсит raw-контент UserScript и строит `UserScript` **без сохранения**; вызывающий код дополняет результат (sourceUrl, updateUrl, isPreset) через `.copy()` и затем вызывает `save()`
 - `ScriptInstallResult` — sealed class: `Parsed(script)` / `InvalidHeader`
 - `BundledScriptInstaller` — разворачивает бандлированный SVP из `assets/scripts/sbg-vanilla-plus.user.js` при первом запуске; пресет пропускается, если уже provisioned или уже в хранилище по `sourceUrl`
+- `BundledScriptBeacon` — после установки бандлированного скрипта делает fire-and-forget GET на `releases/download/v{version}/{asset}` (pinned URL), чтобы инкрементировать GitHub release download counter у конкретной доставленной версии. Бандл сам по себе сетевой запрос не генерирует — без beacon'а автор скрипта не увидит факт установки. Идемпотентен по паре `(identifier, version)`: состояние хранится в SharedPreferences (`bundled_script_beacon_pinged` как set строк `"{id}:{version}"`), при обновлении APK с новой версией скрипта отправляется новый ping, при сетевой ошибке ключ не сохраняется (retry на следующем старте). Список бандлированных пресетов — в `PresetScripts.BUNDLED`
 - `DefaultScriptProvisioner` — автозагружает enabledByDefault-пресеты из сети; хранит список обработанных идентификаторов в SharedPreferences (`provisioned_defaults`), чтобы не повторять попытки при удалении пользователем; при ошибке загрузки оставляет пресет в pending до следующего запуска
 
 ### Загрузка и обновление
 
 - `ScriptDownloader` — загрузка скрипта по URL, парсинг заголовка через `ScriptInstaller`, сохранение
-- `ScriptUpdateChecker` — сравнение локальной и удалённой версий через `.meta.js`
+- `ScriptUpdateChecker` — сравнение локальной и удалённой версий. Для `updateUrl` вида `github.com/{owner}/{repo}/releases/(latest/download|download/{tag})/...` идёт в `GithubReleaseProvider` и сравнивает по `tag_name` (с `removePrefix("v")`) — это не инкрементит GitHub release download counter на фоновой проверке. Для прочих URL (raw.githubusercontent, произвольные хостинги) — legacy-путь через `HttpFetcher` + `HeaderParser` по `.meta.js`
 - `ScriptReleaseNotesProvider` — загрузка и агрегация release notes из GitHub Releases API (от текущей до новой версии)
 - `GithubReleaseProvider` — загрузка списка релизов через GitHub Releases API для выбора версии
 - `HttpFetcher` — интерфейс HTTP GET (с поддержкой headers, прогресса и бинарной загрузки в файл), реализация через `HttpURLConnection`
