@@ -59,6 +59,48 @@ class ScriptInjectorTest {
     }
 
     @Test
+    fun `wrapInSafeIife with document-idle waits for window load not DOMContentLoaded`() {
+        val result = ScriptInjector.wrapInSafeIife(
+            "Idle Script",
+            "console.log('idle');",
+            runAt = "document-idle",
+        )
+
+        assertTrue(result.contains("(function() {"))
+        assertTrue(result.contains("try {"))
+        assertTrue(result.contains("console.log('idle');"))
+        assertTrue(
+            "document-idle должен слушать window.load",
+            result.contains("window.addEventListener('load'"),
+        )
+        assertTrue(
+            "document-idle должен проверять readyState === 'complete'",
+            result.contains("document.readyState === 'complete'"),
+        )
+        assertFalse(
+            "document-idle не должен ждать DOMContentLoaded — это семантика document-end",
+            result.contains("DOMContentLoaded"),
+        )
+    }
+
+    @Test
+    fun `wrapInSafeIife with document-end waits for DOMContentLoaded`() {
+        val result = ScriptInjector.wrapInSafeIife(
+            "End Script",
+            "console.log('end');",
+            runAt = "document-end",
+        )
+
+        assertTrue(result.contains("console.log('end');"))
+        assertTrue(result.contains("DOMContentLoaded"))
+        assertTrue(result.contains("document.readyState === 'loading'"))
+        assertFalse(
+            "document-end не должен слушать window.load — это семантика document-idle",
+            result.contains("window.addEventListener('load'"),
+        )
+    }
+
+    @Test
     fun `wrapInSafeIife escapes single quotes in script name`() {
         val result = ScriptInjector.wrapInSafeIife("Script's Name", "code")
 
