@@ -145,7 +145,7 @@ Android-приложение с WebView, загружающее игру SBG (`s
 ### Загрузка и обновление
 
 - `ScriptDownloader` — загрузка скрипта по URL, парсинг заголовка через `ScriptInstaller`, сохранение
-- `ScriptUpdateChecker` — сравнение локальной и удалённой версий. Для `updateUrl` вида `github.com/{owner}/{repo}/releases/(latest/download|download/{tag})/...` идёт в `GithubReleaseProvider` и сравнивает по `tag_name` (с `removePrefix("v")`) — это не инкрементит GitHub release download counter на фоновой проверке. Для прочих URL (raw.githubusercontent, произвольные хостинги) — legacy-путь через `HttpFetcher` + `HeaderParser` по `.meta.js`
+- `ScriptUpdateChecker` — сравнение локальной и удалённой версий. Для `updateUrl` вида `github.com/{owner}/{repo}/releases/(latest/download|download/{tag})/...` идёт в `GithubReleaseProvider` и сравнивает по `tag_name` (с `removePrefix("v")`) — это не инкрементит GitHub release download counter на фоновой проверке. Mono-repo fallback: если `tag_name` (после `removePrefix("v")`) оказывается **меньше** текущей версии скрипта (один тег на несколько asset'ов с разными версиями, например `egorantonov/sbg-enhanced` где тег = EUI version, а CUI version отдельная), автоматически переключается на legacy-путь и скачивает файл для парсинга `@version`. Для прочих URL (raw.githubusercontent, произвольные хостинги) — legacy-путь через `HttpFetcher` + `HeaderParser` по `.meta.js`
 - `ScriptReleaseNotesProvider` — загрузка и агрегация release notes из GitHub Releases API (от текущей до новой версии)
 - `GithubReleaseProvider` — загрузка списка релизов через GitHub Releases API для выбора версии
 - `HttpFetcher` — интерфейс HTTP GET (с поддержкой headers, прогресса и бинарной загрузки в файл), реализация через `HttpURLConnection`

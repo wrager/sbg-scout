@@ -54,6 +54,15 @@ class ScriptUpdateChecker(
         val current = ScriptVersion(currentVersionString)
         val latestVersion = ScriptVersion(latest.tagName.removePrefix("v"))
 
+        if (latestVersion < current) {
+            // tag_name меньше установленной версии — значит тег не соответствует
+            // этому скрипту (mono-repo, где один тег на несколько asset'ов с
+            // разными версиями, например egorantonov/sbg-enhanced: тег = EUI version,
+            // но CUI в том же релизе имеет свою @version). Fallback на legacy-путь,
+            // который скачает файл и распарсит реальный @version из хедера.
+            return compareVersionsViaHttpFetcher(script, script.updateUrl!!)
+        }
+
         return if (latestVersion > current) {
             ScriptUpdateResult.UpdateAvailable(
                 identifier = script.identifier,

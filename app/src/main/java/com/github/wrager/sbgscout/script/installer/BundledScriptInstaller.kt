@@ -1,5 +1,6 @@
 package com.github.wrager.sbgscout.script.installer
 
+import android.content.SharedPreferences
 import android.util.Log
 import com.github.wrager.sbgscout.script.model.ScriptIdentifier
 import com.github.wrager.sbgscout.script.preset.PresetScript
@@ -19,6 +20,7 @@ class BundledScriptInstaller(
     private val scriptInstaller: ScriptInstaller,
     private val scriptStorage: ScriptStorage,
     private val scriptProvisioner: DefaultScriptProvisioner,
+    private val preferences: SharedPreferences,
     private val assetReader: (String) -> String,
     // Параметр для тестируемости: по умолчанию — дефолтный маппинг пресетов в ассеты.
     // В unit-тестах подставляется произвольная map для покрытия edge case'ов
@@ -72,12 +74,33 @@ class BundledScriptInstaller(
             scriptStorage.setEnabled(script.identifier, true)
         }
         scriptProvisioner.markProvisioned(preset.identifier)
+        saveBundledVersion(preset.identifier, script.header.version)
 
         Log.i(LOG_TAG, "Установлен бандлированный скрипт: ${preset.displayName}")
     }
 
+    /**
+     * Сохраняет версию бандлированного скрипта для [BundledScriptBeacon].
+     *
+     * Beacon должен пинговать только ту версию, которая установлена из бандла,
+     * а не текущую версию в storage (которая может быть обновлена пользователем
+     * через диалог обновления). Иначе — double counting: реальный download при
+     * обновлении + ping beacon'а на ту же версию.
+     */
+    private fun saveBundledVersion(identifier: ScriptIdentifier, version: String?) {
+        if (version == null) return
+        val current = preferences.getStringSet(KEY_BUNDLED_VERSIONS, emptySet()) ?: emptySet()
+        val key = "${identifier.value}:$version"
+        if (key !in current) {
+            preferences.edit()
+                .putStringSet(KEY_BUNDLED_VERSIONS, current + key)
+                .apply()
+        }
+    }
+
     companion object {
         private const val LOG_TAG = "BundledInstaller"
+        const val KEY_BUNDLED_VERSIONS = "bundled_script_versions"
 
         /** Маппинг идентификатор пресета → путь в assets. */
         private val DEFAULT_ASSET_MAP: Map<ScriptIdentifier, String> = mapOf(

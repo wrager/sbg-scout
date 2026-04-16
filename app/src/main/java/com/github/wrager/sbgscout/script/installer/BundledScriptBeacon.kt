@@ -2,10 +2,8 @@ package com.github.wrager.sbgscout.script.installer
 
 import android.content.SharedPreferences
 import android.util.Log
-import com.github.wrager.sbgscout.script.model.UserScript
 import com.github.wrager.sbgscout.script.preset.PresetScript
 import com.github.wrager.sbgscout.script.preset.PresetScripts
-import com.github.wrager.sbgscout.script.storage.ScriptStorage
 import com.github.wrager.sbgscout.script.updater.HttpFetcher
 
 /**
@@ -26,23 +24,26 @@ import com.github.wrager.sbgscout.script.updater.HttpFetcher
  * состоянии. При сетевой ошибке ключ в состоянии НЕ сохраняется — следующий
  * старт повторит попытку, чтобы все реальные установки в итоге учлись.
  *
+ * Версия берётся из [BundledScriptInstaller.KEY_BUNDLED_VERSIONS], а не
+ * из текущего `header.version` в storage — иначе после обновления скрипта
+ * через диалог beacon ложно пингует новую (уже скачанную) версию.
+ *
  * Состояние хранится в [SharedPreferences] под ключом [KEY_PINGED] как
  * [Set] строк `"{identifier.value}:{version}"`.
  */
 class BundledScriptBeacon(
     private val httpFetcher: HttpFetcher,
-    private val scriptStorage: ScriptStorage,
     private val preferences: SharedPreferences,
     private val bundledPresets: List<PresetScript> = PresetScripts.BUNDLED,
 ) {
     suspend fun ping() {
         val alreadyPinged = preferences.getStringSet(KEY_PINGED, emptySet()) ?: emptySet()
-        val installedBySourceUrl = scriptStorage.getAll()
-            .mapNotNull { script -> script.sourceUrl?.let { url -> url to script } }
-            .toMap()
+        val bundledVersions = preferences.getStringSet(
+            BundledScriptInstaller.KEY_BUNDLED_VERSIONS, emptySet(),
+        ) ?: emptySet()
 
         val pending = bundledPresets.mapNotNull { preset ->
-            toPendingPing(preset, installedBySourceUrl, alreadyPinged)
+            toPendingPing(preset, bundledVersions, alreadyPinged)
         }
 
         val newlyPinged = mutableSetOf<String>()
@@ -61,13 +62,15 @@ class BundledScriptBeacon(
 
     private fun toPendingPing(
         preset: PresetScript,
-        installedBySourceUrl: Map<String, UserScript>,
+        bundledVersions: Set<String>,
         alreadyPinged: Set<String>,
     ): PendingPing? {
-        val script = installedBySourceUrl[preset.downloadUrl] ?: return null
-        val version = script.header.version?.removePrefix("v")?.takeIf { it.isNotBlank() }
-            ?: return null
-        val key = "${preset.identifier.value}:$version"
+        // Ищем версию этого пресета, записанную BundledScriptInstaller при
+        // установке из бандла. Формат ключа: "{identifier.value}:{version}".
+        val prefix = "${preset.identifier.value}:"
+        val versionKey = bundledVersions.find { it.startsWith(prefix) } ?: return null
+        val version = versionKey.removePrefix(prefix).takeIf { it.isNotBlank() } ?: return null
+        val key = versionKey
         if (key in alreadyPinged) return null
         val pinnedUrl = preset.downloadUrl.replace(
             "/releases/latest/download/",
@@ -82,7 +85,7 @@ class BundledScriptBeacon(
             Log.i(LOG_TAG, "Beacon: ${pendingPing.preset.displayName} v${pendingPing.version}")
             true
         } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
-            // Не возвращаем ключ в state — retry на следующем старте.
+            // Не сохраняем ключ в state — retry на следующем старте.
             Log.w(
                 LOG_TAG,
                 "Beacon failed: ${pendingPing.preset.displayName} v${pendingPing.version}",

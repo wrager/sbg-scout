@@ -483,10 +483,10 @@ class GameActivity : AppCompatActivity() {
         val downloader = ScriptDownloader(httpFetcher, scriptInstaller)
         scriptProvisioner = DefaultScriptProvisioner(scriptStorage, downloader, preferences)
         BundledScriptInstaller(
-            scriptInstaller, scriptStorage, scriptProvisioner,
+            scriptInstaller, scriptStorage, scriptProvisioner, preferences,
             assetReader = { path -> assets.open(path).bufferedReader().readText() },
         ).installBundled()
-        val bundledScriptBeacon = BundledScriptBeacon(httpFetcher, scriptStorage, preferences)
+        val bundledScriptBeacon = BundledScriptBeacon(httpFetcher, preferences)
         lifecycleScope.launch(Dispatchers.IO) { bundledScriptBeacon.ping() }
         injectionStateStorage = InjectionStateStorage(preferences)
         val scriptInjector = ScriptInjector(

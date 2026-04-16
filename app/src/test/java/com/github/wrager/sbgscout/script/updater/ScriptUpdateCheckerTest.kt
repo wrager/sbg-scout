@@ -190,16 +190,20 @@ class ScriptUpdateCheckerTest {
     }
 
     @Test
-    fun `github release asset url with older tag returns UpToDate`() = runTest {
+    fun `github release asset url with older tag triggers mono-repo fallback`() = runTest {
+        // tag=v2.0.0, current=3.0.0: тег меньше установленной версии →
+        // mono-repo fallback → HttpFetcher скачивает файл и парсит @version.
         val script = createScript(version = "3.0.0", updateUrl = SVP_META_URL)
         coEvery {
             githubReleaseProvider.fetchReleases("wrager", "sbg-vanilla-plus")
         } returns listOf(release("v2.0.0"))
+        coEvery { httpFetcher.fetch(SVP_META_URL) } returns META_VERSION_2
 
         val result = checker.checkForUpdate(script)
 
+        // Fallback получил @version 2.0.0 из файла, 2.0.0 < 3.0.0 → UpToDate.
         assertTrue(result is ScriptUpdateResult.UpToDate)
-        coVerify(exactly = 0) { httpFetcher.fetch(any()) }
+        coVerify(exactly = 1) { httpFetcher.fetch(SVP_META_URL) }
     }
 
     @Test
@@ -219,19 +223,21 @@ class ScriptUpdateCheckerTest {
     }
 
     @Test
-    fun `github release asset url with non-semver tag returns UpToDate without crash`() = runTest {
-        // Документирует деградирующее, но безопасное поведение: если тег не
-        // семвер, `leadingDigitsAsInt` вернёт 0 для первого сегмента, сравнение
-        // скажет latest <= current, checker вернёт UpToDate. Это приемлемо,
-        // т.к. все пресеты sbg-scout используют семвер-теги.
+    fun `github release asset url with non-semver tag triggers mono-repo fallback`() = runTest {
+        // Нестандартный тег "release-2024-01" парсится как version 0 (leadingDigitsAsInt
+        // для "release" = 0), что меньше current=1.0.0 → mono-repo fallback на HttpFetcher.
+        // Это безопасное поведение: fallback скачает файл и распарсит реальный @version.
         val script = createScript(version = "1.0.0", updateUrl = SVP_META_URL)
         coEvery {
             githubReleaseProvider.fetchReleases("wrager", "sbg-vanilla-plus")
         } returns listOf(release("release-2024-01"))
+        coEvery { httpFetcher.fetch(SVP_META_URL) } returns META_VERSION_1
 
         val result = checker.checkForUpdate(script)
 
         assertTrue(result is ScriptUpdateResult.UpToDate)
+        // Доказательство fallback: httpFetcher вызван, хотя URL — GitHub release.
+        coVerify(exactly = 1) { httpFetcher.fetch(SVP_META_URL) }
     }
 
     @Test
@@ -329,6 +335,59 @@ class ScriptUpdateCheckerTest {
         coVerify(exactly = 1) { httpFetcher.fetch("https://example.com/script.meta.js") }
     }
 
+    @Test
+    fun `github tag less than current version falls back to http fetcher`() = runTest {
+        // Mono-repo: tag = EUI version (8.2.0), current = CUI version (26.4.1).
+        // 8.2.0 < 26.4.1 → тег не соответствует скрипту → fallback на legacy-путь.
+        val cuiUpdateUrl =
+            "https://github.com/egorantonov/sbg-enhanced/releases/latest/download/cui.user.js"
+        val script = createScript(version = "26.4.1", updateUrl = cuiUpdateUrl)
+        coEvery {
+            githubReleaseProvider.fetchReleases("egorantonov", "sbg-enhanced")
+        } returns listOf(release("8.2.0"))
+        coEvery { httpFetcher.fetch(cuiUpdateUrl) } returns META_CUI_26_4_1
+
+        val result = checker.checkForUpdate(script)
+
+        assertTrue(result is ScriptUpdateResult.UpToDate)
+        // Доказательство fallback: httpFetcher.fetch вызван для CUI URL,
+        // хотя URL матчит GitHub release pattern.
+        coVerify(exactly = 1) { httpFetcher.fetch(cuiUpdateUrl) }
+    }
+
+    @Test
+    fun `github tag less than current version with newer remote returns UpdateAvailable`() = runTest {
+        // Mono-repo fallback: tag 8.2.0 < current 26.4.1 → legacy path → @version 27.0.0 → update.
+        val cuiUpdateUrl =
+            "https://github.com/egorantonov/sbg-enhanced/releases/latest/download/cui.user.js"
+        val script = createScript(version = "26.4.1", updateUrl = cuiUpdateUrl)
+        coEvery {
+            githubReleaseProvider.fetchReleases("egorantonov", "sbg-enhanced")
+        } returns listOf(release("8.2.0"))
+        coEvery { httpFetcher.fetch(cuiUpdateUrl) } returns META_CUI_27_0_0
+
+        val result = checker.checkForUpdate(script)
+
+        assertTrue(result is ScriptUpdateResult.UpdateAvailable)
+        val updateResult = result as ScriptUpdateResult.UpdateAvailable
+        assertEquals(ScriptVersion("26.4.1"), updateResult.currentVersion)
+        assertEquals(ScriptVersion("27.0.0"), updateResult.latestVersion)
+    }
+
+    @Test
+    fun `github tag equal to current version does not fall back`() = runTest {
+        // Не mono-repo: tag = current → UpToDate через API, без fallback.
+        val script = createScript(version = "8.2.0", updateUrl = SVP_META_URL)
+        coEvery {
+            githubReleaseProvider.fetchReleases("wrager", "sbg-vanilla-plus")
+        } returns listOf(release("8.2.0"))
+
+        val result = checker.checkForUpdate(script)
+
+        assertTrue(result is ScriptUpdateResult.UpToDate)
+        coVerify(exactly = 0) { httpFetcher.fetch(any()) }
+    }
+
     private fun release(tag: String) = GithubRelease(tagName = tag, assets = emptyList())
 
     companion object {
@@ -354,5 +413,19 @@ class ScriptUpdateCheckerTest {
 
         private const val SVP_META_URL =
             "https://github.com/wrager/sbg-vanilla-plus/releases/latest/download/sbg-vanilla-plus.meta.js"
+
+        private val META_CUI_26_4_1 = """
+            // ==UserScript==
+            // @name SBG CUI
+            // @version 26.4.1
+            // ==/UserScript==
+        """.trimIndent()
+
+        private val META_CUI_27_0_0 = """
+            // ==UserScript==
+            // @name SBG CUI
+            // @version 27.0.0
+            // ==/UserScript==
+        """.trimIndent()
     }
 }

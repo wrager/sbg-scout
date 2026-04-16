@@ -1,5 +1,6 @@
 package com.github.wrager.sbgscout.script.installer
 
+import android.content.SharedPreferences
 import com.github.wrager.sbgscout.script.model.ScriptHeader
 import com.github.wrager.sbgscout.script.model.ScriptIdentifier
 import com.github.wrager.sbgscout.script.model.UserScript
@@ -11,6 +12,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 
@@ -19,6 +21,9 @@ class BundledScriptInstallerTest {
     private lateinit var scriptInstaller: ScriptInstaller
     private lateinit var scriptStorage: ScriptStorage
     private lateinit var scriptProvisioner: DefaultScriptProvisioner
+    private lateinit var preferences: SharedPreferences
+    private lateinit var editor: SharedPreferences.Editor
+    private var storedBundledVersions: Set<String> = emptySet()
     private val assetContents = mutableMapOf<String, String>()
 
     @Before
@@ -26,9 +31,24 @@ class BundledScriptInstallerTest {
         scriptInstaller = mockk()
         scriptStorage = mockk()
         scriptProvisioner = mockk()
+        preferences = mockk()
+        editor = mockk()
+        storedBundledVersions = emptySet()
         every { scriptProvisioner.markProvisioned(any()) } just Runs
         every { scriptProvisioner.isProvisioned(any()) } returns false
         every { scriptStorage.setEnabled(any(), any()) } just Runs
+        every {
+            preferences.getStringSet(BundledScriptInstaller.KEY_BUNDLED_VERSIONS, emptySet())
+        } answers { storedBundledVersions }
+        every { preferences.edit() } returns editor
+        every {
+            editor.putStringSet(BundledScriptInstaller.KEY_BUNDLED_VERSIONS, any())
+        } answers {
+            @Suppress("UNCHECKED_CAST")
+            storedBundledVersions = secondArg<Set<String>>()
+            editor
+        }
+        every { editor.apply() } just Runs
     }
 
     @Test
@@ -163,6 +183,51 @@ class BundledScriptInstallerTest {
         verify(exactly = 0) { scriptStorage.setEnabled(any(), any()) }
     }
 
+    @Test
+    fun `saves bundled version for beacon after install`() {
+        every { scriptStorage.getAll() } returns emptyList()
+        val parsedScript = svpScript()
+        every { scriptInstaller.parse(SVP_CONTENT) } returns ScriptInstallResult.Parsed(parsedScript)
+        every { scriptInstaller.save(any()) } just Runs
+        assetContents["scripts/sbg-vanilla-plus.user.js"] = SVP_CONTENT
+
+        createInstaller().installBundled()
+
+        // saveBundledVersion использует preset.identifier (не script.identifier):
+        // preset.identifier = "github.com/wrager/sbg-vanilla-plus",
+        // script.identifier = "github.com/wrager/sbg-vanilla-plus/SBG Vanilla+".
+        assertEquals(
+            setOf("${PresetScripts.SVP.identifier.value}:6.0.0"),
+            storedBundledVersions,
+        )
+    }
+
+    @Test
+    fun `does not save bundled version when skipped provisioned`() {
+        every { scriptStorage.getAll() } returns emptyList()
+        every { scriptProvisioner.isProvisioned(PresetScripts.SVP.identifier) } returns true
+        assetContents["scripts/sbg-vanilla-plus.user.js"] = SVP_CONTENT
+
+        createInstaller().installBundled()
+
+        verify(exactly = 0) {
+            editor.putStringSet(BundledScriptInstaller.KEY_BUNDLED_VERSIONS, any())
+        }
+    }
+
+    @Test
+    fun `does not save bundled version when parse fails`() {
+        every { scriptStorage.getAll() } returns emptyList()
+        assetContents["scripts/sbg-vanilla-plus.user.js"] = "bad content"
+        every { scriptInstaller.parse("bad content") } returns ScriptInstallResult.InvalidHeader
+
+        createInstaller().installBundled()
+
+        verify(exactly = 0) {
+            editor.putStringSet(BundledScriptInstaller.KEY_BUNDLED_VERSIONS, any())
+        }
+    }
+
     private fun createInstaller(
         assetMap: Map<ScriptIdentifier, String> = mapOf(
             PresetScripts.SVP.identifier to "scripts/sbg-vanilla-plus.user.js",
@@ -171,6 +236,7 @@ class BundledScriptInstallerTest {
         scriptInstaller,
         scriptStorage,
         scriptProvisioner,
+        preferences,
         assetReader = { path ->
             assetContents[path] ?: throw java.io.FileNotFoundException("Asset not found: $path")
         },
