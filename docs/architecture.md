@@ -154,8 +154,8 @@ Android-приложение с WebView, загружающее игру SBG (`s
 1. Перехват `localStorage.setItem` (обёртка для `GameSettingsBridge`)
 2. Глобальные переменные (`__sbg_local`, `__sbg_package`, `__sbg_package_version`)
 3. Clipboard-полифил
-4. Скрипты (каждый в IIFE, обёрнут в try-catch)
-5. Группировка по `@run-at`: document-start выполняется в `onPageStarted`, document-end/idle — по событию DOMContentLoaded
+4. Скрипты (каждый в IIFE, обёрнут в try-catch), отсортированные по приоритету: скрипты, перестраивающие страницу через `document.open()`, инжектируются первыми — они уничтожают DOM и пересоздают его, поэтому остальные скрипты должны стартовать после них
+5. Группировка по `@run-at`: `document-start` выполняется сразу в `onPageStarted`, `document-end`/`document-idle`/без `@run-at` — по событию `DOMContentLoaded` (Scout не различает document-end и document-idle: у WebView host нет доступа к Chrome'овской эвристике `document_idle`, а любая фиксированная задержка ломает скрипты вроде CUI, которые зависят от `window.stop()` до выполнения game-скрипта)
 6. Ошибки инжекции собираются через `window.__sbg_injection_errors` и показываются через Toast
 
 ## Обновление приложения

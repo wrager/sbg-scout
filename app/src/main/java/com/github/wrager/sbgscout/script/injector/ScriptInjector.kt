@@ -19,7 +19,7 @@ class ScriptInjector(
         injectDocumentWriteEventFix(webView)
         injectGlobalVariables(webView)
         injectClipboardPolyfill(webView)
-        val enabledScripts = scriptStorage.getEnabled()
+        val enabledScripts = sortByInjectionPriority(scriptStorage.getEnabled())
         injectionStateStorage?.saveSnapshot(enabledScripts)
         if (enabledScripts.isEmpty()) {
             callback(emptyList())
@@ -71,6 +71,17 @@ class ScriptInjector(
         private const val READ_ERRORS_SCRIPT =
             "JSON.stringify(window.__sbg_injection_errors || [])"
 
+        // Скрипт, содержащий document.open(), перестраивает страницу целиком
+        // и должен инжектироваться раньше остальных — иначе другие скрипты
+        // работают с DOM, который будет уничтожен.
+        private val DOCUMENT_OPEN_PATTERN = Regex("""document\s*\.\s*open\s*\(""")
+
+        internal fun rewritesDocument(content: String): Boolean =
+            DOCUMENT_OPEN_PATTERN.containsMatchIn(content)
+
+        internal fun sortByInjectionPriority(scripts: List<UserScript>): List<UserScript> =
+            scripts.sortedByDescending { rewritesDocument(it.content) }
+
         internal fun wrapInSafeIife(
             scriptName: String,
             content: String,
@@ -90,7 +101,14 @@ class ScriptInjector(
             return if (runAt == "document-start") {
                 "(function() {\n$body\n})();"
             } else {
-                // document-end, document-idle, или не указано — ждём DOM
+                // document-end, document-idle или не указано — ждём DOMContentLoaded.
+                // Tampermonkey различает document-end (DOMContentLoaded) и document-idle
+                // (DOMContentLoaded + async yield), но Scout не может воспроизвести
+                // эту разницу: у WebView host нет доступа к Chrome'овской эвристике
+                // document_idle, а любая фиксированная задержка (даже setTimeout(0))
+                // ломает скрипты вроде CUI, которые зависят от window.stop() до
+                // выполнения game-скрипта. Порядок инжекции при наличии нескольких
+                // скриптов контролируется через sortByInjectionPriority.
                 """
                     (function() {
                         function run() {

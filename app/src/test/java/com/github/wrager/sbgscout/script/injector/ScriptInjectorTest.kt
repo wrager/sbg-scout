@@ -42,7 +42,29 @@ class ScriptInjectorTest {
         assertTrue(result.contains("} catch (error) {"))
         assertTrue(result.contains("DOMContentLoaded"))
         assertTrue(result.contains("document.readyState"))
+        assertFalse(
+            "Не должен использовать setTimeout — Scout не различает document-end и document-idle",
+            result.contains("setTimeout"),
+        )
         assertTrue(result.contains("})();"))
+    }
+
+    @Test
+    fun `wrapInSafeIife with document-idle uses same DOMContentLoaded as default`() {
+        val defaultResult = ScriptInjector.wrapInSafeIife("A", "code")
+        val idleResult = ScriptInjector.wrapInSafeIife("A", "code", runAt = "document-idle")
+        val endResult = ScriptInjector.wrapInSafeIife("A", "code", runAt = "document-end")
+
+        assertEquals(
+            "document-idle, document-end и default должны генерировать одинаковую обёртку",
+            defaultResult,
+            idleResult,
+        )
+        assertEquals(
+            "document-end и default должны генерировать одинаковую обёртку",
+            defaultResult,
+            endResult,
+        )
     }
 
     @Test
@@ -362,6 +384,70 @@ class ScriptInjectorTest {
         assertTrue(
             "Фикс должен трекать вызовы listeners во время document.write",
             fixScript.contains("listenersCalledDuringWrite"),
+        )
+    }
+
+    @Test
+    fun `rewritesDocument detects document open call`() {
+        assertTrue(ScriptInjector.rewritesDocument("document.open();"))
+        assertTrue(ScriptInjector.rewritesDocument("document.open()"))
+        assertTrue(ScriptInjector.rewritesDocument("document .open()"))
+        assertTrue(ScriptInjector.rewritesDocument("document. open ()"))
+        assertTrue(ScriptInjector.rewritesDocument("document  .  open  (  )"))
+        assertTrue(ScriptInjector.rewritesDocument("x = 1;\ndocument.open();\ny = 2;"))
+    }
+
+    @Test
+    fun `rewritesDocument returns false for scripts without document open`() {
+        assertFalse(ScriptInjector.rewritesDocument("console.log('hello');"))
+        assertFalse(ScriptInjector.rewritesDocument("window.open()"))
+        assertFalse(ScriptInjector.rewritesDocument(""))
+    }
+
+    @Test
+    fun `sortByInjectionPriority puts document-open scripts first`() {
+        val regular = createTestScript("regular", "Regular", "console.log('hi');")
+        val rewriter = createTestScript("rewriter", "Rewriter", "document.open(); document.write('<html></html>');")
+        val another = createTestScript("another", "Another", "alert(1);")
+
+        val sorted = ScriptInjector.sortByInjectionPriority(listOf(regular, rewriter, another))
+
+        assertEquals("rewriter", sorted[0].identifier.value)
+        assertEquals("regular", sorted[1].identifier.value)
+        assertEquals("another", sorted[2].identifier.value)
+    }
+
+    @Test
+    fun `sortByInjectionPriority preserves order when no document-open scripts`() {
+        val scriptA = createTestScript("a", "A", "code_a")
+        val scriptB = createTestScript("b", "B", "code_b")
+        val scriptC = createTestScript("c", "C", "code_c")
+
+        val sorted = ScriptInjector.sortByInjectionPriority(listOf(scriptA, scriptB, scriptC))
+
+        assertEquals("a", sorted[0].identifier.value)
+        assertEquals("b", sorted[1].identifier.value)
+        assertEquals("c", sorted[2].identifier.value)
+    }
+
+    @Test
+    fun `inject injects document-open script before regular scripts`() {
+        val regular = createTestScript("regular", "Regular", "regular_code")
+        val rewriter = createTestScript("rewriter", "Rewriter", "document.open(); rewriter_code")
+        every { scriptStorage.getEnabled() } returns listOf(regular, rewriter)
+        val capturedScripts = mutableListOf<String>()
+        every {
+            webView.evaluateJavascript(capture(capturedScripts), any<ValueCallback<String>>())
+        } returns Unit
+
+        injector.inject(webView)
+
+        // [0] = event fix, [1] = globals, [2] = polyfill, [3] = rewriter, [4] = regular
+        val rewriterIndex = capturedScripts.indexOfFirst { it.contains("rewriter_code") }
+        val regularIndex = capturedScripts.indexOfFirst { it.contains("regular_code") }
+        assertTrue(
+            "Скрипт с document.open() должен инжектироваться раньше обычных",
+            rewriterIndex < regularIndex,
         )
     }
 
