@@ -21,7 +21,7 @@ android {
         targetSdk = 35
         val versionMajor = 1
         val versionMinor = 1
-        val versionPatch = 0
+        val versionPatch = 1
         versionCode = versionMajor * 10000 + versionMinor * 100 + versionPatch
         versionName = "$versionMajor.$versionMinor.$versionPatch"
 
