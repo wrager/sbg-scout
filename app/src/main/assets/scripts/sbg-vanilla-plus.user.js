@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SBG Vanilla+
 // @namespace    https://github.com/wrager/sbg-vanilla-plus
-// @version      0.8.1
+// @version      0.9.0
 // @author       wrager
 // @description  UI/UX enhancements for SBG (SBG v0.6.0)
 // @license      MIT
@@ -18,18 +18,18 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY$2 = "svp_disabled";
+  const STORAGE_KEY$3 = "svp_disabled";
   function isDisabled() {
     const hash = location.hash;
     const match = /[#&]svp-disabled=([01])/.exec(hash);
     if (match) {
       if (match[1] === "1") {
-        sessionStorage.setItem(STORAGE_KEY$2, "1");
+        sessionStorage.setItem(STORAGE_KEY$3, "1");
       } else {
-        sessionStorage.removeItem(STORAGE_KEY$2);
+        sessionStorage.removeItem(STORAGE_KEY$3);
       }
     }
-    return sessionStorage.getItem(STORAGE_KEY$2) === "1";
+    return sessionStorage.getItem(STORAGE_KEY$3) === "1";
   }
   const GAME_SCRIPT_PATTERN = /^script@/;
   const PATCHES = [
@@ -86,6 +86,13 @@
       appendFunction.call(document.head, script);
     }
   }
+  function isSbgScout() {
+    return navigator.userAgent.includes("SbgScout/");
+  }
+  const DISALLOWED_IN_SCOUT = /* @__PURE__ */ new Set(["keepScreenOn"]);
+  function isModuleDisallowedInCurrentHost(moduleId) {
+    return isSbgScout() && DISALLOWED_IN_SCOUT.has(moduleId);
+  }
   function getGameLocale() {
     try {
       const raw = localStorage.getItem("settings");
@@ -103,73 +110,13 @@
   function t(str) {
     return str[getGameLocale()];
   }
-  const PHASE_LABELS = {
-    init: "инициализации",
-    enable: "включении",
-    disable: "выключении"
-  };
-  function handleModuleError(mod, phase, e, onError) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.error(`[SVP] Ошибка при ${PHASE_LABELS[phase]} модуля "${t(mod.name)}":`, e);
-    mod.status = "failed";
-    onError == null ? void 0 : onError(mod.id, message);
-  }
-  let registeredModules = [];
-  function registerModules(modules) {
-    registeredModules = modules;
-  }
-  function getModuleById(id) {
-    return registeredModules.find((mod) => mod.id === id);
-  }
-  function runModuleAction(action, onError) {
-    try {
-      const result = action();
-      if (result instanceof Promise) {
-        return result.catch(onError);
-      }
-    } catch (e) {
-      onError(e);
-    }
-  }
-  function initModules(modules, isEnabled, onError, onReady) {
-    for (const mod of modules) {
-      const initErrorHandler = (e) => {
-        handleModuleError(mod, "init", e, onError);
-      };
-      const enableErrorHandler = (e) => {
-        handleModuleError(mod, "enable", e, onError);
-      };
-      const markReady = () => {
-        if (mod.status !== "failed") {
-          mod.status = "ready";
-          onReady == null ? void 0 : onReady(mod.id);
-        }
-      };
-      const enableIfNeeded = () => {
-        if (mod.status !== "failed" && isEnabled(mod.id)) {
-          const result = runModuleAction(mod.enable.bind(mod), enableErrorHandler);
-          if (result instanceof Promise) {
-            void result.then(markReady).catch(enableErrorHandler);
-            return;
-          }
-        }
-        markReady();
-      };
-      const initResult = runModuleAction(mod.init.bind(mod), initErrorHandler);
-      if (initResult instanceof Promise) {
-        void initResult.then(enableIfNeeded).catch(initErrorHandler);
-      } else {
-        enableIfNeeded();
-      }
-    }
-  }
-  const SETTINGS_VERSION = 3;
+  const SETTINGS_VERSION = 4;
   const DEFAULT_SETTINGS = {
     version: SETTINGS_VERSION,
     modules: {},
     errors: {}
   };
-  const STORAGE_KEY$1 = "svp_settings";
+  const STORAGE_KEY$2 = "svp_settings";
   const BACKUP_PREFIX = "svp_settings_backup_v";
   const migrations = [
     // v1 → v2: добавлено поле errors
@@ -186,6 +133,23 @@
         errors["enhancedMainScreen"] = errors["collapsibleTopPanel"];
         delete errors["collapsibleTopPanel"];
       }
+      return { ...s, modules, errors };
+    },
+    // v3 → v4: слияние disableDoubleTapZoom в ngrsZoom.
+    // Если у пользователя был включён хотя бы один из двух — новый ngrsZoom включён.
+    // Если оба были явно выключены — выключен. Если пользователь не трогал ни один из
+    // них — не создаём запись, defaultEnabled сработает при следующей загрузке.
+    (s) => {
+      const modules = { ...s.modules };
+      const hasLegacy = "disableDoubleTapZoom" in modules || "ngrsZoom" in modules;
+      if (hasLegacy) {
+        const legacyOn = modules["disableDoubleTapZoom"] ?? false;
+        const ngrsOn = modules["ngrsZoom"] ?? false;
+        modules["ngrsZoom"] = legacyOn || ngrsOn;
+      }
+      delete modules["disableDoubleTapZoom"];
+      const errors = { ...s.errors };
+      delete errors["disableDoubleTapZoom"];
       return { ...s, modules, errors };
     }
   ];
@@ -205,7 +169,7 @@
   }
   function loadSettings() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY$1);
+      const raw = localStorage.getItem(STORAGE_KEY$2);
       if (!raw) return { ...DEFAULT_SETTINGS };
       const parsed = JSON.parse(raw);
       if (!isSvpSettings(parsed)) return { ...DEFAULT_SETTINGS };
@@ -221,7 +185,13 @@
     }
   }
   function saveSettings(settings) {
-    localStorage.setItem(STORAGE_KEY$1, JSON.stringify(settings));
+    try {
+      localStorage.setItem(STORAGE_KEY$2, JSON.stringify(settings));
+      return true;
+    } catch (error) {
+      console.error("[SVP] Не удалось сохранить настройки в localStorage:", error);
+      return false;
+    }
   }
   function persistModuleDefaults(settings, modules) {
     let updated = settings;
@@ -250,6 +220,75 @@
   function clearModuleError(settings, id) {
     const errors = Object.fromEntries(Object.entries(settings.errors).filter(([key]) => key !== id));
     return { ...settings, errors };
+  }
+  const PHASE_LABELS = {
+    init: "инициализации",
+    enable: "включении",
+    disable: "выключении"
+  };
+  function handleModuleError(mod, phase, e, onError) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[SVP] Ошибка при ${PHASE_LABELS[phase]} модуля "${t(mod.name)}":`, e);
+    mod.status = "failed";
+    onError == null ? void 0 : onError(mod.id, message);
+  }
+  let registeredModules = [];
+  function registerModules(modules) {
+    registeredModules = modules;
+  }
+  function getModuleById(id) {
+    return registeredModules.find((mod) => mod.id === id);
+  }
+  function isModuleActive(id) {
+    const mod = getModuleById(id);
+    if (!mod) return false;
+    if (mod.status !== "ready") return false;
+    const settings = loadSettings();
+    return isModuleEnabled(settings, id, mod.defaultEnabled);
+  }
+  function runModuleAction(action, onError) {
+    try {
+      const result = action();
+      if (result instanceof Promise) {
+        return result.catch(onError);
+      }
+    } catch (e) {
+      onError(e);
+    }
+  }
+  function initModules(modules, isEnabled, onError, onReady) {
+    for (const mod of modules) {
+      const initErrorHandler = (e) => {
+        handleModuleError(mod, "init", e, onError);
+      };
+      const enableErrorHandler = (e) => {
+        handleModuleError(mod, "enable", e, onError);
+      };
+      const markReady = () => {
+        if (mod.status !== "failed") {
+          mod.status = "ready";
+          onReady == null ? void 0 : onReady(mod.id);
+        }
+      };
+      const enableIfNeeded = () => {
+        if (mod.status === "failed" || !isEnabled(mod.id)) {
+          markReady();
+          return;
+        }
+        const result = runModuleAction(mod.enable.bind(mod), enableErrorHandler);
+        if (result instanceof Promise) {
+          void result.then(markReady);
+          return;
+        }
+        markReady();
+      };
+      const initResult = runModuleAction(mod.init.bind(mod), initErrorHandler);
+      if (initResult instanceof Promise) {
+        void initResult.then(enableIfNeeded);
+      } else {
+        enableIfNeeded();
+      }
+    }
   }
   const MAX_ENTRIES = 50;
   const entries = [];
@@ -317,7 +356,7 @@
   function buildBugReportUrl(modules) {
     const params = new URLSearchParams({
       template: "bug_report.yml",
-      version: "0.8.1",
+      version: "0.9.0",
       browser: navigator.userAgent,
       modules: buildModuleList(modules)
     });
@@ -383,22 +422,34 @@ ${errorLog}`);
     var _a;
     (_a = document.getElementById(`svp-${id}`)) == null ? void 0 : _a.remove();
   }
+  const TOAST_CLASS = "svp-toast";
+  const TOAST_HIDE_CLASS = "svp-toast-hide";
+  const DEFAULT_DURATION = 3e3;
+  function showToast(message, duration = DEFAULT_DURATION) {
+    const toast = document.createElement("div");
+    toast.className = TOAST_CLASS;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add(TOAST_HIDE_CLASS);
+      toast.addEventListener("transitionend", () => {
+        toast.remove();
+      });
+    }, duration);
+  }
+  function persistOrNotify(settings) {
+    if (saveSettings(settings)) return true;
+    showToast(
+      t({
+        en: "Failed to save settings (storage full or inaccessible)",
+        ru: "Не удалось сохранить настройки (хранилище заполнено или недоступно)"
+      })
+    );
+    return false;
+  }
   const PANEL_ID$1 = "svp-settings-panel";
-  const BTN_ID = "svp-settings-btn";
+  const GAME_SETTINGS_ENTRY_ID = "svp-game-settings-entry";
   const PANEL_STYLES = `
-.svp-settings-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background-color: buttonface;
-  border-radius: 4px;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .svp-settings-panel {
   position: fixed;
   inset: 0;
@@ -530,12 +581,34 @@ ${errorLog}`);
   font-style: italic;
 }
 
-.svp-module-checkbox {
+.svp-module-row-render-error {
+  padding: 4px 0;
+  color: var(--accent);
+  font-size: 10px;
+  font-family: monospace;
+  border-bottom: 1px dashed var(--border-transp);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.svp-module-row-host-provided .svp-module-name,
+.svp-module-row-host-provided .svp-module-desc {
+  color: var(--text-disabled);
+}
+
+.svp-module-row-host-provided-label {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--text-disabled);
+  margin-top: 2px;
+}
+
+.svp-module-checkbox,
+.svp-toggle-all-checkbox {
   flex-shrink: 0;
   cursor: pointer;
   width: 16px;
   height: 16px;
-
 }
 
 .svp-settings-footer {
@@ -573,14 +646,22 @@ ${errorLog}`);
   cursor: pointer;
 }
 `;
-  const CATEGORY_ORDER = ["ui", "map", "feature", "utility", "fix"];
+  const CATEGORY_ORDER = ["ui", "feature", "map", "utility", "fix"];
   const SETTINGS_TITLE = {
     en: "SBG Vanilla+ Settings",
+    ru: "Настройки SBG Vanilla+"
+  };
+  const SETTINGS_GAME_ENTRY_LABEL = {
+    en: "SBG Vanilla+ settings",
     ru: "Настройки SBG Vanilla+"
   };
   const RELOAD_LABEL = {
     en: "Page will reload on toggle",
     ru: "При переключении происходит перезагрузка"
+  };
+  const OPEN_LABEL = {
+    en: "Open",
+    ru: "Открыть"
   };
   const TOGGLE_ALL_LABEL = {
     en: "Toggle all",
@@ -602,6 +683,50 @@ ${errorLog}`);
       onChange(input.checked);
     });
     return input;
+  }
+  const HOST_PROVIDED_LABEL = {
+    en: "Implemented in SBG Scout",
+    ru: "Реализовано в SBG Scout"
+  };
+  function createHostProvidedRow(mod, errorMessage) {
+    const row = document.createElement("div");
+    row.className = "svp-module-row svp-module-row-host-provided";
+    const info = document.createElement("div");
+    info.className = "svp-module-info";
+    const nameLine = document.createElement("div");
+    nameLine.className = "svp-module-name-line";
+    const name = document.createElement("div");
+    name.className = "svp-module-name";
+    name.textContent = t(mod.name);
+    const modId = document.createElement("div");
+    modId.className = "svp-module-id";
+    modId.textContent = mod.id;
+    nameLine.appendChild(name);
+    nameLine.appendChild(modId);
+    const desc = document.createElement("div");
+    desc.className = "svp-module-desc";
+    desc.textContent = t(mod.description);
+    const hostLabel = document.createElement("div");
+    hostLabel.className = "svp-module-row-host-provided-label";
+    hostLabel.textContent = t(HOST_PROVIDED_LABEL);
+    info.appendChild(nameLine);
+    info.appendChild(desc);
+    info.appendChild(hostLabel);
+    const failed = document.createElement("div");
+    failed.className = "svp-module-failed";
+    function setError(message) {
+      if (message) {
+        failed.textContent = message;
+        failed.style.display = "";
+      } else {
+        failed.textContent = "";
+        failed.style.display = "none";
+      }
+    }
+    setError(errorMessage);
+    info.appendChild(failed);
+    row.appendChild(info);
+    return { row, setError };
   }
   function createModuleRow(mod, enabled2, onChange, errorMessage) {
     const row = document.createElement("div");
@@ -636,8 +761,8 @@ ${errorLog}`);
     const failed = document.createElement("div");
     failed.className = "svp-module-failed";
     row.appendChild(info);
-    const checkbox = createCheckbox(enabled2, onChange);
-    row.appendChild(checkbox);
+    const checkbox2 = createCheckbox(enabled2, onChange);
+    row.appendChild(checkbox2);
     function setError(message) {
       if (message) {
         failed.textContent = message;
@@ -649,52 +774,132 @@ ${errorLog}`);
     }
     setError(errorMessage);
     info.appendChild(failed);
-    return { row, checkbox, setError };
+    return { row, checkbox: checkbox2, setError };
   }
   function fillSection(section, modules, category, errorDisplay, checkboxMap, onAnyToggle) {
     const title = document.createElement("div");
     title.className = "svp-settings-section-title";
     title.textContent = t(CATEGORY_LABELS[category]);
     section.appendChild(title);
-    let settings = loadSettings();
+    const initialSettings = loadSettings();
     for (const mod of modules) {
-      const enabled2 = isModuleEnabled(settings, mod.id, mod.defaultEnabled);
-      const errorMessage = settings.errors[mod.id] ?? null;
-      const { row, checkbox, setError } = createModuleRow(
-        mod,
-        enabled2,
-        (newEnabled) => {
-          settings = setModuleEnabled(settings, mod.id, newEnabled);
-          saveSettings(settings);
-          if (mod.requiresReload) {
-            location.hash = "svp-settings";
-            location.reload();
-            return;
-          }
-          const phaseLabel = newEnabled ? "включении" : "выключении";
-          function onToggleError(e) {
-            const message = e instanceof Error ? e.message : String(e);
-            console.error(`[SVP] Ошибка при ${phaseLabel} модуля "${t(mod.name)}":`, e);
-            mod.status = "failed";
-            settings = setModuleError(settings, mod.id, message);
-            saveSettings(settings);
-            setError(message);
-          }
-          const toggleAction = newEnabled ? mod.enable.bind(mod) : mod.disable.bind(mod);
-          void runModuleAction(toggleAction, onToggleError);
-          if (mod.status !== "failed") {
-            mod.status = "ready";
-            settings = clearModuleError(settings, mod.id);
-            saveSettings(settings);
-            setError(null);
-          }
-          onAnyToggle();
-        },
-        errorMessage
-      );
-      checkboxMap.set(mod.id, checkbox);
-      errorDisplay.set(mod.id, setError);
-      section.appendChild(row);
+      try {
+        const disallowed = isModuleDisallowedInCurrentHost(mod.id);
+        const errorMessage = initialSettings.errors[mod.id] ?? null;
+        if (disallowed) {
+          const { row: row2, setError: setError2 } = createHostProvidedRow(mod, errorMessage);
+          errorDisplay.set(mod.id, setError2);
+          section.appendChild(row2);
+          continue;
+        }
+        const enabled2 = isModuleEnabled(initialSettings, mod.id, mod.defaultEnabled);
+        let checkboxRef = null;
+        const { row, checkbox: checkbox2, setError } = createModuleRow(
+          mod,
+          enabled2,
+          (newEnabled) => {
+            void handleModuleToggle(
+              mod,
+              newEnabled,
+              (checked) => {
+                if (checkboxRef) checkboxRef.checked = checked;
+              },
+              setError,
+              onAnyToggle
+            );
+          },
+          errorMessage
+        );
+        checkboxRef = checkbox2;
+        checkboxMap.set(mod.id, checkbox2);
+        errorDisplay.set(mod.id, setError);
+        section.appendChild(row);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[SVP] Ошибка рендера настроек модуля "${mod.id}":`, error);
+        section.appendChild(createRenderErrorRow(mod.id, message));
+      }
+    }
+  }
+  async function handleModuleToggle(mod, newEnabled, setChecked, setError, onAnyToggle) {
+    if (!persistOrNotify(setModuleEnabled(loadSettings(), mod.id, newEnabled))) {
+      setChecked(!newEnabled);
+      onAnyToggle();
+      return;
+    }
+    if (mod.requiresReload) {
+      location.hash = "svp-settings";
+      location.reload();
+      return;
+    }
+    const phaseLabel = newEnabled ? "включении" : "выключении";
+    const toggleAction = newEnabled ? mod.enable.bind(mod) : mod.disable.bind(mod);
+    try {
+      const result = toggleAction();
+      if (result instanceof Promise) {
+        await result;
+      }
+      mod.status = "ready";
+      persistOrNotify(clearModuleError(loadSettings(), mod.id));
+      setError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[SVP] Ошибка при ${phaseLabel} модуля "${t(mod.name)}":`, error);
+      mod.status = "failed";
+      const previousEnabled = !newEnabled;
+      setChecked(previousEnabled);
+      persistOrNotify(setModuleEnabled(loadSettings(), mod.id, previousEnabled));
+      persistOrNotify(setModuleError(loadSettings(), mod.id, message));
+      setError(message);
+    }
+    onAnyToggle();
+  }
+  function createRenderErrorRow(moduleId, message) {
+    const row = document.createElement("div");
+    row.className = "svp-module-row-render-error";
+    row.dataset["svpModuleId"] = moduleId;
+    row.textContent = `${moduleId}: render error — ${message}`;
+    return row;
+  }
+  async function handleToggleAll(modules, enableAll, checkboxMap, errorDisplay) {
+    let needsReload = false;
+    for (const mod of modules) {
+      const checkbox2 = checkboxMap.get(mod.id);
+      if (!checkbox2 || checkbox2.checked === enableAll) continue;
+      const previousEnabled = !enableAll;
+      checkbox2.checked = enableAll;
+      if (!persistOrNotify(setModuleEnabled(loadSettings(), mod.id, enableAll))) {
+        checkbox2.checked = previousEnabled;
+        return;
+      }
+      if (mod.requiresReload) {
+        needsReload = true;
+        continue;
+      }
+      const phaseLabel = enableAll ? "включении" : "выключении";
+      const toggleAction = enableAll ? mod.enable.bind(mod) : mod.disable.bind(mod);
+      const setError = errorDisplay.get(mod.id);
+      try {
+        const result = toggleAction();
+        if (result instanceof Promise) {
+          await result;
+        }
+        mod.status = "ready";
+        persistOrNotify(clearModuleError(loadSettings(), mod.id));
+        setError == null ? void 0 : setError(null);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[SVP] Ошибка при ${phaseLabel} модуля "${t(mod.name)}":`, error);
+        mod.status = "failed";
+        checkbox2.checked = previousEnabled;
+        persistOrNotify(setModuleEnabled(loadSettings(), mod.id, previousEnabled));
+        persistOrNotify(setModuleError(loadSettings(), mod.id, message));
+        setError == null ? void 0 : setError(message);
+      }
+    }
+    if (needsReload) {
+      location.hash = "svp-settings";
+      location.reload();
     }
   }
   function initSettingsUI(modules, errorDisplay) {
@@ -708,7 +913,7 @@ ${errorLog}`);
     toggleAllLabel.className = "svp-toggle-all";
     const toggleAllCheckbox = document.createElement("input");
     toggleAllCheckbox.type = "checkbox";
-    toggleAllCheckbox.className = "svp-module-checkbox";
+    toggleAllCheckbox.className = "svp-toggle-all-checkbox";
     const toggleAllText = document.createElement("span");
     toggleAllText.textContent = t(TOGGLE_ALL_LABEL);
     toggleAllLabel.appendChild(toggleAllCheckbox);
@@ -751,49 +956,16 @@ ${errorLog}`);
     }
     updateMasterState();
     toggleAllCheckbox.addEventListener("change", () => {
-      const enableAll = toggleAllCheckbox.checked;
-      let settings = loadSettings();
-      let needsReload = false;
-      for (const mod of modules) {
-        let onToggleError = function(e) {
-          const message = e instanceof Error ? e.message : String(e);
-          console.error(`[SVP] Ошибка при ${phaseLabel} модуля "${t(mod.name)}":`, e);
-          mod.status = "failed";
-          settings = setModuleError(settings, mod.id, message);
-          const setError = errorDisplay.get(mod.id);
-          setError == null ? void 0 : setError(message);
-        };
-        const checkbox = checkboxMap.get(mod.id);
-        if (!checkbox || checkbox.checked === enableAll) continue;
-        checkbox.checked = enableAll;
-        settings = setModuleEnabled(settings, mod.id, enableAll);
-        if (mod.requiresReload) {
-          needsReload = true;
-          continue;
-        }
-        const phaseLabel = enableAll ? "включении" : "выключении";
-        const toggleAction = enableAll ? mod.enable.bind(mod) : mod.disable.bind(mod);
-        void runModuleAction(toggleAction, onToggleError);
-        if (mod.status !== "failed") {
-          mod.status = "ready";
-          settings = clearModuleError(settings, mod.id);
-          const setError = errorDisplay.get(mod.id);
-          setError == null ? void 0 : setError(null);
-        }
-      }
-      saveSettings(settings);
-      updateMasterState();
-      if (needsReload) {
-        location.hash = "svp-settings";
-        location.reload();
-      }
+      void handleToggleAll(modules, toggleAllCheckbox.checked, checkboxMap, errorDisplay).then(() => {
+        updateMasterState();
+      });
     });
     panel2.appendChild(content);
     const footer = document.createElement("div");
     footer.className = "svp-settings-footer";
     const version = document.createElement("span");
     version.className = "svp-settings-version";
-    version.textContent = `SBG Vanilla+ v${"0.8.1"}`;
+    version.textContent = `SBG Vanilla+ v${"0.9.0"}`;
     const reportButton = document.createElement("button");
     reportButton.className = "svp-report-button";
     const reportLabel = { en: "Report a bug", ru: "Сообщить об ошибке" };
@@ -831,20 +1003,35 @@ ${errorLog}`);
     const observer2 = new MutationObserver(updateScrollIndicators);
     observer2.observe(content, { childList: true, subtree: true });
     document.body.appendChild(panel2);
-    const btn = document.createElement("button");
-    btn.className = "svp-settings-btn";
-    btn.id = BTN_ID;
-    btn.textContent = "⚙";
-    btn.title = t(SETTINGS_TITLE);
-    btn.addEventListener("click", () => {
-      panel2.classList.toggle("svp-open");
-      requestAnimationFrame(updateScrollIndicators);
-    });
-    const container = document.querySelector(".bottom-container");
-    if (container) {
-      container.appendChild(btn);
-    } else {
-      document.body.appendChild(btn);
+    const gameSettingsContent = document.querySelector(".settings-content");
+    if (gameSettingsContent) {
+      const item = document.createElement("div");
+      item.className = "settings-section__item";
+      item.id = GAME_SETTINGS_ENTRY_ID;
+      const label = document.createElement("span");
+      label.textContent = t(SETTINGS_GAME_ENTRY_LABEL);
+      const openButton = document.createElement("button");
+      openButton.className = "settings-section__button";
+      openButton.textContent = t(OPEN_LABEL);
+      openButton.addEventListener("click", () => {
+        panel2.classList.add("svp-open");
+        requestAnimationFrame(updateScrollIndicators);
+      });
+      item.appendChild(label);
+      item.appendChild(openButton);
+      let inserted = false;
+      if (isSbgScout()) {
+        for (const child of gameSettingsContent.querySelectorAll(".settings-section__item")) {
+          if (child.textContent.includes("SBG Scout")) {
+            child.after(item);
+            inserted = true;
+            break;
+          }
+        }
+      }
+      if (!inserted) {
+        gameSettingsContent.prepend(item);
+      }
     }
     if (location.hash.includes("svp-settings")) {
       panel2.classList.add("svp-open");
@@ -852,7 +1039,15 @@ ${errorLog}`);
       requestAnimationFrame(updateScrollIndicators);
     }
   }
+  const toastStyles = ".svp-toast{position:fixed;top:50px;left:50%;transform:translate(-50%);background:var(--background);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 12px;font-size:12px;z-index:10002;opacity:1;transition:opacity .3s ease;pointer-events:none;max-width:90vw;text-align:center;box-sizing:border-box}.svp-toast-hide{opacity:0}";
+  let bootstrapped = false;
   function bootstrap(modules) {
+    if (bootstrapped) {
+      console.warn("[SVP] bootstrap() вызван повторно — игнорирую. Модули уже инициализированы.");
+      return;
+    }
+    bootstrapped = true;
+    injectStyles(toastStyles, "svp-toast");
     registerModules(modules);
     let settings = loadSettings();
     settings = persistModuleDefaults(settings, modules);
@@ -860,6 +1055,7 @@ ${errorLog}`);
     initModules(
       modules,
       (id) => {
+        if (isModuleDisallowedInCurrentHost(id)) return false;
         const mod = modules.find((m) => m.id === id);
         return isModuleEnabled(settings, id, (mod == null ? void 0 : mod.defaultEnabled) ?? true);
       },
@@ -990,9 +1186,9 @@ ${errorLog}`);
     setTimeout(logDiagnostics, DIAG_DELAY);
   }
   const FLAVOR_HEADER = "x-sbg-flavor";
-  const FLAVOR_VALUE = `VanillaPlus/${"0.8.1"}`;
+  const FLAVOR_VALUE = `VanillaPlus/${"0.9.0"}`;
   function installSbgFlavor() {
-    const originalFetch = window.fetch;
+    const originalFetch2 = window.fetch;
     window.fetch = function(input, init) {
       const headers = new Headers(init == null ? void 0 : init.headers);
       const existing = headers.get(FLAVOR_HEADER);
@@ -1005,38 +1201,76 @@ ${errorLog}`);
       } else {
         headers.set(FLAVOR_HEADER, FLAVOR_VALUE);
       }
-      return originalFetch.call(this, input, { ...init, headers });
+      return originalFetch2.call(this, input, { ...init, headers });
     };
   }
-  const css$1 = ".topleft-container.svp-collapsed{display:flex;flex-direction:row;align-items:center;gap:4px;padding:4px 37px 4px 6px;margin:0;cursor:pointer;border:1px var(--border) solid!important;background:var(--background)!important;color:var(--text)}.topleft-container.svp-collapsed .self-info{display:flex;align-items:center;margin:0;padding:0}.topleft-container.svp-collapsed .game-menu{display:inline-flex;margin:0;padding:0}#svp-inv-summary{font-size:14px;white-space:nowrap}#svp-top-toggle,#svp-top-expand{position:fixed;z-index:1;font-size:10px;line-height:1;cursor:pointer;padding:4px 8px;color:var(--text);background:var(--background);border:1px var(--border) solid;border-radius:6px;opacity:.8;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}#svp-top-toggle:active,#svp-top-expand:active{opacity:1}#attack-menu{position:fixed;left:50%;transform:translate(-50%);height:27pt}";
-  const MODULE_ID$h = "enhancedMainScreen";
-  const SUMMARY_ID = "svp-inv-summary";
-  const TOGGLE_ID = "svp-top-toggle";
-  const EXPAND_ID = "svp-top-expand";
+  const css$1 = ".topleft-container.svp-compact{top:.45em;left:.45em}.topleft-container.svp-compact .self-info{display:flex!important;align-items:center!important;justify-content:flex-start!important;text-align:left!important;width:max-content!important;margin:0;padding:0!important;border:none!important;background:none!important;font-size:.9em}#attack-menu{position:fixed;left:50%;transform:translate(-50%);height:27pt}";
+  const MODULE_ID$i = "enhancedMainScreen";
   let cleanup = null;
-  function createSummary(container) {
+  function isHTMLElement(element) {
+    return element instanceof HTMLElement;
+  }
+  function retranslateI18n(element) {
+    const globals = window;
+    const jq = globals.$;
+    if (typeof jq !== "function") return;
+    const wrapped = jq(element);
+    if (typeof wrapped !== "object" || wrapped === null) return;
+    const localize = wrapped.localize;
+    if (typeof localize === "function") {
+      localize.call(wrapped);
+    }
+  }
+  function i18nextTranslate(key) {
+    if (key === null) return null;
+    const globals = window;
+    const i18next = globals.i18next;
+    if (typeof i18next !== "object" || i18next === null) return null;
+    const translate = i18next.t;
+    if (typeof translate !== "function") return null;
+    const result = translate.call(i18next, key);
+    return typeof result === "string" ? result : null;
+  }
+  function restoreI18nText(element, originalText, i18nKey) {
+    const translated = i18nextTranslate(i18nKey);
+    const restored = translated ?? originalText;
+    if (restored !== null) {
+      element.textContent = restored;
+    }
+    if (i18nKey !== null) {
+      element.setAttribute("data-i18n", i18nKey);
+    }
+    retranslateI18n(element);
+  }
+  function setupOpsInventory(container, opsButton) {
     const invSpan = $("#self-info__inv", container);
     const limSpan = $("#self-info__inv-lim", container);
     const invEntry = invSpan == null ? void 0 : invSpan.closest(".self-info__entry");
-    const summary = document.createElement("span");
-    summary.id = SUMMARY_ID;
+    const opsOriginalText = opsButton.textContent;
+    const opsI18nKey = opsButton.getAttribute("data-i18n");
+    opsButton.removeAttribute("data-i18n");
     const update = () => {
       const inv = (invSpan == null ? void 0 : invSpan.textContent) ?? "?";
       const lim = (limSpan == null ? void 0 : limSpan.textContent) ?? "?";
-      summary.textContent = `${inv}/${lim}`;
-      if (invEntry instanceof HTMLElement) {
-        summary.style.color = invEntry.style.color;
+      opsButton.textContent = `${inv}/${lim}`;
+      if (isHTMLElement(invEntry)) {
+        opsButton.style.color = invEntry.style.color;
       }
     };
     update();
     const observer2 = new MutationObserver(update);
     if (invSpan) observer2.observe(invSpan, { childList: true, characterData: true, subtree: true });
     if (limSpan) observer2.observe(limSpan, { childList: true, characterData: true, subtree: true });
-    if (invEntry) observer2.observe(invEntry, { attributes: true, attributeFilter: ["style"] });
-    return summary;
-  }
-  function isHTMLElement(el) {
-    return el instanceof HTMLElement;
+    if (isHTMLElement(invEntry)) {
+      observer2.observe(invEntry, { attributes: true, attributeFilter: ["style"] });
+    }
+    return {
+      destroy: () => {
+        observer2.disconnect();
+        opsButton.style.color = "";
+        restoreI18nText(opsButton, opsOriginalText, opsI18nKey);
+      }
+    };
   }
   async function setup() {
     const container = await waitForElement(".topleft-container");
@@ -1045,119 +1279,79 @@ ${errorLog}`);
     const selfInfo = $(".self-info", container);
     if (!isHTMLElement(selfInfo)) return () => {
     };
-    const opsBtn = $("#ops", container);
-    if (!isHTMLElement(opsBtn)) return () => {
+    const opsButton = $("#ops", container);
+    if (!isHTMLElement(opsButton)) return () => {
     };
+    const nameSpan = $("#self-info__name", container);
+    const nameSpanParent = nameSpan == null ? void 0 : nameSpan.parentElement;
+    const nameSpanNextSibling = (nameSpan == null ? void 0 : nameSpan.nextSibling) ?? null;
     const allEntries = $$(".self-info__entry", container).filter(isHTMLElement);
-    const extraButtons = $$(".game-menu button:not(#ops)", container).filter(isHTMLElement);
-    const effects = $(".effects", container);
-    const hiddenEls = [...allEntries, ...extraButtons, ...isHTMLElement(effects) ? [effects] : []];
-    const toggle = document.createElement("div");
-    toggle.id = TOGGLE_ID;
-    toggle.textContent = "▲";
-    document.body.appendChild(toggle);
-    const expandBtn = document.createElement("div");
-    expandBtn.id = EXPAND_ID;
-    expandBtn.textContent = "▼";
-    document.body.appendChild(expandBtn);
-    const summary = createSummary(container);
-    selfInfo.appendChild(summary);
-    let collapsed = false;
-    const positionToggle = () => {
-      const rect = container.getBoundingClientRect();
-      toggle.style.top = `${rect.top + 4}px`;
-      toggle.style.left = `${rect.right - toggle.offsetWidth - 4}px`;
-    };
-    const positionExpand = () => {
-      const opsRect = opsBtn.getBoundingClientRect();
-      expandBtn.style.top = `${opsRect.top + (opsRect.height - expandBtn.offsetHeight) / 2}px`;
-      expandBtn.style.left = `${opsRect.right + 4}px`;
-    };
-    const resizeObserver = new ResizeObserver(() => {
-      if (collapsed) positionExpand();
-    });
-    resizeObserver.observe(container);
-    const setCollapsed = (value) => {
-      collapsed = value;
-      for (const el of hiddenEls) {
-        el.style.display = collapsed ? "none" : "";
-      }
-      summary.style.display = collapsed ? "" : "none";
-      toggle.style.display = collapsed ? "none" : "";
-      expandBtn.style.display = collapsed ? "" : "none";
-      selfInfo.style.border = collapsed ? "none" : "";
-      container.classList.toggle("svp-collapsed", collapsed);
-      if (!collapsed) {
-        requestAnimationFrame(positionToggle);
-      }
-    };
-    setCollapsed(true);
-    const onExpand = (e) => {
-      if (!collapsed) return;
-      const target = e.target;
-      if (!(target instanceof Element)) return;
-      if (target.closest("#ops")) return;
-      e.stopPropagation();
-      e.preventDefault();
-      setCollapsed(false);
-    };
-    const onExpandBtn = (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      setCollapsed(false);
-    };
-    const onCollapse = (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      setCollapsed(true);
-    };
-    container.addEventListener("touchstart", onExpand, { passive: false });
-    container.addEventListener("mousedown", onExpand);
-    expandBtn.addEventListener("touchstart", onExpandBtn, { passive: false });
-    expandBtn.addEventListener("mousedown", onExpandBtn);
-    toggle.addEventListener("touchstart", onCollapse, { passive: false });
-    toggle.addEventListener("mousedown", onCollapse);
+    const hiddenElements = [...allEntries];
+    for (const element of hiddenElements) {
+      element.style.display = "none";
+    }
+    if (nameSpan) {
+      selfInfo.appendChild(nameSpan);
+    }
+    const opsInventory = setupOpsInventory(container, opsButton);
+    const gameMenu = $(".game-menu", container);
+    if (isHTMLElement(gameMenu)) {
+      container.insertBefore(gameMenu, selfInfo);
+    }
+    const settingsButton = $("#settings", container);
+    const settingsOriginalText = (settingsButton == null ? void 0 : settingsButton.textContent) ?? null;
+    const settingsI18nKey = (settingsButton == null ? void 0 : settingsButton.getAttribute("data-i18n")) ?? null;
+    if (isHTMLElement(settingsButton)) {
+      settingsButton.textContent = "⚙︎";
+      settingsButton.removeAttribute("data-i18n");
+    }
+    container.classList.add("svp-compact");
     return () => {
-      resizeObserver.disconnect();
-      container.removeEventListener("touchstart", onExpand);
-      container.removeEventListener("mousedown", onExpand);
-      expandBtn.removeEventListener("touchstart", onExpandBtn);
-      expandBtn.removeEventListener("mousedown", onExpandBtn);
-      toggle.removeEventListener("touchstart", onCollapse);
-      toggle.removeEventListener("mousedown", onCollapse);
-      setCollapsed(false);
-      toggle.remove();
-      expandBtn.remove();
-      summary.remove();
+      opsInventory.destroy();
+      if (isHTMLElement(settingsButton)) {
+        restoreI18nText(settingsButton, settingsOriginalText, settingsI18nKey);
+      }
+      if (nameSpan && nameSpanParent) {
+        if (nameSpanNextSibling) {
+          nameSpanParent.insertBefore(nameSpan, nameSpanNextSibling);
+        } else {
+          nameSpanParent.appendChild(nameSpan);
+        }
+      }
+      if (isHTMLElement(gameMenu)) {
+        selfInfo.after(gameMenu);
+      }
+      for (const element of hiddenElements) {
+        element.style.display = "";
+      }
+      container.classList.remove("svp-compact");
     };
   }
   const enhancedMainScreen = {
-    id: MODULE_ID$h,
+    id: MODULE_ID$i,
     name: { en: "Enhanced Main Screen", ru: "Улучшенный главный экран" },
     description: {
-      en: "Collapses the top-left panel and centers the attack button on the map screen",
-      ru: "Сворачивает верхнюю панель и центрирует кнопку атаки на экране с картой"
+      en: "Compacts the top panel: nick below buttons, inventory in OPS, gear icon for Settings, attack button centered",
+      ru: "Компактная верхняя панель: ник под кнопками, инвентарь в ОРПЦ, шестерёнка вместо «Настройки», кнопка атаки по центру"
     },
     defaultEnabled: true,
     category: "ui",
     init() {
     },
-    enable() {
-      injectStyles(css$1, MODULE_ID$h);
-      return setup().then((fn) => {
-        cleanup = fn;
-      });
+    async enable() {
+      injectStyles(css$1, MODULE_ID$i);
+      cleanup = await setup();
     },
     disable() {
-      removeStyles(MODULE_ID$h);
+      removeStyles(MODULE_ID$i);
       cleanup == null ? void 0 : cleanup();
       cleanup = null;
     }
   };
-  const styles$5 = ".info.popup .i-buttons button{min-height:72px;display:flex;align-items:center;justify-content:center}.i-stat__entry:not(.i-stat__cores){font-size:.7rem}.cores-list__level{font-size:1rem}#magic-deploy-btn{position:fixed;bottom:5px;left:5px;width:32px;height:32px;min-height:auto}";
-  const MODULE_ID$g = "enhancedPointPopupUi";
+  const styles$6 = ".info.popup .i-buttons button{min-height:72px;display:flex;align-items:center;justify-content:center}.i-stat__entry:not(.i-stat__cores){font-size:.7rem}.cores-list__level{font-size:1rem}#magic-deploy-btn{position:fixed;bottom:5px;left:5px;width:32px;height:32px;min-height:auto}";
+  const MODULE_ID$h = "enhancedPointPopupUi";
   const enhancedPointPopupUi = {
-    id: MODULE_ID$g,
+    id: MODULE_ID$h,
     name: { en: "Enhanced Point Popup UI", ru: "Улучшенный UI попапа точки" },
     description: {
       en: "Larger buttons, smaller text, auto-deploy hidden from accidental taps",
@@ -1168,15 +1362,15 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(styles$5, MODULE_ID$g);
+      injectStyles(styles$6, MODULE_ID$h);
     },
     disable() {
-      removeStyles(MODULE_ID$g);
+      removeStyles(MODULE_ID$h);
     }
   };
-  const styles$4 = ".info.popup{touch-action:pan-y}.info.popup .deploy-slider-wrp{touch-action:manipulation}.info.popup.svp-swipe-animating{transition:translate .3s ease-out,rotate .3s ease-out,opacity .3s ease-out}";
-  const MODULE_ID$f = "swipeToClosePopup";
-  const POPUP_SELECTOR = ".info.popup";
+  const styles$5 = ".info.popup{touch-action:pan-y}.info.popup .deploy-slider-wrp{touch-action:manipulation}.info.popup.svp-swipe-animating{transition:translate .3s ease-out,rotate .3s ease-out,opacity .3s ease-out}";
+  const MODULE_ID$g = "swipeToClosePopup";
+  const POPUP_SELECTOR$1 = ".info.popup";
   const DIRECTION_THRESHOLD = 10;
   const DISMISS_THRESHOLD = 100;
   const VELOCITY_THRESHOLD = 0.5;
@@ -1404,7 +1598,7 @@ ${errorLog}`);
     popup.removeEventListener("touchcancel", onTouchCancel);
   }
   const swipeToClosePopup = {
-    id: MODULE_ID$f,
+    id: MODULE_ID$g,
     name: {
       en: "Swipe to Close Popup",
       ru: "Закрытие попапа свайпом"
@@ -1418,10 +1612,10 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      const element = $(POPUP_SELECTOR);
+      const element = $(POPUP_SELECTOR$1);
       if (!(element instanceof HTMLElement)) return;
       popup = element;
-      injectStyles(styles$4, MODULE_ID$f);
+      injectStyles(styles$5, MODULE_ID$g);
       addListeners$2();
       startPopupObserver();
     },
@@ -1429,20 +1623,20 @@ ${errorLog}`);
       removeListeners$2();
       stopPopupObserver();
       cleanupAnimation();
-      removeStyles(MODULE_ID$f);
+      removeStyles(MODULE_ID$g);
       lastObservedGuid = null;
       popup = null;
     }
   };
-  const MODULE_ID$e = "shiftMapCenterDown";
+  const MODULE_ID$f = "shiftMapCenterDown";
   const PADDING_FACTOR = 0.35;
   const ACTION_PANEL_SELECTORS = ".attack-slider-wrp, .draw-slider-wrp";
   let map$5 = null;
   let topPadding = 0;
-  let inflateForPadding = false;
   let actionObserver = null;
   let actionPanelActive = false;
   let actionRafId = null;
+  let originalCalculateExtent$1 = null;
   function applyPadding(padding) {
     if (!map$5) return;
     const view = map$5.getView();
@@ -1451,14 +1645,14 @@ ${errorLog}`);
     view.setCenter(center);
   }
   function handleActionPanelChange() {
-    const openPanel = document.querySelector(
+    const openPanel2 = document.querySelector(
       ".attack-slider-wrp:not(.hidden), .draw-slider-wrp:not(.hidden)"
     );
-    if (openPanel && !actionPanelActive) {
+    if (openPanel2 && !actionPanelActive) {
       actionPanelActive = true;
-      const panelHeight = openPanel.getBoundingClientRect().height;
+      const panelHeight = openPanel2.getBoundingClientRect().height;
       applyPadding([0, 0, panelHeight, 0]);
-    } else if (!openPanel && actionPanelActive) {
+    } else if (!openPanel2 && actionPanelActive) {
       actionPanelActive = false;
       applyPadding([topPadding, 0, 0, 0]);
     }
@@ -1489,8 +1683,26 @@ ${errorLog}`);
     actionObserver == null ? void 0 : actionObserver.disconnect();
     actionObserver = null;
   }
+  function installCalculateExtentWrapper$1() {
+    if (!map$5 || originalCalculateExtent$1 !== null) return;
+    const view = map$5.getView();
+    const original = view.calculateExtent;
+    originalCalculateExtent$1 = original;
+    view.calculateExtent = (size) => {
+      if (size) {
+        return original.call(view, [size[0], size[1] + topPadding]);
+      }
+      return original.call(view, size);
+    };
+  }
+  function restoreCalculateExtentWrapper$1() {
+    if (!map$5 || originalCalculateExtent$1 === null) return;
+    const view = map$5.getView();
+    view.calculateExtent = originalCalculateExtent$1;
+    originalCalculateExtent$1 = null;
+  }
   const shiftMapCenterDown = {
-    id: MODULE_ID$e,
+    id: MODULE_ID$f,
     name: { en: "Shift Map Center Down", ru: "Сдвиг центра карты вниз" },
     description: {
       en: "Moves map center down so you see more ahead while moving",
@@ -1500,76 +1712,32 @@ ${errorLog}`);
     category: "map",
     init() {
       topPadding = Math.round(window.innerHeight * PADDING_FACTOR);
+      originalCalculateExtent$1 = null;
+      actionPanelActive = false;
       return getOlMap().then((olMap2) => {
         map$5 = olMap2;
-        const view = olMap2.getView();
-        const originalCalculateExtent = view.calculateExtent.bind(view);
-        view.calculateExtent = (size) => {
-          if (inflateForPadding && size) {
-            return originalCalculateExtent([size[0], size[1] + topPadding]);
-          }
-          return originalCalculateExtent(size);
-        };
       });
     },
     enable() {
-      inflateForPadding = true;
+      installCalculateExtentWrapper$1();
       applyPadding([topPadding, 0, 0, 0]);
       startActionObserver();
     },
     disable() {
-      inflateForPadding = false;
       stopActionObserver();
       actionPanelActive = false;
       applyPadding([0, 0, 0, 0]);
+      restoreCalculateExtentWrapper$1();
     }
   };
-  const MODULE_ID$d = "disableDoubleTapZoom";
-  let disabledInteractions$1 = [];
-  let enabled$3 = false;
-  function isDoubleClickZoom$1(interaction) {
-    var _a, _b;
-    const DoubleClickZoom = (_b = (_a = window.ol) == null ? void 0 : _a.interaction) == null ? void 0 : _b.DoubleClickZoom;
-    return DoubleClickZoom !== void 0 && interaction instanceof DoubleClickZoom;
-  }
-  const disableDoubleTapZoom = {
-    id: MODULE_ID$d,
-    name: { en: "Disable Double-Tap Zoom", ru: "Отключить зум по двойному тапу" },
-    description: {
-      en: "Disables double-tap zoom to prevent accidental zooming",
-      ru: "Отключает зум по двойному тапу для предотвращения случайного зума"
-    },
-    defaultEnabled: true,
-    category: "map",
-    init() {
-    },
-    enable() {
-      enabled$3 = true;
-      return getOlMap().then((map2) => {
-        if (!enabled$3) return;
-        const interactions = map2.getInteractions().getArray();
-        disabledInteractions$1 = interactions.filter(isDoubleClickZoom$1);
-        for (const interaction of disabledInteractions$1) {
-          interaction.setActive(false);
-        }
-      });
-    },
-    disable() {
-      enabled$3 = false;
-      for (const interaction of disabledInteractions$1) {
-        interaction.setActive(true);
-      }
-      disabledInteractions$1 = [];
-    }
-  };
-  const MODULE_ID$c = "ngrsZoom";
+  const MODULE_ID$e = "ngrsZoom";
   const TAP_DURATION_THRESHOLD = 200;
   const MAX_TAP_GAP = 300;
   const MAX_TAP_DISTANCE = 30;
   const DRAG_THRESHOLD = 5;
-  const ZOOM_SENSITIVITY = 0.01;
+  const ZOOM_SENSITIVITY = 0.015;
   let map$4 = null;
-  let enabled$2 = false;
+  let enabled$1 = false;
   let disabledInteractions = [];
   let dragPanControl$1 = null;
   let state = "idle";
@@ -1578,18 +1746,25 @@ ${errorLog}`);
   let firstTapY = 0;
   let secondTapTimer = null;
   let initialY = 0;
-  let initialZoom = 0;
+  let initialResolution = 0;
+  let interacting = false;
+  const END_INTERACTION_DURATION = 200;
   function isDoubleClickZoom(interaction) {
     var _a, _b;
     const DoubleClickZoom = (_b = (_a = window.ol) == null ? void 0 : _a.interaction) == null ? void 0 : _b.DoubleClickZoom;
     return DoubleClickZoom !== void 0 && interaction instanceof DoubleClickZoom;
   }
   function resetGesture$1() {
+    var _a, _b;
     state = "idle";
     dragPanControl$1 == null ? void 0 : dragPanControl$1.restore();
     if (secondTapTimer !== null) {
       clearTimeout(secondTapTimer);
       secondTapTimer = null;
+    }
+    if (interacting) {
+      interacting = false;
+      (_b = map$4 == null ? void 0 : (_a = map$4.getView()).endInteraction) == null ? void 0 : _b.call(_a, END_INTERACTION_DURATION);
     }
   }
   function distanceBetweenTaps(x, y) {
@@ -1598,12 +1773,12 @@ ${errorLog}`);
   function applyZoom(currentY) {
     if (!map$4) return;
     const view = map$4.getView();
-    if (!view.setZoom) return;
+    if (!view.setResolution) return;
     const deltaY = initialY - currentY;
-    view.setZoom(initialZoom + deltaY * ZOOM_SENSITIVITY);
+    view.setResolution(initialResolution * Math.pow(2, -deltaY * ZOOM_SENSITIVITY));
   }
   function onTouchStart$1(event) {
-    var _a;
+    var _a, _b;
     if (event.targetTouches.length !== 1) {
       resetGesture$1();
       return;
@@ -1631,15 +1806,17 @@ ${errorLog}`);
         secondTapTimer = null;
       }
       const view = map$4 == null ? void 0 : map$4.getView();
-      const zoom = (_a = view == null ? void 0 : view.getZoom) == null ? void 0 : _a.call(view);
-      if (zoom === void 0) {
+      const resolution = (_a = view == null ? void 0 : view.getResolution) == null ? void 0 : _a.call(view);
+      if (resolution === void 0) {
         resetGesture$1();
         return;
       }
       state = "secondTapDown";
       initialY = touch.clientY;
-      initialZoom = zoom;
+      initialResolution = resolution;
       dragPanControl$1 == null ? void 0 : dragPanControl$1.disable();
+      (_b = view == null ? void 0 : view.beginInteraction) == null ? void 0 : _b.call(view);
+      interacting = true;
       event.preventDefault();
       return;
     }
@@ -1728,47 +1905,44 @@ ${errorLog}`);
     disabledInteractions = [];
   }
   const ngrsZoom = {
-    id: MODULE_ID$c,
+    id: MODULE_ID$e,
     name: {
       en: "Ngrs Zoom",
       ru: "Нгрс-зум"
     },
     description: {
-      en: "Double-tap and drag up/down to zoom in/out smoothly",
-      ru: "Двойной тап и перетаскивание вверх/вниз для плавного зума"
+      en: "Double-tap and drag up/down to zoom. Also disables the built-in double-tap zoom.",
+      ru: "Двойной тап и перетаскивание вверх/вниз для зума. Заодно отключает стандартный зум по двойному тапу."
     },
     defaultEnabled: true,
     category: "map",
     init() {
-      return getOlMap().then((olMap2) => {
-        map$4 = olMap2;
-        dragPanControl$1 = createDragPanControl(olMap2);
-        if (enabled$2) {
-          disableDoubleClickZoomInteractions();
-          addListeners$1();
-        }
-      });
     },
     enable() {
-      enabled$2 = true;
+      enabled$1 = true;
       addListeners$1();
       return getOlMap().then((olMap2) => {
-        if (!enabled$2) return;
+        if (!enabled$1) return;
         map$4 = olMap2;
+        if (dragPanControl$1 === null) {
+          dragPanControl$1 = createDragPanControl(olMap2);
+        }
         disableDoubleClickZoomInteractions();
       });
     },
     disable() {
-      enabled$2 = false;
-      restoreDoubleClickZoomInteractions();
+      enabled$1 = false;
       removeListeners$1();
+      restoreDoubleClickZoomInteractions();
+      dragPanControl$1 == null ? void 0 : dragPanControl$1.restore();
+      dragPanControl$1 = null;
       resetGesture$1();
     }
   };
-  const MODULE_ID$b = "drawButtonFix";
+  const MODULE_ID$d = "drawButtonFix";
   let observer$1 = null;
   const drawButtonFix = {
-    id: MODULE_ID$b,
+    id: MODULE_ID$d,
     name: { en: "Draw Button Fix", ru: "Фикс кнопки рисования" },
     description: {
       en: "Draw button is always enabled — fixes a game bug where the button gets stuck in disabled state",
@@ -1797,7 +1971,7 @@ ${errorLog}`);
       observer$1 = null;
     }
   };
-  const MODULE_ID$a = "groupErrorToasts";
+  const MODULE_ID$c = "groupErrorToasts";
   const ERROR_TOAST_CLASS = "error-toast";
   let restorePatch = null;
   function getContainerIdentity(selector) {
@@ -1859,7 +2033,7 @@ ${errorLog}`);
     };
   }
   const groupErrorToasts = {
-    id: MODULE_ID$a,
+    id: MODULE_ID$c,
     name: { en: "Group Error Toasts", ru: "Группировка тостов ошибок" },
     description: {
       en: "Groups identical error toasts into one with a counter instead of stacking",
@@ -1877,10 +2051,10 @@ ${errorLog}`);
       restorePatch = null;
     }
   };
-  const styles$3 = "#attack-slider-close{display:none!important}";
-  const MODULE_ID$9 = "removeAttackCloseButton";
+  const styles$4 = "#attack-slider-close{display:none!important}";
+  const MODULE_ID$b = "removeAttackCloseButton";
   const removeAttackCloseButton = {
-    id: MODULE_ID$9,
+    id: MODULE_ID$b,
     name: { en: "Remove Attack Close Button", ru: "Убрать кнопку «Закрыть» в атаке" },
     description: {
       en: "Removes the Close button in attack mode to avoid hitting it instead of Fire. Tap Attack again to exit",
@@ -1891,13 +2065,13 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(styles$3, MODULE_ID$9);
+      injectStyles(styles$4, MODULE_ID$b);
     },
     disable() {
-      removeStyles(MODULE_ID$9);
+      removeStyles(MODULE_ID$b);
     }
   };
-  const MODULE_ID$8 = "keepScreenOn";
+  const MODULE_ID$a = "keepScreenOn";
   let wakeLock = null;
   async function requestWakeLock() {
     wakeLock = await navigator.wakeLock.request("screen");
@@ -1912,7 +2086,7 @@ ${errorLog}`);
     }
   }
   const keepScreenOn = {
-    id: MODULE_ID$8,
+    id: MODULE_ID$a,
     name: { en: "Keep Screen On", ru: "Экран не гаснет" },
     description: {
       en: "Keeps screen awake during gameplay (Wake Lock API)",
@@ -1988,7 +2162,7 @@ ${errorLog}`);
   function getBackgroundColor() {
     return getCssVariable("--background", "#ffffff");
   }
-  const MODULE_ID$7 = "keyCountOnPoints";
+  const MODULE_ID$9 = "keyCountOnPoints";
   const MIN_ZOOM = 15;
   const DEBOUNCE_MS = 100;
   function buildRefCounts() {
@@ -2052,7 +2226,7 @@ ${errorLog}`);
     debounceTimer = setTimeout(renderLabels, DEBOUNCE_MS);
   }
   const keyCountOnPoints = {
-    id: MODULE_ID$7,
+    id: MODULE_ID$9,
     name: { en: "Key count on points", ru: "Количество ключей на точках" },
     description: {
       en: "Shows the number of reference keys for each visible point on the map",
@@ -2122,12 +2296,12 @@ ${errorLog}`);
       labelsLayer = null;
     }
   };
-  const MODULE_ID$6 = "largerPointTapArea";
+  const MODULE_ID$8 = "largerPointTapArea";
   const HIT_TOLERANCE_PX = 15;
   let map$2 = null;
   let originalMethod = null;
   const largerPointTapArea = {
-    id: MODULE_ID$6,
+    id: MODULE_ID$8,
     name: { en: "Larger Point Tap Area", ru: "Увеличенная область нажатия" },
     description: {
       en: "Increases the tappable area of map points for easier selection on mobile",
@@ -2159,9 +2333,9 @@ ${errorLog}`);
       map$2 = null;
     }
   };
-  const styles$2 = ".info.popup .i-buttons .svp-next-point-button{position:fixed;bottom:5px;right:5px;width:32px;height:32px;min-height:auto}";
-  const MODULE_ID$5 = "nextPointNavigation";
-  const BUTTON_CLASS = "svp-next-point-button";
+  const styles$3 = ".info.popup .i-buttons .svp-next-point-button{position:fixed;bottom:5px;right:5px;width:32px;height:32px;min-height:auto}";
+  const MODULE_ID$7 = "nextPointNavigation";
+  const BUTTON_CLASS$1 = "svp-next-point-button";
   const INTERACTION_RANGE = 45;
   const AUTOZOOM_THRESHOLD = 16;
   const AUTOZOOM_TARGET = 17;
@@ -2174,7 +2348,7 @@ ${errorLog}`);
   let lastSeenGuid = null;
   let fakeClickRetries = 0;
   const MAX_FAKE_CLICK_RETRIES = 3;
-  let popupObserver$1 = null;
+  let popupObserver$3 = null;
   let playerMoveHandler = null;
   let autozoomInProgress = false;
   let onRangeButtonClick = null;
@@ -2337,9 +2511,9 @@ ${errorLog}`);
   function injectButton(popup2) {
     const buttonsContainer = popup2.querySelector(".i-buttons");
     if (!buttonsContainer) return;
-    if (!popup2.querySelector(`.${BUTTON_CLASS}`)) {
+    if (!popup2.querySelector(`.${BUTTON_CLASS$1}`)) {
       const rangeButton2 = document.createElement("button");
-      rangeButton2.className = BUTTON_CLASS;
+      rangeButton2.className = BUTTON_CLASS$1;
       rangeButton2.textContent = "→";
       rangeButton2.title = "Следующая точка в радиусе взаимодействия";
       onRangeButtonClick = () => {
@@ -2352,7 +2526,7 @@ ${errorLog}`);
       buttonsContainer.appendChild(rangeButton2);
     }
     const inRange = hasInRangePoints(getPopupPointId());
-    const rangeButton = popup2.querySelector(`.${BUTTON_CLASS}`);
+    const rangeButton = popup2.querySelector(`.${BUTTON_CLASS$1}`);
     if (rangeButton) {
       rangeButton.disabled = !inRange;
     }
@@ -2363,14 +2537,14 @@ ${errorLog}`);
   function updateButtonStates() {
     const popup2 = document.querySelector(".info.popup");
     if (!popup2 || popup2.classList.contains("hidden")) return;
-    const rangeButton = popup2.querySelector(`.${BUTTON_CLASS}`);
+    const rangeButton = popup2.querySelector(`.${BUTTON_CLASS$1}`);
     if (rangeButton) {
       rangeButton.disabled = !hasInRangePoints(getPopupPointId());
     }
   }
-  function removeButton() {
+  function removeButton$1() {
     var _a;
-    (_a = document.querySelector(`.${BUTTON_CLASS}`)) == null ? void 0 : _a.remove();
+    (_a = document.querySelector(`.${BUTTON_CLASS$1}`)) == null ? void 0 : _a.remove();
     onRangeButtonClick = null;
   }
   function onPopupMutation(popup2) {
@@ -2401,10 +2575,10 @@ ${errorLog}`);
     }
   }
   function startObservingPopup(popup2) {
-    popupObserver$1 = new MutationObserver(() => {
+    popupObserver$3 = new MutationObserver(() => {
       onPopupMutation(popup2);
     });
-    popupObserver$1.observe(popup2, {
+    popupObserver$3.observe(popup2, {
       attributes: true,
       attributeFilter: ["class", "data-guid"],
       childList: true,
@@ -2426,7 +2600,7 @@ ${errorLog}`);
     });
   }
   const nextPointNavigation = {
-    id: MODULE_ID$5,
+    id: MODULE_ID$7,
     name: { en: "Next point navigation", ru: "Переход к следующей точке" },
     description: {
       en: "Cycle through points in interaction range",
@@ -2447,7 +2621,7 @@ ${errorLog}`);
         map$1 = olMap2;
         pointsSource = source;
         playerSource = playerLayerSource;
-        injectStyles(styles$2, MODULE_ID$5);
+        injectStyles(styles$3, MODULE_ID$7);
         observePopup();
         sourceChangeHandler = () => {
           updateButtonStates();
@@ -2464,9 +2638,9 @@ ${errorLog}`);
     },
     disable() {
       var _a;
-      if (popupObserver$1) {
-        popupObserver$1.disconnect();
-        popupObserver$1 = null;
+      if (popupObserver$3) {
+        popupObserver$3.disconnect();
+        popupObserver$3 = null;
       }
       if (playerMoveHandler) {
         (_a = document.querySelector(".info")) == null ? void 0 : _a.removeEventListener("playermove", playerMoveHandler);
@@ -2476,8 +2650,8 @@ ${errorLog}`);
         pointsSource.un("change", sourceChangeHandler);
         sourceChangeHandler = null;
       }
-      removeButton();
-      removeStyles(MODULE_ID$5);
+      removeButton$1();
+      removeStyles(MODULE_ID$7);
       map$1 = null;
       pointsSource = null;
       playerSource = null;
@@ -2489,7 +2663,7 @@ ${errorLog}`);
     }
   };
   const css = ".svp-refs-on-map-button{background:none;border:1px solid var(--border-transp);color:var(--text);padding:4px 8px;font-size:14px;cursor:pointer}.svp-refs-on-map-close{position:fixed;bottom:8px;left:50%;transform:translate(-50%);z-index:1;font-size:1.5em;padding:0 .1em;align-self:center}.svp-refs-on-map-trash{position:fixed;bottom:100px;right:20px;z-index:10;background:var(--background-transp);border:1px solid var(--border-transp);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:var(--text);font-size:14px;padding:8px 12px;border-radius:8px;cursor:pointer;min-width:48px;text-align:center}";
-  const MODULE_ID$4 = "refsOnMap";
+  const MODULE_ID$6 = "refsOnMap";
   const REFS_TAB_INDEX = "3";
   const GAME_LAYER_NAMES = ["points", "lines", "regions"];
   const TEAM_BATCH_SIZE = 5;
@@ -2506,7 +2680,7 @@ ${errorLog}`);
   function isPointApiResponse(value) {
     return typeof value === "object" && value !== null;
   }
-  async function fetchPointTeam(pointGuid) {
+  async function fetchPointTeam$1(pointGuid) {
     var _a;
     try {
       const response = await fetch(`/api/point?guid=${pointGuid}&status=1`);
@@ -2708,7 +2882,7 @@ ${errorLog}`);
     try {
       const response = await deleteRefsFromServer(items);
       if (response.error) {
-        console.error(`[SVP] ${MODULE_ID$4}: deletion error:`, response.error);
+        console.error(`[SVP] ${MODULE_ID$6}: deletion error:`, response.error);
         return;
       }
       for (const feature of selectedFeatures) {
@@ -2722,7 +2896,7 @@ ${errorLog}`);
       uniqueRefsToDelete = 0;
       updateTrashCounter();
     } catch (error) {
-      console.error(`[SVP] ${MODULE_ID$4}: deletion failed:`, error);
+      console.error(`[SVP] ${MODULE_ID$6}: deletion failed:`, error);
     }
   }
   async function loadTeamDataForRefs(refs) {
@@ -2740,7 +2914,7 @@ ${errorLog}`);
       const batch = uncachedGuids.slice(i, i + TEAM_BATCH_SIZE);
       const results = await Promise.all(
         batch.map(async (pointGuid) => {
-          const team = await fetchPointTeam(pointGuid);
+          const team = await fetchPointTeam$1(pointGuid);
           return { pointGuid, team };
         })
       );
@@ -2774,14 +2948,14 @@ ${errorLog}`);
   }
   function disableFollowMode() {
     localStorage.setItem("follow", "false");
-    const checkbox = document.querySelector("#toggle-follow");
-    if (checkbox instanceof HTMLInputElement) checkbox.checked = false;
+    const checkbox2 = document.querySelector("#toggle-follow");
+    if (checkbox2 instanceof HTMLInputElement) checkbox2.checked = false;
   }
   function restoreFollowMode() {
     if (beforeOpenFollow === null || beforeOpenFollow === "false") return;
     localStorage.setItem("follow", beforeOpenFollow);
-    const checkbox = document.querySelector("#toggle-follow");
-    if (checkbox instanceof HTMLInputElement) checkbox.checked = true;
+    const checkbox2 = document.querySelector("#toggle-follow");
+    if (checkbox2 instanceof HTMLInputElement) checkbox2.checked = true;
     beforeOpenFollow = null;
   }
   function hideGameUi() {
@@ -2900,7 +3074,7 @@ ${errorLog}`);
     showButton.style.display = tabIndex === REFS_TAB_INDEX ? "" : "none";
   }
   const refsOnMap = {
-    id: MODULE_ID$4,
+    id: MODULE_ID$6,
     name: { en: "Refs on map", ru: "Ключи на карте" },
     description: {
       en: "View and manage points with collected keys on the map at any zoom level",
@@ -2911,92 +3085,106 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(css, MODULE_ID$4);
-      return getOlMap().then((map2) => {
-        var _a, _b;
-        const ol = window.ol;
-        const OlVectorSource = (_a = ol == null ? void 0 : ol.source) == null ? void 0 : _a.Vector;
-        const OlVectorLayer = (_b = ol == null ? void 0 : ol.layer) == null ? void 0 : _b.Vector;
-        if (!OlVectorSource || !OlVectorLayer) return;
-        olMap = map2;
-        refsSource = new OlVectorSource();
-        refsLayer = new OlVectorLayer({
-          // as unknown as: OL Vector constructor accepts a generic options bag;
-          // IOlVectorSource cannot be narrowed to Record<string, unknown> without a guard
-          source: refsSource,
-          name: "svp-refs-on-map",
-          zIndex: 8,
-          minZoom: 0,
-          style: createLayerStyleFunction()
-        });
-        map2.addLayer(refsLayer);
-        showButton = document.createElement("button");
-        showButton.className = "svp-refs-on-map-button";
-        showButton.textContent = t({ en: "On map", ru: "На карте" });
-        showButton.addEventListener("click", showViewer);
-        showButton.style.display = "none";
-        const inventoryDelete = $("#inventory-delete");
-        if (inventoryDelete == null ? void 0 : inventoryDelete.parentElement) {
-          inventoryDelete.parentElement.insertBefore(showButton, inventoryDelete);
+      injectStyles(css, MODULE_ID$6);
+      return getOlMap().then(
+        (map2) => {
+          var _a, _b;
+          try {
+            const ol = window.ol;
+            const OlVectorSource = (_a = ol == null ? void 0 : ol.source) == null ? void 0 : _a.Vector;
+            const OlVectorLayer = (_b = ol == null ? void 0 : ol.layer) == null ? void 0 : _b.Vector;
+            if (!OlVectorSource || !OlVectorLayer) return;
+            olMap = map2;
+            refsSource = new OlVectorSource();
+            refsLayer = new OlVectorLayer({
+              // as unknown as: OL Vector constructor accepts a generic options bag;
+              // IOlVectorSource cannot be narrowed to Record<string, unknown> without a guard
+              source: refsSource,
+              name: "svp-refs-on-map",
+              zIndex: 8,
+              minZoom: 0,
+              style: createLayerStyleFunction()
+            });
+            map2.addLayer(refsLayer);
+            showButton = document.createElement("button");
+            showButton.className = "svp-refs-on-map-button";
+            showButton.textContent = t({ en: "On map", ru: "На карте" });
+            showButton.addEventListener("click", showViewer);
+            showButton.style.display = "none";
+            const inventoryDelete = $("#inventory-delete");
+            if (inventoryDelete == null ? void 0 : inventoryDelete.parentElement) {
+              inventoryDelete.parentElement.insertBefore(showButton, inventoryDelete);
+            }
+            tabClickHandler = () => {
+              updateButtonVisibility();
+            };
+            const tabContainer = $(".inventory__tabs");
+            if (tabContainer) {
+              tabContainer.addEventListener("click", tabClickHandler);
+            }
+            updateButtonVisibility();
+            closeButton = document.createElement("button");
+            closeButton.className = "svp-refs-on-map-close";
+            closeButton.textContent = "[x]";
+            closeButton.style.display = "none";
+            closeButton.addEventListener("click", hideViewer);
+            document.body.appendChild(closeButton);
+            trashButton = document.createElement("button");
+            trashButton.className = "svp-refs-on-map-trash";
+            trashButton.style.display = "none";
+            trashButton.addEventListener("click", () => {
+              void handleDeleteClick();
+            });
+            document.body.appendChild(trashButton);
+          } catch (error) {
+            cleanupEnableSideEffects();
+            throw error;
+          }
+        },
+        (error) => {
+          removeStyles(MODULE_ID$6);
+          throw error;
         }
-        tabClickHandler = () => {
-          updateButtonVisibility();
-        };
-        const tabContainer = $(".inventory__tabs");
-        if (tabContainer) {
-          tabContainer.addEventListener("click", tabClickHandler);
-        }
-        updateButtonVisibility();
-        closeButton = document.createElement("button");
-        closeButton.className = "svp-refs-on-map-close";
-        closeButton.textContent = "[x]";
-        closeButton.style.display = "none";
-        closeButton.addEventListener("click", hideViewer);
-        document.body.appendChild(closeButton);
-        trashButton = document.createElement("button");
-        trashButton.className = "svp-refs-on-map-trash";
-        trashButton.style.display = "none";
-        trashButton.addEventListener("click", () => {
-          void handleDeleteClick();
-        });
-        document.body.appendChild(trashButton);
-      });
+      );
     },
     disable() {
-      if (viewerOpen) hideViewer();
-      teamLoadAborted = true;
-      if (olMap && refsLayer) {
-        olMap.removeLayer(refsLayer);
-      }
-      if (showButton) {
-        showButton.removeEventListener("click", showViewer);
-        showButton.remove();
-        showButton = null;
-      }
-      if (closeButton) {
-        closeButton.removeEventListener("click", hideViewer);
-        closeButton.remove();
-        closeButton = null;
-      }
-      if (trashButton) {
-        trashButton.remove();
-        trashButton = null;
-      }
-      if (tabClickHandler) {
-        const tabContainer = $(".inventory__tabs");
-        if (tabContainer) {
-          tabContainer.removeEventListener("click", tabClickHandler);
-        }
-        tabClickHandler = null;
-      }
-      removeStyles(MODULE_ID$4);
-      teamCache.clear();
-      olMap = null;
-      refsSource = null;
-      refsLayer = null;
+      cleanupEnableSideEffects();
     }
   };
-  const MODULE_ID$3 = "repairAtFullCharge";
+  function cleanupEnableSideEffects() {
+    if (viewerOpen) hideViewer();
+    teamLoadAborted = true;
+    if (olMap && refsLayer) {
+      olMap.removeLayer(refsLayer);
+    }
+    if (showButton) {
+      showButton.removeEventListener("click", showViewer);
+      showButton.remove();
+      showButton = null;
+    }
+    if (closeButton) {
+      closeButton.removeEventListener("click", hideViewer);
+      closeButton.remove();
+      closeButton = null;
+    }
+    if (trashButton) {
+      trashButton.remove();
+      trashButton = null;
+    }
+    if (tabClickHandler) {
+      const tabContainer = $(".inventory__tabs");
+      if (tabContainer) {
+        tabContainer.removeEventListener("click", tabClickHandler);
+      }
+      tabClickHandler = null;
+    }
+    removeStyles(MODULE_ID$6);
+    teamCache.clear();
+    olMap = null;
+    refsSource = null;
+    refsLayer = null;
+  }
+  const MODULE_ID$5 = "repairAtFullCharge";
   let observer = null;
   function extractTeamFromStyle(element) {
     const style = (element == null ? void 0 : element.getAttribute("style")) ?? "";
@@ -3015,7 +3203,7 @@ ${errorLog}`);
     return readInventoryReferences().some((ref) => ref.l === pointGuid);
   }
   const repairAtFullCharge = {
-    id: MODULE_ID$3,
+    id: MODULE_ID$5,
     name: { en: "Repair at Full Charge", ru: "Зарядка при полном заряде" },
     description: {
       en: "Repair button stays enabled even at 100% charge — allows recharging immediately without waiting for status update",
@@ -3046,15 +3234,14 @@ ${errorLog}`);
       observer = null;
     }
   };
-  const MODULE_ID$2 = "singleFingerRotation";
+  const MODULE_ID$4 = "singleFingerRotation";
   let viewport = null;
   let map = null;
   let dragPanControl = null;
   let latestPoint = null;
-  let inflateExtent = false;
-  let enabled$1 = false;
   let pendingDelta = 0;
   let frameRequestId = null;
+  let originalCalculateExtent = null;
   function isFollowActive() {
     return localStorage.getItem("follow") !== "false";
   }
@@ -3145,8 +3332,27 @@ ${errorLog}`);
     viewport.removeEventListener("touchmove", onTouchMove);
     viewport.removeEventListener("touchend", onTouchEnd);
   }
+  function installCalculateExtentWrapper() {
+    if (!map || originalCalculateExtent !== null) return;
+    const view = map.getView();
+    const original = view.calculateExtent;
+    originalCalculateExtent = original;
+    view.calculateExtent = (size) => {
+      if (size) {
+        const diagonal = Math.ceil(Math.sqrt(size[0] ** 2 + size[1] ** 2));
+        return original.call(view, [diagonal, diagonal]);
+      }
+      return original.call(view, size);
+    };
+  }
+  function restoreCalculateExtentWrapper() {
+    if (!map || originalCalculateExtent === null) return;
+    const view = map.getView();
+    view.calculateExtent = originalCalculateExtent;
+    originalCalculateExtent = null;
+  }
   const singleFingerRotation = {
-    id: MODULE_ID$2,
+    id: MODULE_ID$4,
     name: {
       en: "Single-Finger Map Rotation",
       ru: "Вращение карты одним пальцем"
@@ -3158,42 +3364,34 @@ ${errorLog}`);
     defaultEnabled: true,
     category: "map",
     init() {
+      originalCalculateExtent = null;
+      dragPanControl = null;
       return getOlMap().then((olMap2) => {
         map = olMap2;
-        dragPanControl = createDragPanControl(olMap2);
         const viewportElement = $(".ol-viewport");
         if (viewportElement instanceof HTMLElement) {
           viewport = viewportElement;
         }
-        const view = olMap2.getView();
-        const originalCalculateExtent = view.calculateExtent.bind(view);
-        view.calculateExtent = (size) => {
-          if (inflateExtent && size) {
-            const diagonal = Math.ceil(Math.sqrt(size[0] ** 2 + size[1] ** 2));
-            return originalCalculateExtent([diagonal, diagonal]);
-          }
-          return originalCalculateExtent(size);
-        };
-        if (enabled$1) {
-          addListeners();
-        }
       });
     },
     enable() {
-      enabled$1 = true;
-      inflateExtent = true;
+      if (!map) return;
+      installCalculateExtentWrapper();
+      if (dragPanControl === null) {
+        dragPanControl = createDragPanControl(map);
+      }
       addListeners();
     },
     disable() {
-      enabled$1 = false;
-      inflateExtent = false;
       removeListeners();
       dragPanControl == null ? void 0 : dragPanControl.restore();
+      dragPanControl = null;
       resetGesture();
+      restoreCalculateExtentWrapper();
     }
   };
-  const styles$1 = ".svp-tile-url-input{width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;font-family:inherit;background:var(--background);color:var(--text);border:1px solid var(--border);border-radius:4px;resize:none}.svp-tile-url-input::placeholder{color:var(--text-disabled)}";
-  const MODULE_ID$1 = "mapTileLayers";
+  const styles$2 = ".svp-tile-url-input{width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;font-family:inherit;background:var(--background);color:var(--text);border:1px solid var(--border);border-radius:4px;resize:none}.svp-tile-url-input::placeholder{color:var(--text-disabled)}";
+  const MODULE_ID$3 = "mapTileLayers";
   const STORAGE_KEY_URL = "svp_mapTileLayerUrl";
   const STORAGE_KEY_LAYER = "svp_mapTileLayer";
   const STORAGE_KEY_GAME_LAYER = "svp_mapTileGameLayer";
@@ -3210,7 +3408,7 @@ ${errorLog}`);
   let originalSetSource = null;
   let gameRequestedSource = null;
   let hasGameRequest = false;
-  let popupObserver = null;
+  let popupObserver$2 = null;
   let injectedElements = [];
   let boundChangeHandler = null;
   let changeTarget = null;
@@ -3405,7 +3603,7 @@ ${errorLog}`);
     }
   }
   const mapTileLayers = {
-    id: MODULE_ID$1,
+    id: MODULE_ID$3,
     name: { en: "Custom map tiles", ru: "Свои тайлы карты" },
     description: {
       en: "Adds custom tile layers to the map layer switcher",
@@ -3427,29 +3625,308 @@ ${errorLog}`);
         if (saved && isCustomValue(saved) && url) {
           applyCustomSource();
         }
-        injectStyles(styles$1, MODULE_ID$1);
+        injectStyles(styles$2, MODULE_ID$3);
         const existingPopup = document.querySelector(".layers-config");
         if (existingPopup) {
           injectIntoPopup(existingPopup);
         }
-        popupObserver = new MutationObserver(onMutation);
-        popupObserver.observe(document.body, { childList: true });
+        popupObserver$2 = new MutationObserver(onMutation);
+        popupObserver$2.observe(document.body, { childList: true });
       });
     },
     disable() {
       enabled = false;
       unlockGameSource(true);
       removeStyles(TILE_FILTER_ID);
-      removeStyles(MODULE_ID$1);
+      removeStyles(MODULE_ID$3);
       cleanupInjected();
       restoreGameRadioSelection();
-      popupObserver == null ? void 0 : popupObserver.disconnect();
-      popupObserver = null;
+      popupObserver$2 == null ? void 0 : popupObserver$2.disconnect();
+      popupObserver$2 = null;
       gameTileLayer = null;
       originalSource = null;
       lastGameRadioValue = null;
     }
   };
+  const FAVORITES_CHANGED_EVENT = "svp:favorites-changed";
+  function emitChange() {
+    document.dispatchEvent(new CustomEvent(FAVORITES_CHANGED_EVENT));
+  }
+  const DB_NAME = "CUI";
+  const STORE_NAME = "favorites";
+  const CUI_DB_VERSION = 9;
+  const SEAL_KEY = "svp_favorites_seal";
+  function updateSeal() {
+    try {
+      localStorage.setItem(SEAL_KEY, String(memoryGuids.size));
+    } catch {
+    }
+  }
+  function readSeal() {
+    try {
+      const value = localStorage.getItem(SEAL_KEY);
+      if (value === null) return 0;
+      const parsed = parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : 0;
+    } catch {
+      return 0;
+    }
+  }
+  let memoryGuids = /* @__PURE__ */ new Set();
+  let cooldownByGuid = /* @__PURE__ */ new Map();
+  let dbPromise = null;
+  let snapshotLoaded = false;
+  function promisifyRequest(request) {
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        resolve(request.result);
+      };
+      request.onerror = () => {
+        reject(request.error ?? new Error("IDB request failed"));
+      };
+    });
+  }
+  function waitForTransaction(tx) {
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => {
+        resolve();
+      };
+      tx.onabort = () => {
+        reject(tx.error ?? new Error("IDB transaction aborted"));
+      };
+      tx.onerror = () => {
+        reject(tx.error ?? new Error("IDB transaction error"));
+      };
+    });
+  }
+  function initializeCuiDb(database, transaction) {
+    const created = /* @__PURE__ */ new Set();
+    function ensureStore(name, options) {
+      if (!database.objectStoreNames.contains(name)) {
+        database.createObjectStore(name, options);
+        created.add(name);
+      }
+    }
+    ensureStore("config");
+    ensureStore("logs", { keyPath: "timestamp" });
+    ensureStore("state");
+    ensureStore("stats", { keyPath: "name" });
+    ensureStore("tiles");
+    ensureStore(STORE_NAME, { keyPath: "guid" });
+    let isDarkMode = false;
+    try {
+      const settings = JSON.parse(localStorage.getItem("settings") ?? "{}");
+      isDarkMode = typeof settings === "object" && settings !== null && settings.theme === "dark";
+    } catch {
+    }
+    const defaultConfig = {
+      maxAmountInBag: {
+        cores: { 1: -1, 2: -1, 3: -1, 4: -1, 5: -1, 6: -1, 7: -1, 8: -1, 9: -1, 10: -1 },
+        catalysers: { 1: -1, 2: -1, 3: -1, 4: -1, 5: -1, 6: -1, 7: -1, 8: -1, 9: -1, 10: -1 },
+        references: { allied: -1, hostile: -1 }
+      },
+      autoSelect: { deploy: "max", upgrade: "min", attack: "latest" },
+      mapFilters: {
+        invert: isDarkMode ? 1 : 0,
+        hueRotate: 0,
+        brightness: isDarkMode ? 0.75 : 1,
+        grayscale: isDarkMode ? 1 : 0,
+        sepia: 0,
+        blur: 0,
+        branding: "default",
+        brandingColor: "#CCCCCC"
+      },
+      tinting: { map: 1, point: "team", profile: 1 },
+      vibration: { buttons: 1, notifications: 1 },
+      ui: {
+        chamomile: 1,
+        doubleClickZoom: 0,
+        restoreRotation: 1,
+        pointBgImage: 0,
+        pointBtnsRtl: 0,
+        pointBgImageBlur: 1,
+        pointDischargeTimeout: 1
+      },
+      pointHighlighting: {
+        inner: "uniqc",
+        outer: "off",
+        outerTop: "cores",
+        outerBottom: "highlevel",
+        text: "refsAmount",
+        innerColor: "#E87100",
+        outerColor: "#E87100",
+        outerTopColor: "#EB4DBF",
+        outerBottomColor: "#28C4F4"
+      },
+      drawing: {
+        returnToPointInfo: "discoverable",
+        minDistance: -1,
+        maxDistance: -1,
+        hideLastFavRef: 0
+      },
+      notifications: { status: "all", onClick: "jumpto", interval: 3e4, duration: -1 }
+    };
+    if (created.has("config")) {
+      const configStore = transaction.objectStore("config");
+      for (const key of Object.keys(defaultConfig)) {
+        configStore.add(defaultConfig[key], key);
+      }
+    }
+    if (created.has("logs")) {
+      transaction.objectStore("logs").createIndex("action_type", "type");
+    }
+    if (created.has("state")) {
+      const stateStore = transaction.objectStore("state");
+      stateStore.add(/* @__PURE__ */ new Set(), "excludedCores");
+      stateStore.add(true, "isMainToolbarOpened");
+      stateStore.add(false, "isRotationLocked");
+      stateStore.add(false, "isStarMode");
+      stateStore.add(null, "lastUsedCatalyser");
+      stateStore.add(null, "starModeTarget");
+      stateStore.add(0, "versionWarns");
+      stateStore.add(false, "isAutoShowPoints");
+    }
+  }
+  function openDb() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise((resolve, reject) => {
+      const probe = indexedDB.open(DB_NAME);
+      probe.onsuccess = () => {
+        const db = probe.result;
+        const allCuiStores = ["config", "logs", "state", "stats", "tiles", STORE_NAME];
+        if (allCuiStores.every((name) => db.objectStoreNames.contains(name))) {
+          resolve(db);
+          return;
+        }
+        const targetVersion = Math.max(db.version + 1, CUI_DB_VERSION);
+        db.close();
+        const upgrade = indexedDB.open(DB_NAME, targetVersion);
+        upgrade.onupgradeneeded = (event) => {
+          const upgradeTransaction = event.target.transaction;
+          if (!upgradeTransaction) {
+            reject(new Error("IDB upgrade transaction is null"));
+            return;
+          }
+          initializeCuiDb(upgrade.result, upgradeTransaction);
+        };
+        upgrade.onsuccess = () => {
+          resolve(upgrade.result);
+        };
+        upgrade.onerror = () => {
+          dbPromise = null;
+          reject(upgrade.error ?? new Error("IDB upgrade failed"));
+        };
+      };
+      probe.onerror = () => {
+        dbPromise = null;
+        reject(probe.error ?? new Error("IDB open failed"));
+      };
+    });
+    return dbPromise;
+  }
+  function isFavoriteRecord(value) {
+    if (typeof value !== "object" || value === null) return false;
+    const record = value;
+    if (typeof record.guid !== "string") return false;
+    return record.cooldown === null || typeof record.cooldown === "number";
+  }
+  async function loadFavorites() {
+    const db = await openDb();
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const records = await promisifyRequest(store.getAll());
+    memoryGuids = /* @__PURE__ */ new Set();
+    cooldownByGuid = /* @__PURE__ */ new Map();
+    for (const record of records) {
+      if (!isFavoriteRecord(record)) continue;
+      memoryGuids.add(record.guid);
+      cooldownByGuid.set(record.guid, record.cooldown);
+    }
+    const seal = readSeal();
+    if (memoryGuids.size === 0 && seal > 0) {
+      snapshotLoaded = false;
+      alert(
+        t({
+          en: "Favorited points data may have been lost (storage cleared). Key auto-cleanup is blocked. Re-import favorites via module settings.",
+          ru: "Данные избранных точек могли быть потеряны (хранилище очищено). Автоочистка ключей заблокирована. Импортируйте избранные через настройки модуля."
+        })
+      );
+      return;
+    }
+    snapshotLoaded = true;
+    updateSeal();
+  }
+  function isFavorited(pointGuid) {
+    return memoryGuids.has(pointGuid);
+  }
+  function getFavoritedGuids() {
+    return new Set(memoryGuids);
+  }
+  function isFavoritesSnapshotReady() {
+    return snapshotLoaded;
+  }
+  function getFavoritesCount() {
+    return memoryGuids.size;
+  }
+  async function addFavorite(pointGuid) {
+    const db = await openDb();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const committed = waitForTransaction(tx);
+    const existing = await promisifyRequest(store.get(pointGuid));
+    const cooldown = isFavoriteRecord(existing) ? existing.cooldown : null;
+    const record = { guid: pointGuid, cooldown };
+    await promisifyRequest(store.put(record));
+    await committed;
+    memoryGuids.add(pointGuid);
+    cooldownByGuid.set(pointGuid, cooldown);
+    updateSeal();
+    emitChange();
+  }
+  async function removeFavorite(pointGuid) {
+    const db = await openDb();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const committed = waitForTransaction(tx);
+    await promisifyRequest(store.delete(pointGuid));
+    await committed;
+    memoryGuids.delete(pointGuid);
+    cooldownByGuid.delete(pointGuid);
+    updateSeal();
+    emitChange();
+  }
+  async function exportToJson() {
+    const db = await openDb();
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const records = await promisifyRequest(store.getAll());
+    const guids = records.filter(isFavoriteRecord).map((record) => record.guid).sort();
+    return JSON.stringify(guids, null, 2);
+  }
+  function isGuidArray(value) {
+    return Array.isArray(value) && value.every((item) => typeof item === "string");
+  }
+  async function importFromJson(json) {
+    const parsed = JSON.parse(json);
+    if (!isGuidArray(parsed)) {
+      throw new Error("Некорректный формат JSON: ожидается массив GUID-строк");
+    }
+    const db = await openDb();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const committed = waitForTransaction(tx);
+    await promisifyRequest(store.clear());
+    for (const guid of parsed) {
+      const record = { guid, cooldown: null };
+      await promisifyRequest(store.put(record));
+    }
+    await committed;
+    memoryGuids = new Set(parsed);
+    cooldownByGuid = new Map(parsed.map((guid) => [guid, null]));
+    updateSeal();
+    emitChange();
+    return parsed.length;
+  }
   function parseInventoryCache() {
     return readInventoryCache().filter(isInventoryItem);
   }
@@ -3461,12 +3938,15 @@ ${errorLog}`);
   function shouldRunCleanup(currentCount, inventoryLimit, minFreeSlots) {
     return inventoryLimit - currentCount < minFreeSlots;
   }
-  function calculateDeletions(items, limits) {
+  function calculateDeletions(items, limits, options) {
     const deletions = [];
     const coresByLevel = groupByLevel(items, ITEM_TYPE_CORE);
     addLevelDeletions(coresByLevel, limits.cores, ITEM_TYPE_CORE, deletions);
     const catalysersByLevel = groupByLevel(items, ITEM_TYPE_CATALYSER);
     addLevelDeletions(catalysersByLevel, limits.catalysers, ITEM_TYPE_CATALYSER, deletions);
+    if (options.referencesEnabled && limits.referencesMode === "fast" && limits.referencesFastLimit !== -1 && options.favoritesSnapshotReady && options.favoritedGuids.size > 0) {
+      addReferenceDeletions(items, limits.referencesFastLimit, options.favoritedGuids, deletions);
+    }
     return deletions;
   }
   function groupByLevel(items, type) {
@@ -3474,10 +3954,10 @@ ${errorLog}`);
     for (const item of items) {
       if (item.t !== type) continue;
       if (item.a <= 0) continue;
-      const level = item.l;
-      const entries2 = grouped.get(level) ?? [];
+      if (typeof item.l !== "number") continue;
+      const entries2 = grouped.get(item.l) ?? [];
       entries2.push({ guid: item.g, amount: item.a });
-      grouped.set(level, entries2);
+      grouped.set(item.l, entries2);
     }
     return grouped;
   }
@@ -3496,6 +3976,36 @@ ${errorLog}`);
       }
     }
   }
+  function addReferenceDeletions(items, limit, favoritedGuids, deletions) {
+    if (limit === -1) return;
+    const matching = items.filter(
+      (item) => isInventoryReference(item) && item.a > 0 && !favoritedGuids.has(item.l)
+    );
+    const byPoint = /* @__PURE__ */ new Map();
+    for (const item of matching) {
+      const pointGuid = item.l;
+      const entries2 = byPoint.get(pointGuid) ?? [];
+      entries2.push({ guid: item.g, amount: item.a });
+      byPoint.set(pointGuid, entries2);
+    }
+    for (const [pointGuid, entries2] of byPoint) {
+      const total = entries2.reduce((sum, entry) => sum + entry.amount, 0);
+      let excess = total - limit;
+      if (excess <= 0) continue;
+      for (const entry of entries2) {
+        if (excess <= 0) break;
+        const toDelete = Math.min(entry.amount, excess);
+        deletions.push({
+          guid: entry.guid,
+          type: ITEM_TYPE_REFERENCE,
+          level: null,
+          amount: toDelete,
+          pointGuid
+        });
+        excess -= toDelete;
+      }
+    }
+  }
   function formatDeletionSummary(deletions) {
     const grouped = /* @__PURE__ */ new Map();
     for (const entry of deletions) {
@@ -3510,8 +4020,9 @@ ${errorLog}`);
     }
     return parts.join(", ");
   }
-  const STORAGE_KEY = "svp_inventoryCleanup";
+  const STORAGE_KEY$1 = "svp_inventoryCleanup";
   const MIN_FREE_SLOTS_FLOOR = 20;
+  const CURRENT_VERSION = 2;
   function defaultLevelLimits() {
     const limits = {};
     for (let level = 1; level <= 10; level++) {
@@ -3521,11 +4032,14 @@ ${errorLog}`);
   }
   function defaultCleanupSettings() {
     return {
-      version: 1,
+      version: CURRENT_VERSION,
       limits: {
         cores: defaultLevelLimits(),
         catalysers: defaultLevelLimits(),
-        references: -1
+        referencesMode: "off",
+        referencesFastLimit: -1,
+        referencesAlliedLimit: -1,
+        referencesNotAlliedLimit: -1
       },
       minFreeSlots: 100
     };
@@ -3540,16 +4054,43 @@ ${errorLog}`);
     }
     return true;
   }
-  function isCleanupLimits(value) {
+  function isReferencesMode(value) {
+    return value === "off" || value === "fast" || value === "slow";
+  }
+  function isCleanupLimitsV2(value) {
+    if (!isRecord(value)) return false;
+    return isLevelLimits(value.cores) && isLevelLimits(value.catalysers) && isReferencesMode(value.referencesMode) && typeof value.referencesFastLimit === "number" && typeof value.referencesAlliedLimit === "number" && typeof value.referencesNotAlliedLimit === "number";
+  }
+  function isCleanupSettingsV2(value) {
+    if (!isRecord(value)) return false;
+    return typeof value.version === "number" && isCleanupLimitsV2(value.limits) && typeof value.minFreeSlots === "number";
+  }
+  function isCleanupLimitsV1(value) {
     if (!isRecord(value)) return false;
     return isLevelLimits(value.cores) && isLevelLimits(value.catalysers) && typeof value.references === "number";
   }
-  function isCleanupSettings(value) {
+  function isCleanupSettingsV1(value) {
     if (!isRecord(value)) return false;
-    return typeof value.version === "number" && isCleanupLimits(value.limits) && typeof value.minFreeSlots === "number";
+    return typeof value.version === "number" && value.version === 1 && isCleanupLimitsV1(value.limits) && typeof value.minFreeSlots === "number";
+  }
+  function migrateV1ToV2(v1) {
+    const { references } = v1.limits;
+    const mode = references === -1 ? "off" : "fast";
+    return {
+      version: 2,
+      limits: {
+        cores: v1.limits.cores,
+        catalysers: v1.limits.catalysers,
+        referencesMode: mode,
+        referencesFastLimit: references,
+        referencesAlliedLimit: -1,
+        referencesNotAlliedLimit: -1
+      },
+      minFreeSlots: v1.minFreeSlots
+    };
   }
   function loadCleanupSettings() {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY$1);
     if (!raw) return defaultCleanupSettings();
     let parsed;
     try {
@@ -3557,12 +4098,20 @@ ${errorLog}`);
     } catch {
       return defaultCleanupSettings();
     }
-    if (!isCleanupSettings(parsed)) return defaultCleanupSettings();
-    if (parsed.minFreeSlots < MIN_FREE_SLOTS_FLOOR) {
-      parsed.minFreeSlots = MIN_FREE_SLOTS_FLOOR;
+    if (isCleanupSettingsV1(parsed)) {
+      const migrated = migrateV1ToV2(parsed);
+      saveCleanupSettings(migrated);
+      return applyRuntimeGuards(migrated);
     }
-    sanitizeLimits(parsed.limits);
-    return parsed;
+    if (!isCleanupSettingsV2(parsed)) return defaultCleanupSettings();
+    return applyRuntimeGuards(parsed);
+  }
+  function applyRuntimeGuards(settings) {
+    if (settings.minFreeSlots < MIN_FREE_SLOTS_FLOOR) {
+      settings.minFreeSlots = MIN_FREE_SLOTS_FLOOR;
+    }
+    sanitizeLimits(settings.limits);
+    return settings;
   }
   function sanitizeLevelLimits(limits) {
     for (let level = 1; level <= 10; level++) {
@@ -3571,17 +4120,20 @@ ${errorLog}`);
       }
     }
   }
+  function sanitizeRefLimit(value) {
+    return value < -1 ? 0 : value;
+  }
   function sanitizeLimits(limits) {
     sanitizeLevelLimits(limits.cores);
     sanitizeLevelLimits(limits.catalysers);
-    if (limits.references < -1) {
-      limits.references = 0;
-    }
+    limits.referencesFastLimit = sanitizeRefLimit(limits.referencesFastLimit);
+    limits.referencesAlliedLimit = sanitizeRefLimit(limits.referencesAlliedLimit);
+    limits.referencesNotAlliedLimit = sanitizeRefLimit(limits.referencesNotAlliedLimit);
   }
   function saveCleanupSettings(settings) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(STORAGE_KEY$1, JSON.stringify(settings));
   }
-  const styles = ".svp-cleanup-settings{position:fixed;top:0;right:0;bottom:0;left:0;z-index:10001;background:var(--background);color:var(--text);display:none;flex-direction:column;font-size:13px}.svp-cleanup-settings.svp-open{display:flex}.svp-cleanup-header{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:700;padding:4px 8px;flex-shrink:0;border-bottom:1px solid var(--border-transp);max-width:600px;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box}.svp-cleanup-content{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:8px;max-width:600px;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box}.svp-cleanup-section-title{font-size:10px;font-weight:600;color:var(--text);text-transform:uppercase;letter-spacing:.08em;padding:6px 0 2px;border-bottom:1px solid var(--border-transp);margin-bottom:2px}.svp-cleanup-level-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px}.svp-cleanup-level-cell,.svp-cleanup-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0}.svp-cleanup-row-label{font-size:12px}.svp-cleanup-row-input{width:60px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--background);color:var(--text);font-size:12px;text-align:center}.svp-cleanup-footer{flex-shrink:0;padding:6px 8px 40px;border-top:1px solid var(--border-transp);display:flex;align-items:center;justify-content:flex-end;gap:8px;max-width:600px;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box}.svp-cleanup-button{background:none;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}.svp-cleanup-button-primary{background:var(--accent);color:var(--background);border-color:var(--accent)}.svp-cleanup-configure-button{background:none;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 6px;font-size:10px;cursor:pointer;margin-left:4px}.svp-cleanup-toast{position:fixed;top:50px;left:50%;transform:translate(-50%);background:var(--background);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 12px;font-size:12px;z-index:10002;opacity:1;transition:opacity .3s ease;pointer-events:none;max-width:90vw;text-align:center;box-sizing:border-box}.svp-cleanup-toast-hide{opacity:0}";
+  const styles$1 = ".svp-cleanup-settings{position:fixed;top:0;right:0;bottom:0;left:0;z-index:10001;background:var(--background);color:var(--text);display:none;flex-direction:column;font-size:13px}.svp-cleanup-settings.svp-open{display:flex}.svp-cleanup-header{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:700;padding:4px 8px;flex-shrink:0;border-bottom:1px solid var(--border-transp);max-width:600px;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box}.svp-cleanup-content{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:8px;max-width:600px;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box}.svp-cleanup-section-title{font-size:10px;font-weight:600;color:var(--text);text-transform:uppercase;letter-spacing:.08em;padding:6px 0 2px;border-bottom:1px solid var(--border-transp);margin-bottom:2px}.svp-cleanup-level-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px}.svp-cleanup-level-cell,.svp-cleanup-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0}.svp-cleanup-row-label{font-size:12px}.svp-cleanup-row-input{width:60px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--background);color:var(--text);font-size:12px;text-align:center}.svp-cleanup-references-section{margin-top:8px;padding-top:8px;border-top:1px solid var(--border-transp)}.svp-cleanup-radio-label{display:block;font-size:12px;margin:4px 0;cursor:pointer;-webkit-user-select:none;user-select:none}.svp-cleanup-ref-inputs{margin-top:4px;padding-left:20px}.svp-cleanup-hint{font-size:10px;color:var(--text-disabled);padding:4px 0}.svp-cleanup-hint-warning{color:var(--accent)}.svp-cleanup-slow-refs-button{margin-left:auto;padding:4px 10px;border:1px solid var(--border, rgba(255, 255, 255, .2));border-radius:4px;background:var(--background, rgba(0, 0, 0, .3));color:var(--text, #ddd);font-size:11px;cursor:pointer}.svp-cleanup-slow-refs-button:hover{background:var(--accent, #ffcc33);color:var(--background, #000)}.svp-cleanup-slow-modal{position:fixed;top:0;right:0;bottom:0;left:0;z-index:10010;background:#000000b3;display:flex;align-items:center;justify-content:center}.svp-cleanup-slow-modal-box{background:var(--background, #1a1a1a);color:var(--text, #ddd);border:1px solid var(--border, #444);border-radius:6px;padding:16px 20px;min-width:260px;max-width:400px}.svp-cleanup-slow-modal-status{font-size:13px;margin-bottom:8px}.svp-cleanup-slow-progress{height:6px;background:#ffffff1a;border-radius:3px;overflow:hidden}.svp-cleanup-slow-progress-bar{height:100%;width:0;background:#fc3;transition:width .15s ease}.svp-cleanup-slow-counter{font-size:11px;color:var(--text-disabled, #888);text-align:right;margin-top:4px}.svp-cleanup-footer{flex-shrink:0;padding:6px 8px 40px;border-top:1px solid var(--border-transp);display:flex;align-items:center;justify-content:flex-end;gap:8px;max-width:600px;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box}.svp-cleanup-button{background:none;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}.svp-cleanup-button-primary{background:var(--accent);color:var(--background);border-color:var(--accent)}.svp-cleanup-configure-button{background:none;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 6px;font-size:10px;cursor:pointer;margin-left:4px}";
   const STYLES_ID = "inventoryCleanup";
   const PANEL_ID = "svp-cleanup-settings";
   const TITLE = {
@@ -3599,9 +4151,40 @@ ${errorLog}`);
   const CATALYSERS_LABEL = { en: "Catalysers", ru: "Катализаторы" };
   const LEVEL_LABEL = { en: "Level", ru: "Ур." };
   const UNLIMITED_HINT = { en: "-1 = unlimited", ru: "-1 = без лимита" };
-  let panel = null;
-  let configureButton = null;
-  let moduleRowObserver = null;
+  const REFERENCES_LABEL = { en: "Keys", ru: "Ключи" };
+  const REF_MODE_OFF_LABEL = { en: "Off", ru: "Не удалять" };
+  const REF_MODE_FAST_LABEL = {
+    en: "Fast (on discover)",
+    ru: "Быстро (при изучении)"
+  };
+  const REF_MODE_SLOW_LABEL = {
+    en: "Slow (allied/not allied split, manual only)",
+    ru: "Медленно (союзные/несоюзные, только вручную)"
+  };
+  const REF_FAST_LIMIT_LABEL = {
+    en: "Keys limit",
+    ru: "Лимит ключей"
+  };
+  const REF_ALLIED_LIMIT_LABEL = {
+    en: "Allied keys limit",
+    ru: "Лимит союзных"
+  };
+  const REF_NOT_ALLIED_LIMIT_LABEL = {
+    en: "Not allied keys limit",
+    ru: "Лимит несоюзных"
+  };
+  const REF_DISABLED_HINT = {
+    en: 'Enable "Favorited points" module to manage key deletion',
+    ru: "Включите модуль «Избранные точки», чтобы настроить удаление ключей"
+  };
+  const REF_SLOW_HINT = {
+    en: "Slow cleanup runs manually from the references OPS tab",
+    ru: "Медленная очистка запускается вручную через кнопку во вкладке ключей в ОРПЦ"
+  };
+  let panel$1 = null;
+  let configureButton$1 = null;
+  let moduleRowObserver$1 = null;
+  let rafId$2 = null;
   function createLevelInputs(container, titleLabel, values, onChange) {
     const section = document.createElement("div");
     const sectionTitle = document.createElement("div");
@@ -3634,7 +4217,105 @@ ${errorLog}`);
     section.appendChild(grid);
     container.appendChild(section);
   }
-  function buildPanel(settings, onSave) {
+  function createNumberInput(labelText, value, onChange) {
+    const row = document.createElement("div");
+    row.className = "svp-cleanup-row";
+    const label = document.createElement("span");
+    label.className = "svp-cleanup-row-label";
+    label.textContent = labelText;
+    const input = document.createElement("input");
+    input.type = "number";
+    input.className = "svp-cleanup-row-input";
+    input.min = "-1";
+    input.value = String(value);
+    input.addEventListener("change", () => {
+      const parsed = parseInt(input.value, 10);
+      const clamped = Number.isFinite(parsed) && parsed >= 0 ? parsed : -1;
+      input.value = String(clamped);
+      onChange(clamped);
+    });
+    row.appendChild(label);
+    row.appendChild(input);
+    return row;
+  }
+  function createReferencesSection(draft, refsEnabled) {
+    const section = document.createElement("div");
+    section.className = "svp-cleanup-references-section";
+    const title = document.createElement("div");
+    title.className = "svp-cleanup-section-title";
+    title.textContent = t(REFERENCES_LABEL);
+    section.appendChild(title);
+    if (!refsEnabled) {
+      const hint = document.createElement("div");
+      hint.className = "svp-cleanup-hint svp-cleanup-hint-warning";
+      hint.textContent = t(REF_DISABLED_HINT);
+      section.appendChild(hint);
+      return section;
+    }
+    const modeGroupName = "svp-cleanup-ref-mode";
+    const modes = [
+      { value: "off", label: REF_MODE_OFF_LABEL },
+      { value: "fast", label: REF_MODE_FAST_LABEL },
+      { value: "slow", label: REF_MODE_SLOW_LABEL }
+    ];
+    const inputsContainer = document.createElement("div");
+    inputsContainer.className = "svp-cleanup-ref-inputs";
+    function renderInputs() {
+      inputsContainer.innerHTML = "";
+      if (draft.limits.referencesMode === "fast") {
+        inputsContainer.appendChild(
+          createNumberInput(t(REF_FAST_LIMIT_LABEL), draft.limits.referencesFastLimit, (value) => {
+            draft.limits.referencesFastLimit = value;
+          })
+        );
+      } else if (draft.limits.referencesMode === "slow") {
+        inputsContainer.appendChild(
+          createNumberInput(
+            t(REF_ALLIED_LIMIT_LABEL),
+            draft.limits.referencesAlliedLimit,
+            (value) => {
+              draft.limits.referencesAlliedLimit = value;
+            }
+          )
+        );
+        inputsContainer.appendChild(
+          createNumberInput(
+            t(REF_NOT_ALLIED_LIMIT_LABEL),
+            draft.limits.referencesNotAlliedLimit,
+            (value) => {
+              draft.limits.referencesNotAlliedLimit = value;
+            }
+          )
+        );
+        const slowHint = document.createElement("div");
+        slowHint.className = "svp-cleanup-hint";
+        slowHint.textContent = t(REF_SLOW_HINT);
+        inputsContainer.appendChild(slowHint);
+      }
+    }
+    for (const mode of modes) {
+      const label = document.createElement("label");
+      label.className = "svp-cleanup-radio-label";
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = modeGroupName;
+      radio.value = mode.value;
+      radio.checked = draft.limits.referencesMode === mode.value;
+      radio.addEventListener("change", () => {
+        if (radio.checked) {
+          draft.limits.referencesMode = mode.value;
+          renderInputs();
+        }
+      });
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(" " + t(mode.label)));
+      section.appendChild(label);
+    }
+    section.appendChild(inputsContainer);
+    renderInputs();
+    return section;
+  }
+  function buildPanel$1(settings, onSave) {
     const draft = structuredClone(settings);
     const element = document.createElement("div");
     element.className = "svp-cleanup-settings";
@@ -3673,6 +4354,8 @@ ${errorLog}`);
     createLevelInputs(content, CATALYSERS_LABEL, draft.limits.catalysers, (level, value) => {
       draft.limits.catalysers[level] = value;
     });
+    const refsEnabled = isModuleActive("favoritedPoints");
+    content.appendChild(createReferencesSection(draft, refsEnabled));
     element.appendChild(content);
     const footer = document.createElement("div");
     footer.className = "svp-cleanup-footer";
@@ -3694,7 +4377,7 @@ ${errorLog}`);
     element.appendChild(footer);
     return element;
   }
-  function injectConfigureButton() {
+  function injectConfigureButton$1() {
     const moduleRow = document.querySelector(".svp-module-row .svp-module-id");
     if (!moduleRow) return;
     const allIds = document.querySelectorAll(".svp-module-id");
@@ -3706,52 +4389,60 @@ ${errorLog}`);
         if (existing) return;
         const nameLine = row.querySelector(".svp-module-name-line");
         if (!nameLine) continue;
-        configureButton = document.createElement("button");
-        configureButton.className = "svp-cleanup-configure-button";
-        configureButton.textContent = t(CONFIGURE_LABEL);
-        configureButton.addEventListener("click", (event) => {
+        configureButton$1 = document.createElement("button");
+        configureButton$1.className = "svp-cleanup-configure-button";
+        configureButton$1.textContent = t(CONFIGURE_LABEL);
+        configureButton$1.addEventListener("click", (event) => {
           event.stopPropagation();
           openSettingsPanel();
         });
-        nameLine.appendChild(configureButton);
+        nameLine.appendChild(configureButton$1);
         return;
       }
     }
   }
   function openSettingsPanel() {
-    if (panel) {
-      panel.remove();
+    if (panel$1) {
+      panel$1.remove();
     }
     const settings = loadCleanupSettings();
-    panel = buildPanel(settings, (updatedSettings) => {
+    panel$1 = buildPanel$1(settings, (updatedSettings) => {
       saveCleanupSettings(updatedSettings);
     });
-    document.body.appendChild(panel);
-    panel.classList.add("svp-open");
+    document.body.appendChild(panel$1);
+    panel$1.classList.add("svp-open");
   }
   function initCleanupSettingsUi() {
-    injectStyles(styles, STYLES_ID);
-    injectConfigureButton();
-    moduleRowObserver = new MutationObserver(() => {
-      if (!document.querySelector(".svp-cleanup-configure-button")) {
-        injectConfigureButton();
-      }
+    injectStyles(styles$1, STYLES_ID);
+    injectConfigureButton$1();
+    moduleRowObserver$1 = new MutationObserver(() => {
+      if (rafId$2 !== null) return;
+      rafId$2 = requestAnimationFrame(() => {
+        rafId$2 = null;
+        if (!document.querySelector(".svp-cleanup-configure-button")) {
+          injectConfigureButton$1();
+        }
+      });
     });
-    moduleRowObserver.observe(document.body, { childList: true, subtree: true });
+    moduleRowObserver$1.observe(document.body, { childList: true, subtree: true });
   }
   function destroyCleanupSettingsUi() {
+    if (rafId$2 !== null) {
+      cancelAnimationFrame(rafId$2);
+      rafId$2 = null;
+    }
     removeStyles(STYLES_ID);
-    if (panel) {
-      panel.remove();
-      panel = null;
+    if (panel$1) {
+      panel$1.remove();
+      panel$1 = null;
     }
-    if (configureButton) {
-      configureButton.remove();
-      configureButton = null;
+    if (configureButton$1) {
+      configureButton$1.remove();
+      configureButton$1 = null;
     }
-    if (moduleRowObserver) {
-      moduleRowObserver.disconnect();
-      moduleRowObserver = null;
+    if (moduleRowObserver$1) {
+      moduleRowObserver$1.disconnect();
+      moduleRowObserver$1 = null;
     }
   }
   function buildAuthHeaders() {
@@ -3776,11 +4467,25 @@ ${errorLog}`);
     }
     return grouped;
   }
-  const DELETABLE_TYPES = /* @__PURE__ */ new Set([ITEM_TYPE_CORE, ITEM_TYPE_CATALYSER]);
-  async function deleteInventoryItems(deletions) {
+  const DELETABLE_TYPES = /* @__PURE__ */ new Set([ITEM_TYPE_CORE, ITEM_TYPE_CATALYSER, ITEM_TYPE_REFERENCE]);
+  async function deleteInventoryItems(deletions, options) {
+    const hasReferences = deletions.some((entry) => entry.type === ITEM_TYPE_REFERENCE);
+    if (hasReferences && !options.favoritedPointsActive) {
+      throw new Error("Удаление ключей запрещено: модуль favoritedPoints не активен (guard)");
+    }
     for (const entry of deletions) {
       if (!DELETABLE_TYPES.has(entry.type)) {
         throw new Error(`Удаление предметов типа ${entry.type} запрещено`);
+      }
+      if (entry.type === ITEM_TYPE_REFERENCE) {
+        if (entry.pointGuid === void 0) {
+          throw new Error(`Ключ ${entry.guid} без pointGuid не может быть удалён (guard избранных)`);
+        }
+        if (options.favoritedGuids.has(entry.pointGuid)) {
+          throw new Error(
+            `Ключ от избранной точки ${entry.pointGuid} не может быть удалён (guard избранных)`
+          );
+        }
       }
     }
     const grouped = groupByType(deletions);
@@ -3810,23 +4515,58 @@ ${errorLog}`);
     }
     return { total: lastTotal };
   }
+  function updateDomInventoryCount(total) {
+    const element = document.getElementById("self-info__inv");
+    if (element) {
+      element.textContent = String(total);
+    }
+  }
+  function updatePointRefCount() {
+    const infoPopup = document.querySelector(".info.popup");
+    if (!infoPopup || infoPopup.classList.contains("hidden")) return;
+    const pointGuid = infoPopup.dataset.guid;
+    if (!pointGuid) return;
+    const refElement = document.getElementById("i-ref");
+    if (!refElement) return;
+    const raw = localStorage.getItem(INVENTORY_CACHE_KEY);
+    if (!raw) return;
+    let cache;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      cache = parsed;
+    } catch {
+      return;
+    }
+    const ref = cache.find(
+      (item) => typeof item === "object" && item !== null && item.t === ITEM_TYPE_REFERENCE && item.l === pointGuid
+    );
+    const count = (ref == null ? void 0 : ref.a) ?? 0;
+    const currentText = refElement.textContent;
+    const updatedText = currentText.replace(/\d+(?=\/)/, String(count));
+    if (updatedText !== currentText) {
+      refElement.textContent = updatedText;
+    }
+    refElement.setAttribute("data-has", count > 0 ? "1" : "0");
+  }
   function updateInventoryCache(deletions) {
     const raw = localStorage.getItem(INVENTORY_CACHE_KEY);
     if (!raw) {
       console.warn("[SVP inventoryCleanup] inventory-cache отсутствует, пропуск обновления");
       return;
     }
-    let cache;
+    let parsed;
     try {
-      cache = JSON.parse(raw);
+      parsed = JSON.parse(raw);
     } catch {
       console.warn("[SVP inventoryCleanup] inventory-cache содержит невалидный JSON");
       return;
     }
-    if (!Array.isArray(cache)) {
+    if (!Array.isArray(parsed)) {
       console.warn("[SVP inventoryCleanup] inventory-cache не является массивом");
       return;
     }
+    let cache = parsed;
     for (const entry of deletions) {
       const cached = cache.find((item) => item.g === entry.guid);
       if (cached) {
@@ -3836,9 +4576,325 @@ ${errorLog}`);
     cache = cache.filter((item) => item.a > 0);
     localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(cache));
   }
-  const MODULE_ID = "inventoryCleanup";
+  const BUTTON_CLASS = "svp-cleanup-slow-refs-button";
+  const MODAL_CLASS = "svp-cleanup-slow-modal";
+  const FILTER_BAR_SELECTOR = ".svp-fav-filter-bar";
+  const FETCH_CONCURRENCY = 3;
+  let bodyObserver = null;
+  function getPlayerTeam() {
+    const element = document.getElementById("self-info__name");
+    if (!element) return null;
+    const match = /var\(--team-(\d+)\)/.exec(element.style.color);
+    if (!match) return null;
+    const team = parseInt(match[1], 10);
+    return Number.isFinite(team) ? team : null;
+  }
+  async function fetchPointTeam(pointGuid) {
+    try {
+      const response = await fetch(`/api/point?guid=${pointGuid}&status=1`);
+      if (!response.ok) return null;
+      const json = await response.json();
+      if (typeof json !== "object" || json === null || !("data" in json)) return null;
+      const record = json;
+      const data = record.data;
+      if (typeof data !== "object" || data === null) return null;
+      const dataRecord = data;
+      if (typeof dataRecord.te === "number") return dataRecord.te;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+  function openProgressModal() {
+    const overlay = document.createElement("div");
+    overlay.className = MODAL_CLASS;
+    const box = document.createElement("div");
+    box.className = "svp-cleanup-slow-modal-box";
+    const status = document.createElement("div");
+    status.className = "svp-cleanup-slow-modal-status";
+    status.textContent = t({ en: "Preparing…", ru: "Подготовка…" });
+    box.appendChild(status);
+    const barWrap = document.createElement("div");
+    barWrap.className = "svp-cleanup-slow-progress";
+    const bar = document.createElement("div");
+    bar.className = "svp-cleanup-slow-progress-bar";
+    barWrap.appendChild(bar);
+    box.appendChild(barWrap);
+    const counter = document.createElement("div");
+    counter.className = "svp-cleanup-slow-counter";
+    counter.textContent = "0 / 0";
+    box.appendChild(counter);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    return {
+      update(done, total) {
+        const percent = total === 0 ? 0 : Math.round(done / total * 100);
+        bar.style.width = `${percent}%`;
+        counter.textContent = `${done} / ${total}`;
+      },
+      setStatus(text) {
+        status.textContent = text;
+      },
+      close() {
+        overlay.remove();
+      }
+    };
+  }
+  async function fetchTeamsForGuids(guids, onProgress) {
+    const result = /* @__PURE__ */ new Map();
+    let done = 0;
+    let cursor = 0;
+    async function worker() {
+      while (cursor < guids.length) {
+        const index = cursor++;
+        const guid = guids[index];
+        const team = await fetchPointTeam(guid);
+        result.set(guid, team);
+        done++;
+        onProgress(done, guids.length);
+      }
+    }
+    const workers = [];
+    for (let i = 0; i < Math.min(FETCH_CONCURRENCY, guids.length); i++) {
+      workers.push(worker());
+    }
+    await Promise.all(workers);
+    return result;
+  }
+  function calculateSlowDeletions(refs, teams, playerTeam, alliedLimit, notAlliedLimit) {
+    const alliedRefs = [];
+    const notAlliedRefs = [];
+    for (const ref of refs) {
+      const team = teams.get(ref.pointGuid);
+      if (team === playerTeam) {
+        alliedRefs.push(ref);
+      } else {
+        notAlliedRefs.push(ref);
+      }
+    }
+    const deletions = [];
+    collectOverLimit(alliedRefs, alliedLimit, deletions);
+    collectOverLimit(notAlliedRefs, notAlliedLimit, deletions);
+    return deletions;
+  }
+  function collectOverLimit(refs, limit, deletions) {
+    if (limit === -1) return;
+    const byPoint = /* @__PURE__ */ new Map();
+    for (const ref of refs) {
+      const group = byPoint.get(ref.pointGuid) ?? [];
+      group.push(ref);
+      byPoint.set(ref.pointGuid, group);
+    }
+    for (const [pointGuid, group] of byPoint) {
+      const total = group.reduce((sum, ref) => sum + ref.amount, 0);
+      let excess = total - limit;
+      if (excess <= 0) continue;
+      for (const ref of group) {
+        if (excess <= 0) break;
+        const toDelete = Math.min(ref.amount, excess);
+        deletions.push({
+          guid: ref.itemGuid,
+          type: ITEM_TYPE_REFERENCE,
+          level: null,
+          amount: toDelete,
+          pointGuid
+        });
+        excess -= toDelete;
+      }
+    }
+  }
+  const SLOW_TOAST_DURATION = 5e3;
+  function showSlowToast(message) {
+    showToast(message, SLOW_TOAST_DURATION);
+  }
+  async function runSlowDelete() {
+    const settings = loadCleanupSettings();
+    if (settings.limits.referencesMode !== "slow") {
+      showSlowToast(
+        t({ en: 'Key cleanup mode is not "Slow"', ru: "Режим очистки ключей не «Медленно»" })
+      );
+      return;
+    }
+    const { referencesAlliedLimit, referencesNotAlliedLimit } = settings.limits;
+    if (referencesAlliedLimit === -1 && referencesNotAlliedLimit === -1) {
+      showSlowToast(t({ en: "Limits not set", ru: "Лимиты не заданы" }));
+      return;
+    }
+    const playerTeam = getPlayerTeam();
+    if (playerTeam === null) {
+      showSlowToast(
+        t({ en: "Could not determine player team", ru: "Не удалось определить команду игрока" })
+      );
+      return;
+    }
+    const favoritedGuids = getFavoritedGuids();
+    if (favoritedGuids.size === 0) {
+      showSlowToast(
+        t({
+          en: "Add at least one favorited point before cleaning keys",
+          ru: "Добавьте хотя бы одну избранную точку перед очисткой ключей"
+        })
+      );
+      return;
+    }
+    const invRefs = readInventoryReferences();
+    const nonFavRefs = invRefs.filter((ref) => ref.a > 0 && !favoritedGuids.has(ref.l)).map((ref) => ({ itemGuid: ref.g, pointGuid: ref.l, amount: ref.a }));
+    if (nonFavRefs.length === 0) {
+      showSlowToast(
+        t({ en: "No non-favorited keys to process", ru: "Нет не-избранных ключей для обработки" })
+      );
+      return;
+    }
+    const uniquePointGuids = Array.from(new Set(nonFavRefs.map((ref) => ref.pointGuid)));
+    const confirmed = confirm(
+      t({
+        en: `Fetch data for ${uniquePointGuids.length} points to determine faction? This may take a while.`,
+        ru: `Запросить данные по ${uniquePointGuids.length} точкам для определения фракции? Это может занять время.`
+      })
+    );
+    if (!confirmed) return;
+    const progress = openProgressModal();
+    progress.setStatus(t({ en: "Fetching point data…", ru: "Запрос данных точек…" }));
+    progress.update(0, uniquePointGuids.length);
+    let teams;
+    try {
+      teams = await fetchTeamsForGuids(uniquePointGuids, (done, total) => {
+        progress.update(done, total);
+      });
+    } catch (error) {
+      progress.close();
+      const message = error instanceof Error ? error.message : "Неизвестная ошибка";
+      showSlowToast(t({ en: "Request error: ", ru: "Ошибка запроса: " }) + message);
+      return;
+    }
+    progress.setStatus(t({ en: "Calculating deletions…", ru: "Расчёт удаления…" }));
+    const deletions = calculateSlowDeletions(
+      nonFavRefs,
+      teams,
+      playerTeam,
+      referencesAlliedLimit,
+      referencesNotAlliedLimit
+    );
+    if (deletions.length === 0) {
+      progress.close();
+      showSlowToast(
+        t({
+          en: "No keys to delete with current limits",
+          ru: "Нет ключей для удаления по заданным лимитам"
+        })
+      );
+      return;
+    }
+    const totalAmount = deletions.reduce((sum, entry) => sum + entry.amount, 0);
+    const alliedDeletions = deletions.filter((entry) => {
+      const team = teams.get(entry.pointGuid ?? "");
+      return team === playerTeam;
+    });
+    const notAlliedDeletions = deletions.filter((entry) => {
+      const team = teams.get(entry.pointGuid ?? "");
+      return team !== playerTeam;
+    });
+    const alliedAmount = alliedDeletions.reduce((sum, entry) => sum + entry.amount, 0);
+    const notAlliedAmount = notAlliedDeletions.reduce((sum, entry) => sum + entry.amount, 0);
+    const alliedLabel = t({ en: "allied", ru: "союзные" });
+    const notAlliedLabel = t({ en: "not allied", ru: "несоюзные" });
+    const keysLabel = t({ en: "keys", ru: "ключей" });
+    const summaryText = `${totalAmount} ${keysLabel} (${alliedLabel} ${alliedAmount} + ${notAlliedLabel} ${notAlliedAmount})`;
+    progress.setStatus(t({ en: "Deleting: ", ru: "Удаление: " }) + summaryText);
+    try {
+      const result = await deleteInventoryItems(deletions, {
+        favoritedGuids: getFavoritedGuids(),
+        favoritedPointsActive: isModuleActive("favoritedPoints")
+      });
+      updateInventoryCache(deletions);
+      updatePointRefCount();
+      if (result.total > 0) {
+        updateDomInventoryCount(result.total);
+      }
+      progress.close();
+      showSlowToast(t({ en: "Deleted: ", ru: "Удалено: " }) + summaryText);
+    } catch (error) {
+      progress.close();
+      const message = error instanceof Error ? error.message : t({ en: "Unknown error", ru: "Неизвестная ошибка" });
+      showSlowToast(t({ en: "Deletion error: ", ru: "Ошибка удаления: " }) + message);
+    }
+  }
+  function formatLimit(value) {
+    return value === -1 ? "∞" : String(value);
+  }
+  function updateButtonLabel(button) {
+    const settings = loadCleanupSettings();
+    const allied = formatLimit(settings.limits.referencesAlliedLimit);
+    const notAllied = formatLimit(settings.limits.referencesNotAlliedLimit);
+    const label = t({
+      en: `Cleanup (limits: ${allied}/${notAllied})`,
+      ru: `Очистить (лимиты: ${allied}/${notAllied})`
+    });
+    if (button.textContent !== label) {
+      button.textContent = label;
+    }
+  }
+  function shouldShowButton() {
+    const settings = loadCleanupSettings();
+    return settings.limits.referencesMode === "slow" && isModuleActive("favoritedPoints");
+  }
+  function ensureButton(bar) {
+    var _a;
+    if (!shouldShowButton()) {
+      (_a = bar.querySelector(`.${BUTTON_CLASS}`)) == null ? void 0 : _a.remove();
+      return;
+    }
+    const existing = bar.querySelector(`.${BUTTON_CLASS}`);
+    if (existing) {
+      updateButtonLabel(existing);
+      return;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = BUTTON_CLASS;
+    updateButtonLabel(button);
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      void runSlowDelete();
+    });
+    bar.appendChild(button);
+  }
+  function removeButton() {
+    var _a;
+    (_a = document.querySelector(`.${BUTTON_CLASS}`)) == null ? void 0 : _a.remove();
+  }
+  function checkAndInject() {
+    const bar = document.querySelector(FILTER_BAR_SELECTOR);
+    if (!bar) {
+      removeButton();
+      return;
+    }
+    ensureButton(bar);
+  }
+  let rafId$1 = null;
+  function installSlowRefsDelete() {
+    if (bodyObserver) return;
+    checkAndInject();
+    bodyObserver = new MutationObserver(() => {
+      if (rafId$1 !== null) return;
+      rafId$1 = requestAnimationFrame(() => {
+        rafId$1 = null;
+        checkAndInject();
+      });
+    });
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+  }
+  function uninstallSlowRefsDelete() {
+    if (rafId$1 !== null) {
+      cancelAnimationFrame(rafId$1);
+      rafId$1 = null;
+    }
+    bodyObserver == null ? void 0 : bodyObserver.disconnect();
+    bodyObserver = null;
+    removeButton();
+  }
+  const MODULE_ID$2 = "inventoryCleanup";
   const ACTION_SELECTORS = "#discover, .discover-mod";
-  const TOAST_DURATION = 3e3;
   const DEBUG_INV_KEY = "svp_debug_inv";
   let cleanupInProgress = false;
   let discoverPending = false;
@@ -3853,18 +4909,6 @@ ${errorLog}`);
     if (stored === null) return null;
     const value = parseInt(stored, 10);
     return Number.isFinite(value) ? value : null;
-  }
-  function showCleanupToast(message) {
-    const toast = document.createElement("div");
-    toast.className = "svp-cleanup-toast";
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-      toast.classList.add("svp-cleanup-toast-hide");
-      toast.addEventListener("transitionend", () => {
-        toast.remove();
-      });
-    }, TOAST_DURATION);
   }
   function readDomNumber(id) {
     const element = document.getElementById(id);
@@ -3881,12 +4925,6 @@ ${errorLog}`);
       cleanupInProgress = false;
     }
   }
-  function updateDomInventoryCount(total) {
-    const element = document.getElementById("self-info__inv");
-    if (element) {
-      element.textContent = String(total);
-    }
-  }
   async function runCleanupImpl() {
     const settings = loadCleanupSettings();
     const currentCount = readDebugInvCount() ?? readDomNumber("self-info__inv");
@@ -3900,7 +4938,13 @@ ${errorLog}`);
     }
     const items = parseInventoryCache();
     if (items.length === 0) return;
-    const deletions = calculateDeletions(items, settings.limits);
+    const referencesEnabled = isModuleActive("favoritedPoints");
+    const favoritedGuids = referencesEnabled ? getFavoritedGuids() : /* @__PURE__ */ new Set();
+    const deletions = calculateDeletions(items, settings.limits, {
+      favoritedGuids,
+      referencesEnabled,
+      favoritesSnapshotReady: isFavoritesSnapshotReady()
+    });
     if (deletions.length === 0) return;
     const totalAmount = deletions.reduce((sum, entry) => sum + entry.amount, 0);
     const summary = formatDeletionSummary(deletions);
@@ -3909,14 +4953,20 @@ ${errorLog}`);
       deletions
     );
     try {
-      const result = await deleteInventoryItems(deletions);
+      const result = await deleteInventoryItems(deletions, {
+        favoritedGuids: getFavoritedGuids(),
+        favoritedPointsActive: isModuleActive("favoritedPoints")
+      });
       updateInventoryCache(deletions);
-      updateDomInventoryCount(result.total);
-      showCleanupToast(`Очистка (${totalAmount}): ${summary}`);
+      updatePointRefCount();
+      if (result.total > 0) {
+        updateDomInventoryCount(result.total);
+      }
+      showToast(`Очистка (${totalAmount}): ${summary}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Неизвестная ошибка";
       console.error("[SVP inventoryCleanup] Ошибка удаления:", message);
-      showCleanupToast(`Ошибка очистки: ${message}`);
+      showToast(`Ошибка очистки: ${message}`);
     }
   }
   function isDiscoverButton(target) {
@@ -3934,6 +4984,7 @@ ${errorLog}`);
     void runCleanup();
   }
   function installSetItemInterceptor() {
+    if (originalSetItem !== null) return;
     const nativeSetItem = localStorage.setItem;
     originalSetItem = nativeSetItem;
     const wrapper = function(key, value) {
@@ -3962,29 +5013,918 @@ ${errorLog}`);
     }
   }
   const inventoryCleanup = {
-    id: MODULE_ID,
+    id: MODULE_ID$2,
     name: {
       en: "Inventory auto-cleanup",
       ru: "Автоочистка инвентаря"
     },
     description: {
-      en: "Automatically removes excess items when discovering points",
-      ru: "Автоматически удаляет лишние предметы при изучении точек"
+      en: "Automatically removes excess items when discovering points. Slow cleanup runs manually from the references OPS tab",
+      ru: "Автоматически удаляет лишние предметы при изучении точек. Медленная очистка запускается вручную через кнопку во вкладке ключей в ОРПЦ"
     },
     defaultEnabled: true,
-    category: "utility",
+    category: "feature",
     init() {
     },
     enable() {
       document.addEventListener("click", onClickCapture, true);
       installSetItemInterceptor();
       initCleanupSettingsUi();
+      installSlowRefsDelete();
     },
     disable() {
       document.removeEventListener("click", onClickCapture, true);
       uninstallSetItemInterceptor();
       discoverPending = false;
       destroyCleanupSettingsUi();
+      uninstallSlowRefsDelete();
+    }
+  };
+  function isDevMode() {
+    if (/[#&]svp-dev=1/.test(location.hash)) return true;
+    return localStorage.getItem("svp_debug") === "1";
+  }
+  function installDebugHooks() {
+    if (!isDevMode()) return;
+    window.svpFavs = {
+      list: () => Array.from(getFavoritedGuids()),
+      count: () => getFavoritesCount(),
+      isFav: (guid) => isFavorited(guid),
+      add: async (guid) => {
+        await addFavorite(guid);
+        console.log(`[SVP favoritedPoints] добавлено: ${guid}`);
+      },
+      remove: async (guid) => {
+        await removeFavorite(guid);
+        console.log(`[SVP favoritedPoints] удалено: ${guid}`);
+      },
+      export: exportToJson,
+      import: async (json) => {
+        const count = await importFromJson(json);
+        console.log(`[SVP favoritedPoints] импортировано записей: ${count}`);
+        return count;
+      },
+      clear: async () => {
+        const guids = Array.from(getFavoritedGuids());
+        for (const guid of guids) {
+          await removeFavorite(guid);
+        }
+        console.log(`[SVP favoritedPoints] очищено записей: ${guids.length}`);
+        return guids.length;
+      }
+    };
+  }
+  function uninstallDebugHooks() {
+    delete window.svpFavs;
+  }
+  const STAR_CLASS = "svp-fav-star";
+  const POPUP_SELECTOR = ".info.popup";
+  const IMAGE_BOX_SELECTOR = ".i-image-box";
+  const STAR_SVG$1 = `
+<svg viewBox="0 0 576 512" width="20" height="20" aria-hidden="true">
+  <path d="M287.9 0c9.2 0 17.6 5.2 21.6 13.5l68.6 141.3 153.2 22.6c9 1.3 16.5 7.6 19.3 16.3s.5 18.1-6 24.5L433.6 328.4l26.2 155.6c1.5 9-2.2 18.1-9.7 23.5s-17.3 6-25.3 1.7l-137-73.2L151 509.1c-8.1 4.3-17.9 3.7-25.3-1.7s-11.2-14.5-9.7-23.5l26.2-155.6L31.1 218.2c-6.5-6.4-8.7-15.9-6-24.5s10.3-15 19.3-16.3l153.2-22.6L266.3 13.5C270.4 5.2 278.7 0 287.9 0z"/>
+</svg>
+`;
+  let popupObserver$1 = null;
+  let clickAbortController = null;
+  let changeHandler$1 = null;
+  let installGeneration$1 = 0;
+  function findStarButton(popup2) {
+    return popup2.querySelector(`.${STAR_CLASS}`);
+  }
+  function getCurrentGuid(popup2) {
+    if (popup2.classList.contains("hidden")) return null;
+    if (!(popup2 instanceof HTMLElement)) return null;
+    const guid = popup2.dataset.guid;
+    return guid && guid.length > 0 ? guid : null;
+  }
+  function updateButtonState(button, guid) {
+    if (guid === null) {
+      button.classList.remove("is-filled");
+      button.title = "";
+      button.disabled = true;
+      return;
+    }
+    button.disabled = false;
+    const favorited = isFavorited(guid);
+    button.classList.toggle("is-filled", favorited);
+    button.title = favorited ? t({ en: "Remove from favorites", ru: "Убрать из избранного" }) : t({ en: "Add to favorites", ru: "Добавить в избранное" });
+    button.setAttribute("aria-pressed", favorited ? "true" : "false");
+  }
+  function injectStarButton(popup2) {
+    const imageBox = popup2.querySelector(IMAGE_BOX_SELECTOR);
+    if (!imageBox) return;
+    if (findStarButton(popup2)) {
+      const button2 = findStarButton(popup2);
+      if (button2) updateButtonState(button2, getCurrentGuid(popup2));
+      return;
+    }
+    const button = document.createElement("button");
+    button.className = STAR_CLASS;
+    button.type = "button";
+    button.innerHTML = STAR_SVG$1;
+    button.setAttribute("aria-pressed", "false");
+    clickAbortController = new AbortController();
+    button.addEventListener(
+      "click",
+      (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        void onStarClick(popup2, button);
+      },
+      { signal: clickAbortController.signal }
+    );
+    const refSpan = imageBox.querySelector("#i-ref");
+    if (refSpan) {
+      refSpan.after(button);
+    } else {
+      imageBox.appendChild(button);
+    }
+    updateButtonState(button, getCurrentGuid(popup2));
+  }
+  async function onStarClick(popup2, button) {
+    const guid = getCurrentGuid(popup2);
+    if (guid === null) return;
+    button.disabled = true;
+    try {
+      if (isFavorited(guid)) {
+        await removeFavorite(guid);
+      } else {
+        await addFavorite(guid);
+      }
+      updateButtonState(button, getCurrentGuid(popup2));
+    } catch (error) {
+      console.error("[SVP favoritedPoints] ошибка сохранения избранного:", error);
+      updateButtonState(button, getCurrentGuid(popup2));
+    }
+  }
+  function startObserving$1(popup2) {
+    injectStarButton(popup2);
+    popupObserver$1 = new MutationObserver(() => {
+      injectStarButton(popup2);
+    });
+    popupObserver$1.observe(popup2, {
+      attributes: true,
+      attributeFilter: ["class", "data-guid"]
+    });
+    changeHandler$1 = () => {
+      injectStarButton(popup2);
+    };
+    document.addEventListener(FAVORITES_CHANGED_EVENT, changeHandler$1);
+  }
+  function installStarButton() {
+    if (popupObserver$1) return;
+    installGeneration$1++;
+    const generation = installGeneration$1;
+    const existing = document.querySelector(POPUP_SELECTOR);
+    if (existing) {
+      startObserving$1(existing);
+      return;
+    }
+    waitForElement(POPUP_SELECTOR).then((popup2) => {
+      if (generation !== installGeneration$1) return;
+      startObserving$1(popup2);
+    }).catch((error) => {
+      console.warn("[SVP favoritedPoints] попап точки не найден:", error);
+    });
+  }
+  function uninstallStarButton() {
+    var _a;
+    installGeneration$1++;
+    popupObserver$1 == null ? void 0 : popupObserver$1.disconnect();
+    popupObserver$1 = null;
+    clickAbortController == null ? void 0 : clickAbortController.abort();
+    clickAbortController = null;
+    if (changeHandler$1) {
+      document.removeEventListener(FAVORITES_CHANGED_EVENT, changeHandler$1);
+      changeHandler$1 = null;
+    }
+    (_a = document.querySelector(`.${STAR_CLASS}`)) == null ? void 0 : _a.remove();
+  }
+  const FILTER_BAR_CLASS = "svp-fav-filter-bar";
+  const FILTER_CHECKBOX_CLASS = "svp-fav-filter-checkbox";
+  const FAV_ITEM_CLASS = "svp-is-fav";
+  const ITEM_STAR_CLASS = "svp-inv-item-star";
+  const GAME_HIDDEN_CLASS = "hidden";
+  const FILTER_MARK_CLASS = "svp-fav-filtered";
+  const INVENTORY_CONTENT_SELECTOR = ".inventory__content";
+  const INVENTORY_POPUP_SELECTOR = ".inventory.popup";
+  const REFS_TAB = "3";
+  const MAX_CONCURRENT_POINT_FETCHES = 4;
+  let activePointFetches = 0;
+  const pointFetchQueue = [];
+  function scheduleLimitedPointFetch(task) {
+    return new Promise((resolve, reject) => {
+      const run = () => {
+        activePointFetches++;
+        task().then(resolve, reject).finally(() => {
+          activePointFetches--;
+          const next = pointFetchQueue.shift();
+          if (next) next();
+        });
+      };
+      if (activePointFetches < MAX_CONCURRENT_POINT_FETCHES) {
+        run();
+      } else {
+        pointFetchQueue.push(run);
+      }
+    });
+  }
+  const PLACEHOLDER_CLASS = "svp-fav-placeholder";
+  const PLACEHOLDER_LOADED_CLASS = "loaded";
+  const PLACEHOLDER_HEADER_CLASS = "svp-fav-placeholder-header";
+  const STAR_SVG = `
+<svg viewBox="0 0 576 512" width="16" height="16" aria-hidden="true">
+  <path d="M287.9 0c9.2 0 17.6 5.2 21.6 13.5l68.6 141.3 153.2 22.6c9 1.3 16.5 7.6 19.3 16.3s.5 18.1-6 24.5L433.6 328.4l26.2 155.6c1.5 9-2.2 18.1-9.7 23.5s-17.3 6-25.3 1.7l-137-73.2L151 509.1c-8.1 4.3-17.9 3.7-25.3-1.7s-11.2-14.5-9.7-23.5l26.2-155.6L31.1 218.2c-6.5-6.4-8.7-15.9-6-24.5s10.3-15 19.3-16.3l153.2-22.6L266.3 13.5C270.4 5.2 278.7 0 287.9 0z"/>
+</svg>
+`;
+  let contentObserver = null;
+  let popupObserver = null;
+  let filterBar = null;
+  let checkbox = null;
+  let countSpan = null;
+  let changeHandler = null;
+  let filterEnabled = false;
+  let installGeneration = 0;
+  function getCurrentTab(content) {
+    if (!(content instanceof HTMLElement)) return null;
+    return content.dataset.tab ?? null;
+  }
+  function updateFilterBarVisibility(content) {
+    if (!filterBar) return;
+    const isRefsTab = getCurrentTab(content) === REFS_TAB;
+    filterBar.classList.toggle("svp-hidden", !isRefsTab);
+  }
+  function updateCountLabel() {
+    if (countSpan) {
+      countSpan.textContent = String(getFavoritesCount());
+    }
+  }
+  async function onItemStarClick(event, item, starButton) {
+    event.stopPropagation();
+    event.preventDefault();
+    const pointGuid = item.dataset.ref;
+    if (!pointGuid) return;
+    starButton.disabled = true;
+    try {
+      if (isFavorited(pointGuid)) {
+        await removeFavorite(pointGuid);
+      } else {
+        await addFavorite(pointGuid);
+      }
+    } catch (error) {
+      console.error("[SVP favoritedPoints] ошибка сохранения избранного:", error);
+    } finally {
+      starButton.disabled = false;
+    }
+  }
+  function injectItemStar(item) {
+    if (item.querySelector(`.${ITEM_STAR_CLASS}`)) return;
+    const leftBlock = item.querySelector(".inventory__item-left");
+    if (!leftBlock) return;
+    const star = document.createElement("button");
+    star.type = "button";
+    star.className = ITEM_STAR_CLASS;
+    star.innerHTML = STAR_SVG;
+    star.addEventListener("click", (event) => {
+      void onItemStarClick(event, item, star);
+    });
+    leftBlock.insertBefore(star, leftBlock.firstChild);
+  }
+  function updateItemStarState(item) {
+    const star = item.querySelector(`.${ITEM_STAR_CLASS}`);
+    if (!star) return;
+    const pointGuid = item.dataset.ref;
+    const favorited = pointGuid !== void 0 && isFavorited(pointGuid);
+    star.classList.toggle("is-filled", favorited);
+    star.setAttribute("aria-pressed", favorited ? "true" : "false");
+    star.title = favorited ? t({ en: "Remove from favorites", ru: "Убрать из избранного" }) : t({ en: "Add to favorites", ru: "Добавить в избранное" });
+  }
+  function updateItemMarks(content) {
+    const items = content.querySelectorAll(".inventory__item[data-ref]");
+    for (const item of items) {
+      const pointGuid = item.dataset.ref;
+      const favorited = pointGuid !== void 0 && pointGuid !== "" && isFavorited(pointGuid);
+      item.classList.toggle(FAV_ITEM_CLASS, favorited);
+      injectItemStar(item);
+      updateItemStarState(item);
+    }
+  }
+  function applyFilter(content) {
+    const items = content.querySelectorAll(".inventory__item[data-ref]");
+    for (const item of items) {
+      const pointGuid = item.dataset.ref;
+      const favorited = pointGuid !== void 0 && pointGuid !== "" && isFavorited(pointGuid);
+      if (filterEnabled && !favorited) {
+        item.classList.add(GAME_HIDDEN_CLASS);
+        item.classList.add(FILTER_MARK_CLASS);
+      } else if (item.classList.contains(FILTER_MARK_CLASS)) {
+        item.classList.remove(GAME_HIDDEN_CLASS);
+        item.classList.remove(FILTER_MARK_CLASS);
+      }
+    }
+  }
+  function getKeyedGuids(content) {
+    const guids = /* @__PURE__ */ new Set();
+    const items = content.querySelectorAll(".inventory__item[data-ref]");
+    for (const item of items) {
+      if (item.classList.contains(PLACEHOLDER_CLASS)) continue;
+      const guid = item.dataset.ref;
+      if (guid) guids.add(guid);
+    }
+    return guids;
+  }
+  function createPlaceholderHeader() {
+    const header = document.createElement("div");
+    header.className = PLACEHOLDER_HEADER_CLASS;
+    header.textContent = t({
+      en: "Favorited points without keys",
+      ru: "Избранные точки без ключей"
+    });
+    return header;
+  }
+  function syncPlaceholderHeader(content) {
+    var _a, _b;
+    const firstPlaceholder = content.querySelector(`.${PLACEHOLDER_CLASS}`);
+    const existingHeader = content.querySelector(`.${PLACEHOLDER_HEADER_CLASS}`);
+    if (!firstPlaceholder) {
+      existingHeader == null ? void 0 : existingHeader.remove();
+      return;
+    }
+    if (existingHeader) {
+      if (existingHeader.nextSibling !== firstPlaceholder) {
+        (_a = firstPlaceholder.parentElement) == null ? void 0 : _a.insertBefore(existingHeader, firstPlaceholder);
+      }
+      return;
+    }
+    const header = createPlaceholderHeader();
+    (_b = firstPlaceholder.parentElement) == null ? void 0 : _b.insertBefore(header, firstPlaceholder);
+  }
+  function createPlaceholderItem(pointGuid) {
+    const item = document.createElement("div");
+    item.className = `inventory__item ${PLACEHOLDER_CLASS} ${PLACEHOLDER_LOADED_CLASS}`;
+    item.dataset.ref = pointGuid;
+    const left = document.createElement("div");
+    left.className = "inventory__item-left";
+    const title = document.createElement("span");
+    title.className = "inventory__item-title";
+    title.textContent = t({ en: "Loading…", ru: "Загрузка…" });
+    const description = document.createElement("span");
+    description.className = "inventory__item-descr";
+    description.style.fontStyle = "italic";
+    description.textContent = t({ en: "No keys", ru: "Нет ключей" });
+    left.appendChild(title);
+    left.appendChild(description);
+    item.appendChild(left);
+    return item;
+  }
+  async function fetchPointData(pointGuid) {
+    try {
+      const url = `/api/point?guid=${encodeURIComponent(pointGuid)}&status=1`;
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const json = await response.json();
+      if (json.error) return null;
+      const pointData = json.data;
+      if (!pointData) return null;
+      return {
+        title: typeof pointData.t === "string" ? pointData.t : "",
+        level: Number(pointData.l ?? 0),
+        team: Number(pointData.te ?? 0),
+        owner: typeof pointData.o === "string" ? pointData.o : "",
+        energy: Number(pointData.e ?? 0),
+        coresCount: Number(pointData.co ?? 0)
+      };
+    } catch {
+      return null;
+    }
+  }
+  function populatePlaceholder(item, data) {
+    const title = item.querySelector(".inventory__item-title");
+    if (title) {
+      title.textContent = data.title;
+      title.style.color = `var(--team-${data.team})`;
+    }
+    const description = item.querySelector(".inventory__item-descr");
+    if (description) {
+      const levelSpan = document.createElement("span");
+      levelSpan.style.color = `var(--level-${data.level})`;
+      levelSpan.textContent = `Level ${data.level}`;
+      const ownerSpan = document.createElement("span");
+      ownerSpan.style.color = `var(--team-${data.team})`;
+      ownerSpan.className = "profile-link";
+      ownerSpan.dataset.name = data.owner;
+      ownerSpan.textContent = data.owner || "—";
+      description.textContent = "";
+      description.style.fontStyle = "";
+      description.appendChild(levelSpan);
+      description.appendChild(document.createTextNode("; "));
+      description.appendChild(ownerSpan);
+    }
+  }
+  function populatePlaceholderError(item) {
+    const title = item.querySelector(".inventory__item-title");
+    if (title) {
+      title.textContent = t({ en: "Failed to load", ru: "Не удалось загрузить" });
+    }
+  }
+  function injectPlaceholders(content) {
+    const keyedGuids = getKeyedGuids(content);
+    const allFavoriteGuids = getFavoritedGuids();
+    for (const guid of allFavoriteGuids) {
+      if (keyedGuids.has(guid)) continue;
+      const existingPlaceholders = content.querySelectorAll(`.${PLACEHOLDER_CLASS}`);
+      let alreadyExists = false;
+      for (const existing of existingPlaceholders) {
+        if (existing.dataset.ref === guid) {
+          alreadyExists = true;
+          break;
+        }
+      }
+      if (alreadyExists) continue;
+      const placeholder = createPlaceholderItem(guid);
+      content.appendChild(placeholder);
+      void scheduleLimitedPointFetch(() => fetchPointData(guid)).then((data) => {
+        if (!placeholder.isConnected) return;
+        if (data) {
+          populatePlaceholder(placeholder, data);
+        } else {
+          populatePlaceholderError(placeholder);
+        }
+      });
+    }
+    syncPlaceholderHeader(content);
+  }
+  function removePlaceholders(content) {
+    var _a;
+    const placeholders = content.querySelectorAll(`.${PLACEHOLDER_CLASS}`);
+    for (const placeholder of placeholders) {
+      placeholder.remove();
+    }
+    (_a = content.querySelector(`.${PLACEHOLDER_HEADER_CLASS}`)) == null ? void 0 : _a.remove();
+  }
+  function processItems(content) {
+    updateItemMarks(content);
+    applyFilter(content);
+  }
+  function setFilterEnabled(content, enabled2) {
+    filterEnabled = enabled2;
+    if (checkbox) checkbox.checked = enabled2;
+    if (enabled2) {
+      injectPlaceholders(content);
+    } else {
+      removePlaceholders(content);
+    }
+    processItems(content);
+    if (content instanceof HTMLElement) {
+      content.scrollTop = 0;
+    }
+    content.dispatchEvent(new Event("scroll", { bubbles: true }));
+  }
+  function createFilterBar(content) {
+    const bar = document.createElement("div");
+    bar.className = FILTER_BAR_CLASS;
+    const label = document.createElement("label");
+    label.className = "svp-fav-filter-label";
+    checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = FILTER_CHECKBOX_CLASS;
+    checkbox.checked = false;
+    checkbox.addEventListener("change", () => {
+      setFilterEnabled(content, (checkbox == null ? void 0 : checkbox.checked) ?? false);
+    });
+    const text = document.createElement("span");
+    text.textContent = t({ en: "Only ", ru: "Только " });
+    const starIcon = document.createElement("span");
+    starIcon.className = "svp-fav-filter-star-icon";
+    starIcon.innerHTML = '<svg viewBox="0 0 576 512" width="12" height="12" aria-hidden="true"><path d="M287.9 0c9.2 0 17.6 5.2 21.6 13.5l68.6 141.3 153.2 22.6c9 1.3 16.5 7.6 19.3 16.3s.5 18.1-6 24.5L433.6 328.4l26.2 155.6c1.5 9-2.2 18.1-9.7 23.5s-17.3 6-25.3 1.7l-137-73.2L151 509.1c-8.1 4.3-17.9 3.7-25.3-1.7s-11.2-14.5-9.7-23.5l26.2-155.6L31.1 218.2c-6.5-6.4-8.7-15.9-6-24.5s10.3-15 19.3-16.3l153.2-22.6L266.3 13.5C270.4 5.2 278.7 0 287.9 0z"/></svg>';
+    countSpan = document.createElement("span");
+    countSpan.className = "svp-fav-filter-count";
+    updateCountLabel();
+    const countWrapper = document.createElement("span");
+    countWrapper.appendChild(document.createTextNode("("));
+    countWrapper.appendChild(countSpan);
+    countWrapper.appendChild(document.createTextNode(")"));
+    label.appendChild(checkbox);
+    label.appendChild(text);
+    label.appendChild(starIcon);
+    label.appendChild(countWrapper);
+    bar.appendChild(label);
+    return bar;
+  }
+  function ensureFilterBarInjected(content) {
+    var _a;
+    if (filterBar && filterBar.isConnected) return;
+    filterBar = createFilterBar(content);
+    (_a = content.parentElement) == null ? void 0 : _a.insertBefore(filterBar, content);
+    updateFilterBarVisibility(content);
+  }
+  function onContentMutation(content) {
+    updateFilterBarVisibility(content);
+    if (getCurrentTab(content) === REFS_TAB) {
+      if (filterEnabled) {
+        injectPlaceholders(content);
+      }
+      processItems(content);
+      updateCountLabel();
+    }
+  }
+  function onFavoritesChanged(content) {
+    if (getCurrentTab(content) === REFS_TAB) {
+      updateItemMarks(content);
+    }
+    updateCountLabel();
+  }
+  function onInventoryPopupMutation(popup2, content) {
+    if (!popup2.classList.contains("hidden")) {
+      if (filterEnabled) {
+        setFilterEnabled(content, false);
+      }
+    }
+  }
+  function startObserving(content) {
+    ensureFilterBarInjected(content);
+    onContentMutation(content);
+    contentObserver = new MutationObserver(() => {
+      onContentMutation(content);
+    });
+    contentObserver.observe(content, {
+      attributes: true,
+      attributeFilter: ["data-tab"],
+      childList: true
+    });
+    const popup2 = document.querySelector(INVENTORY_POPUP_SELECTOR);
+    if (popup2) {
+      popupObserver = new MutationObserver(() => {
+        onInventoryPopupMutation(popup2, content);
+      });
+      popupObserver.observe(popup2, {
+        attributes: true,
+        attributeFilter: ["class"]
+      });
+    }
+    changeHandler = () => {
+      onFavoritesChanged(content);
+    };
+    document.addEventListener(FAVORITES_CHANGED_EVENT, changeHandler);
+  }
+  function installInventoryFilter() {
+    if (contentObserver) return;
+    installGeneration++;
+    const generation = installGeneration;
+    const existing = document.querySelector(INVENTORY_CONTENT_SELECTOR);
+    if (existing) {
+      startObserving(existing);
+      return;
+    }
+    waitForElement(INVENTORY_CONTENT_SELECTOR).then((content) => {
+      if (generation !== installGeneration) return;
+      startObserving(content);
+    }).catch((error) => {
+      console.warn("[SVP favoritedPoints] контейнер инвентаря не найден:", error);
+    });
+  }
+  function uninstallInventoryFilter() {
+    var _a;
+    installGeneration++;
+    contentObserver == null ? void 0 : contentObserver.disconnect();
+    contentObserver = null;
+    popupObserver == null ? void 0 : popupObserver.disconnect();
+    popupObserver = null;
+    if (changeHandler) {
+      document.removeEventListener(FAVORITES_CHANGED_EVENT, changeHandler);
+      changeHandler = null;
+    }
+    filterBar == null ? void 0 : filterBar.remove();
+    filterBar = null;
+    checkbox = null;
+    countSpan = null;
+    filterEnabled = false;
+    const content = document.querySelector(INVENTORY_CONTENT_SELECTOR);
+    if (content) {
+      removePlaceholders(content);
+      const items = content.querySelectorAll(".inventory__item[data-ref]");
+      for (const item of items) {
+        item.classList.remove(FAV_ITEM_CLASS);
+        if (item.classList.contains(FILTER_MARK_CLASS)) {
+          item.classList.remove(GAME_HIDDEN_CLASS);
+          item.classList.remove(FILTER_MARK_CLASS);
+        }
+        (_a = item.querySelector(`.${ITEM_STAR_CLASS}`)) == null ? void 0 : _a.remove();
+      }
+    }
+  }
+  const STORAGE_KEY = "svp_favoritedPoints";
+  function defaultFavoritedPointsSettings() {
+    return {
+      version: 1,
+      hideLastFavRef: true
+    };
+  }
+  function isSettings(value) {
+    if (typeof value !== "object" || value === null) return false;
+    const record = value;
+    return typeof record.version === "number" && typeof record.hideLastFavRef === "boolean";
+  }
+  function loadFavoritedPointsSettings() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultFavoritedPointsSettings();
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return defaultFavoritedPointsSettings();
+    }
+    if (!isSettings(parsed)) return defaultFavoritedPointsSettings();
+    return parsed;
+  }
+  function saveFavoritedPointsSettings(settings) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  }
+  const DRAW_URL_PATTERN = /\/api\/draw(?:\?|$)/;
+  let originalFetch = null;
+  function matchesDrawList(url, method) {
+    if (!DRAW_URL_PATTERN.test(url)) return false;
+    const m = (method ?? "GET").toUpperCase();
+    return m === "GET";
+  }
+  function getUrl(input) {
+    if (typeof input === "string") return input;
+    if (input instanceof URL) return input.href;
+    return input.url;
+  }
+  function getMethod(input, init) {
+    if (init == null ? void 0 : init.method) return init.method;
+    if (typeof input !== "string" && !(input instanceof URL)) return input.method;
+    return void 0;
+  }
+  function isDrawResponseShape(value) {
+    if (typeof value !== "object" || value === null) return false;
+    if (!("data" in value)) return false;
+    const record = value;
+    return Array.isArray(record.data);
+  }
+  function showHideLastFavRefToast(hidden) {
+    const message = t(
+      hidden === 1 ? {
+        en: `Hidden last key from a favorited point`,
+        ru: `Скрыт последний ключ от избранной точки`
+      } : {
+        en: `Hidden last ${hidden} keys from favorited points`,
+        ru: `Скрыты последние ${hidden} ${hidden < 5 ? "ключа" : "ключей"} от избранных точек`
+      }
+    );
+    showToast(message, 4e3);
+  }
+  async function filterDrawResponse(response) {
+    const settings = loadFavoritedPointsSettings();
+    if (!settings.hideLastFavRef) return response;
+    const favorites = getFavoritedGuids();
+    if (favorites.size === 0) return response;
+    let parsed;
+    try {
+      parsed = await response.clone().json();
+    } catch {
+      return response;
+    }
+    if (!isDrawResponseShape(parsed)) return response;
+    const originalLength = parsed.data.length;
+    parsed.data = parsed.data.filter((entry) => {
+      const pointGuid = entry.p;
+      const amount = entry.a;
+      if (typeof pointGuid !== "string" || typeof amount !== "number") return true;
+      const isLastFav = favorites.has(pointGuid) && amount === 1;
+      return !isLastFav;
+    });
+    const hidden = originalLength - parsed.data.length;
+    if (hidden > 0) {
+      showHideLastFavRefToast(hidden);
+    }
+    const modified = new Response(JSON.stringify(parsed), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    });
+    Object.defineProperty(modified, "url", { value: response.url });
+    return modified;
+  }
+  function installLastRefProtection() {
+    if (originalFetch) return;
+    originalFetch = window.fetch;
+    const native = originalFetch;
+    window.fetch = function(input, init) {
+      const url = getUrl(input);
+      const method = getMethod(input, init);
+      const promise = native.call(this, input, init);
+      if (!matchesDrawList(url, method)) return promise;
+      return promise.then((response) => filterDrawResponse(response));
+    };
+  }
+  function uninstallLastRefProtection() {
+    if (!originalFetch) return;
+    window.fetch = originalFetch;
+    originalFetch = null;
+  }
+  const MODULE_ID$1 = "favoritedPoints";
+  const CONFIGURE_BUTTON_CLASS = "svp-fav-configure-button";
+  const PANEL_CLASS = "svp-fav-settings-panel";
+  let panel = null;
+  let configureButton = null;
+  let moduleRowObserver = null;
+  function buildPanel() {
+    const settings = loadFavoritedPointsSettings();
+    const element = document.createElement("div");
+    element.className = PANEL_CLASS;
+    const header = document.createElement("div");
+    header.className = "svp-fav-settings-header";
+    header.textContent = t({ en: "Favorited points settings", ru: "Настройки избранных точек" });
+    element.appendChild(header);
+    const content = document.createElement("div");
+    content.className = "svp-fav-settings-content";
+    const hideLastRow = document.createElement("label");
+    hideLastRow.className = "svp-fav-settings-checkbox-row";
+    const hideLastCheckbox = document.createElement("input");
+    hideLastCheckbox.type = "checkbox";
+    hideLastCheckbox.checked = settings.hideLastFavRef;
+    hideLastCheckbox.addEventListener("change", () => {
+      const updated = loadFavoritedPointsSettings();
+      updated.hideLastFavRef = hideLastCheckbox.checked;
+      saveFavoritedPointsSettings(updated);
+    });
+    hideLastRow.appendChild(hideLastCheckbox);
+    const hideLastLabel = document.createElement("span");
+    hideLastLabel.textContent = t({
+      en: " Protect last key of favorited point when drawing",
+      ru: " Защищать последний ключ от избранной точки при рисовании"
+    });
+    hideLastRow.appendChild(hideLastLabel);
+    content.appendChild(hideLastRow);
+    const counter = document.createElement("div");
+    counter.className = "svp-fav-settings-counter";
+    counter.textContent = t({ en: "Favorited points total: ", ru: "Всего избранных точек: " }) + String(getFavoritesCount());
+    content.appendChild(counter);
+    const importWrapper = document.createElement("div");
+    importWrapper.className = "svp-fav-settings-import-wrapper";
+    const importLabel = document.createElement("label");
+    importLabel.className = "svp-fav-settings-button";
+    importLabel.textContent = t({ en: "⬆️ Import from JSON", ru: "⬆️ Импорт из JSON" });
+    const importInput = document.createElement("input");
+    importInput.type = "file";
+    importInput.accept = "application/json,.json";
+    importInput.style.display = "none";
+    importInput.addEventListener("change", () => {
+      var _a;
+      const file = (_a = importInput.files) == null ? void 0 : _a[0];
+      if (file) {
+        void doImport(file, counter);
+      }
+      importInput.value = "";
+    });
+    importLabel.appendChild(importInput);
+    importWrapper.appendChild(importLabel);
+    content.appendChild(importWrapper);
+    const importWarning = document.createElement("div");
+    importWarning.className = "svp-fav-settings-warning";
+    importWarning.textContent = t({
+      en: "⚠️ Current favorites list will be completely replaced",
+      ru: "⚠️ Текущий список избранного будет полностью перезаписан"
+    });
+    content.appendChild(importWarning);
+    const exportButton = document.createElement("button");
+    exportButton.type = "button";
+    exportButton.className = "svp-fav-settings-button";
+    exportButton.textContent = t({ en: "⬇️ Download JSON", ru: "⬇️ Скачать JSON" });
+    exportButton.addEventListener("click", () => {
+      void downloadExport();
+    });
+    content.appendChild(exportButton);
+    element.appendChild(content);
+    const footer = document.createElement("div");
+    footer.className = "svp-fav-settings-footer";
+    const closeButton2 = document.createElement("button");
+    closeButton2.type = "button";
+    closeButton2.className = "svp-fav-settings-button";
+    closeButton2.textContent = t({ en: "Close", ru: "Закрыть" });
+    closeButton2.addEventListener("click", () => {
+      element.remove();
+      panel = null;
+    });
+    footer.appendChild(closeButton2);
+    element.appendChild(footer);
+    return element;
+  }
+  async function downloadExport() {
+    try {
+      const json = await exportToJson();
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      link.download = `svp-favorites-${date}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Неизвестная ошибка";
+      alert(t({ en: "Export error: ", ru: "Ошибка экспорта: " }) + message);
+    }
+  }
+  async function doImport(file, counterElement) {
+    try {
+      const text = await file.text();
+      const added = await importFromJson(text);
+      counterElement.textContent = t({ en: "Favorited points total: ", ru: "Всего избранных точек: " }) + String(getFavoritesCount());
+      alert(t({ en: "Records imported: ", ru: "Импортировано записей: " }) + String(added));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Неизвестная ошибка";
+      alert(t({ en: "Import error: ", ru: "Ошибка импорта: " }) + message);
+    }
+  }
+  function openPanel() {
+    if (panel) panel.remove();
+    panel = buildPanel();
+    document.body.appendChild(panel);
+  }
+  function injectConfigureButton() {
+    const allIds = document.querySelectorAll(".svp-module-id");
+    for (const idElement of allIds) {
+      if (idElement.textContent !== MODULE_ID$1) continue;
+      const row = idElement.closest(".svp-module-row");
+      if (!row) continue;
+      if (row.querySelector(`.${CONFIGURE_BUTTON_CLASS}`)) return;
+      const nameLine = row.querySelector(".svp-module-name-line");
+      if (!nameLine) continue;
+      configureButton = document.createElement("button");
+      configureButton.className = CONFIGURE_BUTTON_CLASS;
+      configureButton.textContent = t({ en: "Configure", ru: "Настроить" });
+      configureButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        openPanel();
+      });
+      nameLine.appendChild(configureButton);
+      return;
+    }
+  }
+  let rafId = null;
+  function installSettingsUi() {
+    injectConfigureButton();
+    moduleRowObserver = new MutationObserver(() => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (!document.querySelector(`.${CONFIGURE_BUTTON_CLASS}`)) {
+          injectConfigureButton();
+        }
+      });
+    });
+    moduleRowObserver.observe(document.body, { childList: true, subtree: true });
+  }
+  function uninstallSettingsUi() {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    moduleRowObserver == null ? void 0 : moduleRowObserver.disconnect();
+    moduleRowObserver = null;
+    panel == null ? void 0 : panel.remove();
+    panel = null;
+    configureButton == null ? void 0 : configureButton.remove();
+    configureButton = null;
+  }
+  const styles = ".svp-fav-star{position:absolute;bottom:0;right:0;width:28px;height:28px;padding:0;margin:0;border:none;background:#00000059;border-radius:50%;color:#ccc;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;transition:color .15s ease,transform .15s ease}.i-image-box #i-ref{margin-right:32px}.svp-fav-star svg{fill:currentColor;stroke:#0009;stroke-width:24;paint-order:stroke fill}.svp-fav-star:hover{transform:scale(1.1)}.svp-fav-star.is-filled{color:#fc3}.svp-fav-star[disabled]{opacity:.4;cursor:default}.i-image-box,.inventory__content{position:relative}.svp-fav-filter-bar{display:flex;align-items:center;padding:4px;border-bottom:1px solid var(--border, rgba(255, 255, 255, .1));font-size:.9em}.svp-fav-filter-bar.svp-hidden{display:none}.svp-fav-filter-label{display:inline-flex;align-items:center;gap:4px;cursor:pointer;-webkit-user-select:none;user-select:none}.svp-fav-filter-star-icon{display:inline-flex;color:#fc3}.svp-fav-filter-star-icon svg{fill:currentColor}.inventory__item[data-ref] .inventory__item-left{position:relative}.inventory__item[data-ref] .inventory__item-title{padding-left:26px;display:inline-block}.svp-inv-item-star{position:absolute;top:0;left:0;width:22px;height:22px;padding:0;margin:0;border:none;background:#0000004d;border-radius:50%;color:#999;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;transition:color .15s ease}.svp-inv-item-star svg{fill:currentColor;stroke:#0009;stroke-width:24;paint-order:stroke fill}.svp-inv-item-star.is-filled{color:#fc3}.svp-inv-item-star[disabled]{opacity:.4;cursor:default}.svp-fav-placeholder{grid-template-columns:1fr!important}.svp-fav-placeholder .inventory__item-descr{opacity:.6}.svp-fav-placeholder-header{padding:6px 8px;margin-top:8px;font-size:.85em;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.7;border-top:1px solid var(--border, rgba(255, 255, 255, .15))}.svp-fav-configure-button{margin-left:8px;padding:2px 8px;border:1px solid var(--border, rgba(255, 255, 255, .2));border-radius:3px;background:transparent;color:var(--text, #ddd);font-size:11px;cursor:pointer}.svp-fav-configure-button:hover{background:var(--accent, #ffcc33);color:var(--background, #000)}.svp-fav-settings-panel{position:fixed;top:0;right:0;bottom:0;left:0;z-index:10011;display:flex;flex-direction:column;background:var(--background, #1a1a1a);color:var(--text, #ddd);padding:16px;max-width:600px;margin:0 auto}.svp-fav-settings-header{font-size:14px;font-weight:700;padding-bottom:8px;border-bottom:1px solid var(--border, #444)}.svp-fav-settings-content{flex:1;padding:12px 0;display:flex;flex-direction:column;gap:10px;font-size:13px}.svp-fav-settings-checkbox-row{display:flex;align-items:center;gap:6px;cursor:pointer;-webkit-user-select:none;user-select:none}.svp-fav-settings-warning{font-size:11px;color:var(--accent, #ffcc33);margin-top:-6px;margin-bottom:14px}.svp-fav-settings-counter{color:var(--text-disabled, #888);font-size:12px}.svp-fav-settings-import-wrapper{display:block}.svp-fav-settings-content .svp-fav-settings-button{display:block;width:100%;box-sizing:border-box}.svp-fav-settings-button{display:inline-block;padding:6px 12px;border:1px solid var(--border, #444);border-radius:4px;background:transparent;color:var(--text, #ddd);font-size:12px;cursor:pointer;text-align:center}.svp-fav-settings-button:hover{background:var(--accent, #ffcc33);color:var(--background, #000);border-color:var(--accent, #ffcc33)}.svp-fav-settings-footer{padding-top:8px;border-top:1px solid var(--border, #444);display:flex;justify-content:flex-end;gap:8px}";
+  const MODULE_ID = "favoritedPoints";
+  const favoritedPoints = {
+    id: MODULE_ID,
+    name: {
+      en: "Favorited points",
+      ru: "Избранные точки"
+    },
+    description: {
+      en: "Mark points with a star — their keys will never be deleted by auto-cleanup. List is shared with CUI. Import/export via JSON in settings.",
+      ru: "Пометить точки звездой — ключи от них не удалит автоочистка. Список шарится с CUI. Импорт/экспорт через JSON в настройках."
+    },
+    defaultEnabled: true,
+    category: "feature",
+    async init() {
+      await loadFavorites();
+    },
+    enable() {
+      injectStyles(styles, MODULE_ID);
+      installStarButton();
+      installInventoryFilter();
+      installLastRefProtection();
+      installSettingsUi();
+      installDebugHooks();
+    },
+    disable() {
+      uninstallStarButton();
+      uninstallInventoryFilter();
+      uninstallLastRefProtection();
+      uninstallSettingsUi();
+      removeStyles(MODULE_ID);
+      uninstallDebugHooks();
     }
   };
   if (!isDisabled()) {
@@ -3992,24 +5932,29 @@ ${errorLog}`);
       initErrorLog();
       installSbgFlavor();
       bootstrap([
+        // ui
         enhancedMainScreen,
         enhancedPointPopupUi,
         swipeToClosePopup,
         groupErrorToasts,
         removeAttackCloseButton,
+        // feature (favoritedPoints ПЕРЕД inventoryCleanup — зависимость init)
+        favoritedPoints,
+        inventoryCleanup,
+        keepScreenOn,
+        repairAtFullCharge,
+        // map
         shiftMapCenterDown,
         largerPointTapArea,
-        disableDoubleTapZoom,
         ngrsZoom,
-        drawButtonFix,
-        keepScreenOn,
-        inventoryCleanup,
         keyCountOnPoints,
+        singleFingerRotation,
+        mapTileLayers,
+        // feature (map-зависимые)
         nextPointNavigation,
         refsOnMap,
-        repairAtFullCharge,
-        singleFingerRotation,
-        mapTileLayers
+        // fix
+        drawButtonFix
       ]);
     };
     installGameScriptPatcher();
