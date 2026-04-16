@@ -16,41 +16,47 @@ class ScriptInjector(
 ) {
 
     fun inject(webView: WebView, callback: (List<InjectionResult>) -> Unit = {}) {
-        injectDocumentWriteEventFix(webView)
-        injectGlobalVariables(webView)
-        injectClipboardPolyfill(webView)
         val enabledScripts = sortByInjectionPriority(scriptStorage.getEnabled())
         injectionStateStorage?.saveSnapshot(enabledScripts)
+
+        val payload = buildInjectionPayload(enabledScripts)
+        webView.evaluateJavascript(payload) {}
+
         if (enabledScripts.isEmpty()) {
             callback(emptyList())
-            return
+        } else {
+            collectErrors(webView, enabledScripts, callback)
         }
-        for (script in enabledScripts) {
-            injectScript(webView, script)
+    }
+
+    /**
+     * Собирает ВСЮ инжекцию в одну строку для единственного
+     * `evaluateJavascript`-вызова. Это критично для корректности:
+     * каждый `evaluateJavascript` — отдельная задача в очереди WebView
+     * renderer thread, и DOMContentLoaded может вклиниться между задачами.
+     * Один вызов = одна атомарная задача = детерминированный тайминг.
+     */
+    internal fun buildInjectionPayload(enabledScripts: List<UserScript>): String {
+        val parts = mutableListOf<String>()
+
+        // Preamble: event fix, globals, polyfill — выполняются немедленно
+        parts.add(DOCUMENT_WRITE_EVENT_FIX)
+        parts.add(buildGlobalVariablesScript(applicationId, versionName))
+        parts.add(CLIPBOARD_POLYFILL)
+
+        if (enabledScripts.isNotEmpty()) {
+            val (startScripts, deferredScripts) = enabledScripts.partition {
+                it.header.runAt == "document-start"
+            }
+            if (startScripts.isNotEmpty()) {
+                parts.add(buildImmediateBatch(startScripts))
+            }
+            if (deferredScripts.isNotEmpty()) {
+                parts.add(buildDeferredBatch(deferredScripts))
+            }
         }
-        collectErrors(webView, enabledScripts, callback)
-    }
 
-    private fun injectDocumentWriteEventFix(webView: WebView) {
-        webView.evaluateJavascript(DOCUMENT_WRITE_EVENT_FIX) {}
-    }
-
-    private fun injectGlobalVariables(webView: WebView) {
-        val script = buildGlobalVariablesScript(applicationId, versionName)
-        webView.evaluateJavascript(script) {}
-    }
-
-    private fun injectClipboardPolyfill(webView: WebView) {
-        webView.evaluateJavascript(CLIPBOARD_POLYFILL) {}
-    }
-
-    private fun injectScript(webView: WebView, script: UserScript) {
-        val wrapped = wrapInSafeIife(
-            script.header.name,
-            script.content,
-            script.header.runAt,
-        )
-        webView.evaluateJavascript(wrapped) {}
+        return parts.joinToString("\n")
     }
 
     private fun collectErrors(
@@ -82,46 +88,75 @@ class ScriptInjector(
         internal fun sortByInjectionPriority(scripts: List<UserScript>): List<UserScript> =
             scripts.sortedByDescending { rewritesDocument(it.content) }
 
-        internal fun wrapInSafeIife(
-            scriptName: String,
-            content: String,
-            runAt: String? = null,
-        ): String {
+        /**
+         * Оборачивает скрипт в IIFE с try-catch для изоляции ошибок.
+         * Не добавляет логику тайминга — за это отвечают [buildDeferredBatch]
+         * и [buildImmediateBatch].
+         */
+        internal fun wrapInTryCatch(scriptName: String, content: String): String {
             val escapedName = scriptName.replace("\\", "\\\\").replace("'", "\\'")
-            val body = """
-                try {
-                    $content
-                } catch (error) {
-                    console.error('[SBG Scout] "$escapedName" failed:', error);
-                    window.__sbg_injection_errors = window.__sbg_injection_errors || [];
-                    window.__sbg_injection_errors.push({script: '$escapedName', error: String(error)});
-                }
+            return """
+                (function() {
+                    try {
+                        $content
+                    } catch (error) {
+                        console.error('[SBG Scout] "$escapedName" failed:', error);
+                        window.__sbg_injection_errors = window.__sbg_injection_errors || [];
+                        window.__sbg_injection_errors.push({script: '$escapedName', error: String(error)});
+                    }
+                })();
             """.trimIndent()
+        }
 
-            return if (runAt == "document-start") {
-                "(function() {\n$body\n})();"
-            } else {
-                // document-end, document-idle или не указано — ждём DOMContentLoaded.
-                // Tampermonkey различает document-end (DOMContentLoaded) и document-idle
-                // (DOMContentLoaded + async yield), но Scout не может воспроизвести
-                // эту разницу: у WebView host нет доступа к Chrome'овской эвристике
-                // document_idle, а любая фиксированная задержка (даже setTimeout(0))
-                // ломает скрипты вроде CUI, которые зависят от window.stop() до
-                // выполнения game-скрипта. Порядок инжекции при наличии нескольких
-                // скриптов контролируется через sortByInjectionPriority.
-                """
-                    (function() {
-                        function run() {
-                            $body
-                        }
-                        if (document.readyState === 'loading') {
-                            document.addEventListener('DOMContentLoaded', run);
-                        } else {
-                            run();
-                        }
-                    })();
-                """.trimIndent()
+        /**
+         * Собирает document-start скрипты в один evaluateJavascript-вызов.
+         * Каждый скрипт в отдельном IIFE с try-catch, выполняются немедленно.
+         */
+        internal fun buildImmediateBatch(scripts: List<UserScript>): String =
+            scripts.joinToString("\n") { wrapInTryCatch(it.header.name, it.content) }
+
+        /**
+         * Собирает deferred-скрипты (document-end, document-idle, без @run-at)
+         * в один evaluateJavascript-вызов с единым DOMContentLoaded-обработчиком.
+         *
+         * Все скрипты стартуют в одном handler — DOMContentLoaded не может
+         * вклиниться между ними, и порядок выполнения детерминирован.
+         * Скрипты, перестраивающие страницу (document.open), должны идти
+         * первыми (см. [sortByInjectionPriority]): их document.open()
+         * сбрасывает readyState в 'loading', и следующие скрипты, проверяющие
+         * readyState внутри себя, корректно дожидаются нового DOMContentLoaded.
+         */
+        internal fun buildDeferredBatch(scripts: List<UserScript>): String {
+            val wrappedScripts = scripts.joinToString("\n") { script ->
+                val prefix = if (rewritesDocument(script.content)) {
+                    // Скрипт с document.open() перестраивает страницу асинхронно.
+                    // Другие скрипты (EUI) проверяют window.cuiStatus для обнаружения
+                    // CUI, но CUI выставляет свои глобалы (cuiStatus, TeamColors и др.)
+                    // только после полной асинхронной инициализации. На первом запуске
+                    // глобалов нет, и CUI.Detected() возвращает false — EUI идёт по
+                    // неправильному пути (delay 500ms вместо 30-сек polling).
+                    // На перезагрузке глобалы остаются от предыдущей сессии и
+                    // CUI.Detected() работает.
+                    // Маркер 'initializing' — легитимный статус CUI, который EUI
+                    // уже обрабатывает (CUI.Initializing: () => cuiStatus == 'initializing').
+                    "window.cuiStatus = 'initializing';\n"
+                } else {
+                    ""
+                }
+                prefix + wrapInTryCatch(script.header.name, script.content)
             }
+            return """
+                (function() {
+                    function runAll() {
+                        $wrappedScripts
+                    }
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', runAll);
+                    } else {
+                        runAll();
+                    }
+                })();
+            """.trimIndent()
         }
 
         internal fun buildGlobalVariablesScript(
@@ -180,18 +215,32 @@ class ScriptInjector(
         // listeners после document.open(), затем вызывает document.write() для
         // перестройки страницы. olReady диспатчится ВНУТРИ document.write()
         // (из onload OL-скрипта), но listener уже потерян.
-        // Фикс: сохраняем *Ready listeners при регистрации. После document.close()
-        // перерегистрируем потерянные listeners и re-dispatch события.
+        //
+        // Дополнительно: EUI после document.open() от CUI регистрирует
+        // window.addEventListener('DOMContentLoaded', ...) для ожидания
+        // нового документа. Без сохранения DOMContentLoaded-listener
+        // EUI никогда не стартует.
+        //
+        // Паттерн /Ready|DOMContentLoaded/i покрывает:
+        // - CUI: dbReady, olReady, mapReady
+        // - EUI: DOMContentLoaded
+        //
+        // Фикс: сохраняем matching listeners при регистрации. После
+        // document.close() перерегистрируем потерянные listeners и
+        // re-dispatch события.
+        internal const val EVENT_PRESERVE_PATTERN = "Ready|DOMContentLoaded"
+
         private val DOCUMENT_WRITE_EVENT_FIX = """
             (function() {
                 var insideDocWrite = false;
                 var lostEvents = [];
                 var listenersCalledDuringWrite = {};
                 var savedListeners = [];
+                var preservePattern = /$EVENT_PRESERVE_PATTERN/i;
 
                 var origAddEventListener = EventTarget.prototype.addEventListener;
                 EventTarget.prototype.addEventListener = function(type, fn, opts) {
-                    if (this === window && /Ready/i.test(type)) {
+                    if (this === window && preservePattern.test(type)) {
                         savedListeners.push({ type: type, fn: fn, opts: opts });
                         var wrappedFn = function(event) {
                             if (insideDocWrite) {
@@ -208,7 +257,7 @@ class ScriptInjector(
                 window.dispatchEvent = function(event) {
                     var result = origDispatch(event);
                     var eventType = event && event.type ? event.type : '';
-                    if (insideDocWrite && /Ready/i.test(eventType)) {
+                    if (insideDocWrite && preservePattern.test(eventType)) {
                         if (!listenersCalledDuringWrite[eventType]) {
                             lostEvents.push(eventType);
                         }
@@ -230,17 +279,40 @@ class ScriptInjector(
                 var origDocClose = Document.prototype.close;
                 Document.prototype.close = function() {
                     var result = origDocClose.apply(this, arguments);
+                    // *Ready listeners (olReady, mapReady и др.) перерегистрируем
+                    // только когда есть потерянные события — на современных WebView
+                    // (Chrome 146+) document.write() НЕ уничтожает window listeners,
+                    // и безусловная перерегистрация дублирует их (main() вызывается
+                    // дважды → сломанные touch handlers → нерабочий поворот карты).
                     if (lostEvents.length > 0) {
                         var events = lostEvents.slice();
                         lostEvents = [];
-                        // Перерегистрируем потерянные listeners
                         savedListeners.forEach(function(entry) {
-                            origAddEventListener.call(window, entry.type, entry.fn, entry.opts);
+                            if (entry.type !== 'DOMContentLoaded') {
+                                origAddEventListener.call(window, entry.type, entry.fn, entry.opts);
+                            }
                         });
-                        // Re-dispatch потерянных событий
                         events.forEach(function(eventType) {
                             console.log('[SBG Fix] Re-dispatching lost event:', eventType);
                             window.dispatchEvent(new Event(eventType));
+                        });
+                    }
+                    // DOMContentLoaded обрабатываем отдельно: он срабатывает ПОСЛЕ
+                    // close (не во время write), поэтому его нет в lostEvents, но
+                    // listener мог быть уничтожен. Если readyState уже не 'loading' —
+                    // событие прошло, вызываем callback немедленно (кеширование
+                    // событий, аналог Tampermonkey). Иначе перерегистрируем.
+                    var domListeners = savedListeners.filter(function(entry) {
+                        return entry.type === 'DOMContentLoaded';
+                    });
+                    if (domListeners.length > 0) {
+                        var domReady = document.readyState !== 'loading';
+                        domListeners.forEach(function(entry) {
+                            if (domReady) {
+                                try { entry.fn(new Event('DOMContentLoaded')); } catch(e) { console.error(e); }
+                            } else {
+                                origAddEventListener.call(window, entry.type, entry.fn, entry.opts);
+                            }
                         });
                     }
                     return result;
