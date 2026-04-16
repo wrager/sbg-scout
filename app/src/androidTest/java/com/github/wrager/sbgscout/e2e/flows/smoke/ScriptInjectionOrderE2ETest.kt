@@ -42,6 +42,7 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
         setupWithScripts(fakeCuiScript())
 
         val game = launchAndWait()
+        game.waitForJs("window.__e2e_cui_fired === true", "CUI probe")
 
         assertEquals(
             "cuiStatus='initializing' должен быть выставлен ДО старта CUI кода",
@@ -63,12 +64,8 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
         setupWithScripts(fakeCuiScript(), fakeEuiScript())
 
         val game = launchAndWait()
+        game.waitForJs("window.__e2e_eui_fired === true", "EUI probe")
 
-        assertEquals(
-            "EUI должен запуститься",
-            "true",
-            game.evaluateJs("window.__e2e_eui_fired === true"),
-        )
         val cuiStatus = game.evaluateJs("window.__e2e_eui_cuiStatus")
         assertTrue(
             "EUI должен видеть cuiStatus='loading' или 'loaded', не undefined/" +
@@ -117,6 +114,7 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
         setupWithScripts(fakeCuiScript(), fakeEuiScript())
 
         val game = launchAndWait()
+        game.waitForJs("window.__e2e_eui_fired === true", "EUI probe")
 
         assertEquals(
             "EUI должен запуститься ровно 1 раз (не 0, не 2+)",
@@ -139,6 +137,7 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
         setupWithScripts(fakeCuiScript())
 
         val game = launchAndWait()
+        game.waitForJs("window.__e2e_cui_fired === true", "CUI probe")
 
         val readyState = game.evaluateJs("window.__e2e_cui_readyState")
         assertTrue(
@@ -159,12 +158,8 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
         setupWithScripts(fakeEuiScript())
 
         val game = launchAndWait()
+        game.waitForJs("window.__e2e_eui_fired === true", "EUI probe")
 
-        assertEquals(
-            "EUI должен запуститься без CUI",
-            "true",
-            game.evaluateJs("window.__e2e_eui_fired === true"),
-        )
         val readyState = game.evaluateJs("window.__e2e_eui_readyState")
         assertTrue(
             "readyState должен быть 'interactive' или 'complete', факт: $readyState",
@@ -186,8 +181,23 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
     private fun launchAndWait(): GameScreen {
         val scenario = launchGameActivity()
         val game = GameScreen(scenario, idling).waitForLoaded()
-        Thread.sleep(SCRIPT_INIT_WAIT_MS)
         return game
+    }
+
+    /**
+     * Ждёт пока JS-выражение вернёт "true" (строка — результат evaluateJs).
+     * Заменяет Thread.sleep: polling с 50ms интервалом, таймаут POLL_TIMEOUT_MS.
+     */
+    private fun GameScreen.waitForJs(
+        expression: String,
+        description: String = expression,
+    ) {
+        val deadline = System.currentTimeMillis() + POLL_TIMEOUT_MS
+        while (System.currentTimeMillis() < deadline) {
+            if (evaluateJs(expression) == "true") return
+            Thread.sleep(POLL_INTERVAL_MS)
+        }
+        throw AssertionError("$description: не дождались true за ${POLL_TIMEOUT_MS}ms")
     }
 
     private fun fakeCuiScript(): UserScript {
@@ -253,6 +263,7 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
     }
 
     companion object {
-        private const val SCRIPT_INIT_WAIT_MS = 1_500L
+        private const val POLL_TIMEOUT_MS = 5_000L
+        private const val POLL_INTERVAL_MS = 50L
     }
 }
