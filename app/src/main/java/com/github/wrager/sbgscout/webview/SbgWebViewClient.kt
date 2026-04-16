@@ -28,6 +28,7 @@ class SbgWebViewClient(
     @Volatile
     private var gamePageFinishedAtLeastOnce = false
 
+
     /**
      * Вызывается после `onPageFinished` страницы игры.
      * Используется в androidTest как сигнал для IdlingResource:
@@ -48,18 +49,9 @@ class SbgWebViewClient(
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
         if (GameUrls.isGameAppPage(url) && view != null) {
-            // UA override ПЕРВЫМ, до любых bootstrap/пользовательских скриптов:
-            // EUI читает navigator.userAgent в IsWebView() и отключает импорт/экспорт
-            // при наличии подстроки "wv". Подменяем геттер на JS-уровне, чтобы
-            // EUI/SVP видели очищенную строку; реальный UA не трогаем.
             view.evaluateJavascript(UserAgentOverride.BOOTSTRAP_SCRIPT) {}
-            // Перехватчики blob-скачиваний и localStorage ПЕРЕД инжекцией скриптов.
-            // Download-перехват должен быть установлен до того, как юзерскрипт
-            // успеет вызвать URL.createObjectURL — иначе blob не попадёт в кеш.
             view.evaluateJavascript(DownloadBridge.BOOTSTRAP_SCRIPT) {}
             view.evaluateJavascript(GameSettingsBridge.LOCAL_STORAGE_WRAPPER) {}
-            // Bootstrap для большой кнопки настроек: наблюдает за готовностью игры,
-            // скрывает нативную кнопку и вставляет HTML-кнопку в .settings-content
             view.evaluateJavascript(ScoutBridge.BOOTSTRAP_SCRIPT) {}
             onGamePageStarted?.invoke()
             scriptInjector.inject(view) { results ->
@@ -71,8 +63,6 @@ class SbgWebViewClient(
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
         if (GameUrls.isGameAppPage(url) && view != null) {
-            // Начальное чтение настроек (на случай если localStorage уже заполнен
-            // до инжекции обёртки, например при навигации по истории)
             onGameSettingsRead?.let { callback ->
                 view.evaluateJavascript("localStorage.getItem('settings')") { result ->
                     callback(unescapeJsString(result))
