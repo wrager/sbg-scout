@@ -438,6 +438,24 @@ class ScriptInjectorTest {
     }
 
     @Test
+    fun `event fix restores original prototypes on JS reload`() {
+        val payload = injector.buildInjectionPayload(emptyList())
+
+        assertTrue(
+            "Event fix должен проверять наличие предыдущих оригиналов",
+            payload.contains("window.__sbg_event_fix_originals"),
+        )
+        assertTrue(
+            "Event fix должен восстанавливать addEventListener",
+            payload.contains("EventTarget.prototype.addEventListener = orig.addEventListener"),
+        )
+        assertTrue(
+            "Event fix должен сохранять оригиналы для будущих reload",
+            payload.contains("addEventListener: origAddEventListener"),
+        )
+    }
+
+    @Test
     fun `event fix document close invokes DOMContentLoaded only if not already invoked`() {
         val payload = injector.buildInjectionPayload(emptyList())
 
