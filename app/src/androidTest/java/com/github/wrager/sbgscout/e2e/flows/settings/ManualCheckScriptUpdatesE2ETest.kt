@@ -33,8 +33,8 @@ import org.junit.Test
  *
  * Flow теста:
  * 1. Sideload SVP v0.8.0 enabled (как preset).
- * 2. Stub `.meta.js`/`.user.js` для latest → SVP v0.8.1 и список релизов с
- *    release notes (ScriptReleaseNotesProvider).
+ * 2. Stub списка релизов GitHub API → SVP v0.8.1. Этот же stub используется
+ *    и ScriptUpdateChecker (tag_name), и ScriptReleaseNotesProvider.
  * 3. Открываем overlay и кликаем check_script_updates.
  * 4. Ждём, пока `ScriptListFragment` станет RESUMED.
  * 5. Ждём появления диалога release notes с title `script_updates_title` —
@@ -52,13 +52,6 @@ class ManualCheckScriptUpdatesE2ETest : E2ETestBase() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
         sideloadSvp("0.8.0")
-        val svp081 = AssetLoader.read("fixtures/scripts/svp-v0.8.1.user.js")
-        server.stubScriptAsset(
-            "wrager", "sbg-vanilla-plus", "latest", "sbg-vanilla-plus.meta.js", svp081,
-        )
-        server.stubScriptAsset(
-            "wrager", "sbg-vanilla-plus", "latest", "sbg-vanilla-plus.user.js", svp081,
-        )
         server.stubGithubReleasesList(
             "wrager",
             "sbg-vanilla-plus",

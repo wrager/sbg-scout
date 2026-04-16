@@ -62,6 +62,7 @@ import com.github.wrager.sbgscout.script.updater.GithubReleaseProvider
 import com.github.wrager.sbgscout.script.updater.ScriptReleaseNotesProvider
 import com.github.wrager.sbgscout.script.updater.ScriptUpdateChecker
 import com.github.wrager.sbgscout.script.updater.ScriptUpdateResult
+import com.github.wrager.sbgscout.script.installer.BundledScriptBeacon
 import com.github.wrager.sbgscout.script.installer.BundledScriptInstaller
 import com.github.wrager.sbgscout.script.installer.ScriptInstaller
 import com.github.wrager.sbgscout.script.updater.ScriptDownloader
@@ -75,6 +76,7 @@ import androidx.appcompat.app.AlertDialog
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 // Activity объединяет WebView, drawer, provisioning и обновления — разбивать на части нецелесообразно
@@ -481,9 +483,11 @@ class GameActivity : AppCompatActivity() {
         val downloader = ScriptDownloader(httpFetcher, scriptInstaller)
         scriptProvisioner = DefaultScriptProvisioner(scriptStorage, downloader, preferences)
         BundledScriptInstaller(
-            scriptInstaller, scriptStorage, scriptProvisioner,
+            scriptInstaller, scriptStorage, scriptProvisioner, preferences,
             assetReader = { path -> assets.open(path).bufferedReader().readText() },
         ).installBundled()
+        val bundledScriptBeacon = BundledScriptBeacon(httpFetcher, preferences)
+        lifecycleScope.launch(Dispatchers.IO) { bundledScriptBeacon.ping() }
         injectionStateStorage = InjectionStateStorage(preferences)
         val scriptInjector = ScriptInjector(
             scriptStorage = scriptStorage,
@@ -1130,7 +1134,8 @@ class GameActivity : AppCompatActivity() {
     private suspend fun checkScriptUpdates(): List<ScriptUpdateWithNotes> {
         return try {
             val httpFetcher = DefaultHttpFetcher()
-            val scriptChecker = ScriptUpdateChecker(httpFetcher, scriptStorage)
+            val githubReleaseProvider = GithubReleaseProvider(httpFetcher)
+            val scriptChecker = ScriptUpdateChecker(httpFetcher, scriptStorage, githubReleaseProvider)
             val results = scriptChecker.checkAllForUpdates()
             val available = results.filterIsInstance<ScriptUpdateResult.UpdateAvailable>()
             if (available.isEmpty()) {
@@ -1139,7 +1144,7 @@ class GameActivity : AppCompatActivity() {
             }
             Log.i(LOG_TAG, "Доступны обновления скриптов: ${available.size}")
 
-            val notesProvider = ScriptReleaseNotesProvider(GithubReleaseProvider(httpFetcher))
+            val notesProvider = ScriptReleaseNotesProvider(githubReleaseProvider)
             val scripts = scriptStorage.getAll()
             available.map { update ->
                 val script = scripts.find { it.identifier == update.identifier }

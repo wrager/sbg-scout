@@ -62,8 +62,8 @@ class ScriptListFragment : Fragment() {
         val httpFetcher = DefaultHttpFetcher()
         val scriptInstaller = ScriptInstaller(scriptStorage)
         val downloader = ScriptDownloader(httpFetcher, scriptInstaller)
-        val updateChecker = ScriptUpdateChecker(httpFetcher, scriptStorage)
         val githubReleaseProvider = GithubReleaseProvider(httpFetcher)
+        val updateChecker = ScriptUpdateChecker(httpFetcher, scriptStorage, githubReleaseProvider)
         val injectionStateStorage = InjectionStateStorage(preferences)
         val scriptProvisioner = DefaultScriptProvisioner(scriptStorage, downloader, preferences)
         LauncherViewModel.Factory(
