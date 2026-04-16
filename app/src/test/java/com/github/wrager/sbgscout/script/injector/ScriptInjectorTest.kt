@@ -111,6 +111,39 @@ class ScriptInjectorTest {
     }
 
     @Test
+    fun `buildDeferredBatch sets cuiStatus before document-open script`() {
+        val rewriter = createTestScript(
+            "rewriter",
+            "Rewriter",
+            "document.open(); rewrite_code",
+        )
+        val regular = createTestScript("regular", "Regular", "regular_code")
+
+        val result = ScriptInjector.buildDeferredBatch(listOf(rewriter, regular))
+
+        assertTrue(
+            "cuiStatus='initializing' должен быть перед document.open() скриптом",
+            result.contains("window.cuiStatus = 'initializing'"),
+        )
+        assertTrue(
+            "cuiStatus должен быть раньше кода скрипта с document.open()",
+            result.indexOf("cuiStatus") < result.indexOf("rewrite_code"),
+        )
+    }
+
+    @Test
+    fun `buildDeferredBatch does not set cuiStatus before regular script`() {
+        val regular = createTestScript("regular", "Regular", "regular_code")
+
+        val result = ScriptInjector.buildDeferredBatch(listOf(regular))
+
+        assertFalse(
+            "cuiStatus не должен выставляться для обычных скриптов",
+            result.contains("cuiStatus"),
+        )
+    }
+
+    @Test
     fun `buildDeferredBatch isolates errors per script`() {
         val scripts = listOf(
             createTestScript("a", "A", "code_a"),
@@ -361,6 +394,28 @@ class ScriptInjectorTest {
 
         assertEquals(1, results.size)
         assertTrue(results[0] is InjectionResult.Success)
+    }
+
+    // --- EVENT_PRESERVE_PATTERN ---
+
+    @Test
+    fun `EVENT_PRESERVE_PATTERN matches Ready events and DOMContentLoaded`() {
+        val pattern = Regex(ScriptInjector.EVENT_PRESERVE_PATTERN, RegexOption.IGNORE_CASE)
+
+        assertTrue("dbReady", pattern.containsMatchIn("dbReady"))
+        assertTrue("olReady", pattern.containsMatchIn("olReady"))
+        assertTrue("mapReady", pattern.containsMatchIn("mapReady"))
+        assertTrue("DOMContentLoaded", pattern.containsMatchIn("DOMContentLoaded"))
+    }
+
+    @Test
+    fun `EVENT_PRESERVE_PATTERN does not match unrelated events`() {
+        val pattern = Regex(ScriptInjector.EVENT_PRESERVE_PATTERN, RegexOption.IGNORE_CASE)
+
+        assertFalse("click", pattern.containsMatchIn("click"))
+        assertFalse("touchmove", pattern.containsMatchIn("touchmove"))
+        assertFalse("load", pattern.containsMatchIn("load"))
+        assertFalse("resize", pattern.containsMatchIn("resize"))
     }
 
     // --- rewritesDocument / sortByInjectionPriority ---
