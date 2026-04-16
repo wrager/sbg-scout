@@ -396,6 +396,62 @@ class ScriptInjectorTest {
         assertTrue(results[0] is InjectionResult.Success)
     }
 
+    // --- DOCUMENT_WRITE_EVENT_FIX: DOMContentLoaded dedup ---
+
+    @Test
+    fun `event fix registers DOMContentLoaded wrappedFn with once true`() {
+        val payload = injector.buildInjectionPayload(emptyList())
+
+        // DOMContentLoaded listener должен регистрироваться с once: true
+        // чтобы автоматически сняться после первого вызова (предотвращает
+        // двойную инициализацию EUI на Chrome 146+ где document.write
+        // не уничтожает window listeners)
+        assertTrue(
+            "Event fix должен содержать once: true для DOMContentLoaded",
+            payload.contains("once: true"),
+        )
+        assertTrue(
+            "Event fix должен проверять type === 'DOMContentLoaded' для once",
+            payload.contains("type === 'DOMContentLoaded'"),
+        )
+    }
+
+    @Test
+    fun `event fix uses invoked flag to prevent double callback invocation`() {
+        val payload = injector.buildInjectionPayload(emptyList())
+
+        // entry.invoked guard предотвращает двойной вызов fn:
+        // один раз из wrappedFn (естественный DOMContentLoaded), другой
+        // из кеша в document.close()
+        assertTrue(
+            "Event fix должен инициализировать invoked=false",
+            payload.contains("invoked: false"),
+        )
+        assertTrue(
+            "Event fix wrappedFn должен проверять entry.invoked",
+            payload.contains("if (entry.invoked) return"),
+        )
+        assertTrue(
+            "Event fix wrappedFn должен ставить entry.invoked=true",
+            payload.contains("entry.invoked = true"),
+        )
+    }
+
+    @Test
+    fun `event fix document close invokes DOMContentLoaded only if not already invoked`() {
+        val payload = injector.buildInjectionPayload(emptyList())
+
+        // document.close() должен проверять entry.invoked перед вызовом fn
+        assertTrue(
+            "document.close должен фильтровать DOMContentLoaded listeners",
+            payload.contains("entry.type === 'DOMContentLoaded'"),
+        )
+        assertTrue(
+            "document.close должен проверять readyState перед вызовом cached callback",
+            payload.contains("document.readyState !== 'loading'"),
+        )
+    }
+
     // --- EVENT_PRESERVE_PATTERN ---
 
     @Test

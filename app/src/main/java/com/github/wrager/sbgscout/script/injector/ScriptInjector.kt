@@ -241,14 +241,31 @@ class ScriptInjector(
                 var origAddEventListener = EventTarget.prototype.addEventListener;
                 EventTarget.prototype.addEventListener = function(type, fn, opts) {
                     if (this === window && preservePattern.test(type)) {
-                        savedListeners.push({ type: type, fn: fn, opts: opts });
+                        var entry = { type: type, fn: fn, opts: opts, invoked: false };
+                        savedListeners.push(entry);
                         var wrappedFn = function(event) {
+                            if (entry.invoked) return;
+                            entry.invoked = true;
                             if (insideDocWrite) {
                                 listenersCalledDuringWrite[type] = true;
                             }
                             return fn.call(this, event);
                         };
-                        return origAddEventListener.call(this, type, wrappedFn, opts);
+                        // DOMContentLoaded: once=true чтобы listener автоматически
+                        // снялся после первого вызова. На Chrome 146+ listener
+                        // выживает document.write() — без once wrappedFn сработал бы
+                        // повторно на DOMContentLoaded нового документа.
+                        var regOpts = opts;
+                        if (type === 'DOMContentLoaded') {
+                            if (typeof opts === 'object' && opts !== null) {
+                                regOpts = Object.assign({}, opts, { once: true });
+                            } else if (typeof opts === 'boolean') {
+                                regOpts = { capture: opts, once: true };
+                            } else {
+                                regOpts = { once: true };
+                            }
+                        }
+                        return origAddEventListener.call(this, type, wrappedFn, regOpts);
                     }
                     return origAddEventListener.call(this, type, fn, opts);
                 };
@@ -297,18 +314,20 @@ class ScriptInjector(
                             window.dispatchEvent(new Event(eventType));
                         });
                     }
-                    // DOMContentLoaded обрабатываем отдельно: он срабатывает ПОСЛЕ
-                    // close (не во время write), поэтому его нет в lostEvents, но
-                    // listener мог быть уничтожен. Если readyState уже не 'loading' —
-                    // событие прошло, вызываем callback немедленно (кеширование
-                    // событий, аналог Tampermonkey). Иначе перерегистрируем.
+                    // DOMContentLoaded: wrappedFn зарегистрирован с once=true и
+                    // ставит entry.invoked=true при вызове. Если DOMContentLoaded
+                    // уже сработал (wrappedFn вызвал fn) — entry.invoked=true,
+                    // пропускаем. Если listener был уничтожен (WebView 101) или
+                    // DOMContentLoaded ещё не сработал — вызываем fn из кеша.
                     var domListeners = savedListeners.filter(function(entry) {
                         return entry.type === 'DOMContentLoaded';
                     });
                     if (domListeners.length > 0) {
                         var domReady = document.readyState !== 'loading';
                         domListeners.forEach(function(entry) {
+                            if (entry.invoked) return;
                             if (domReady) {
+                                entry.invoked = true;
                                 try { entry.fn(new Event('DOMContentLoaded')); } catch(e) { console.error(e); }
                             } else {
                                 origAddEventListener.call(window, entry.type, entry.fn, entry.opts);
