@@ -32,11 +32,11 @@ class ScriptInjectorTest {
         )
     }
 
-    // --- wrapInTryCatch ---
+    // --- wrapScript ---
 
     @Test
-    fun `wrapInTryCatch wraps content in IIFE with try-catch`() {
-        val result = ScriptInjector.wrapInTryCatch("Test Script", "console.log('hello');")
+    fun `wrapScript wraps content in IIFE with try-catch`() {
+        val result = ScriptInjector.wrapScript("Test Script", "console.log('hello');")
 
         assertTrue(result.contains("(function() {"))
         assertTrue(result.contains("try {"))
@@ -47,8 +47,8 @@ class ScriptInjectorTest {
     }
 
     @Test
-    fun `wrapInTryCatch does not include timing logic`() {
-        val result = ScriptInjector.wrapInTryCatch("Test", "code")
+    fun `wrapScript does not include timing logic`() {
+        val result = ScriptInjector.wrapScript("Test", "code")
 
         assertFalse(result.contains("DOMContentLoaded"))
         assertFalse(result.contains("readyState"))
@@ -56,15 +56,15 @@ class ScriptInjectorTest {
     }
 
     @Test
-    fun `wrapInTryCatch escapes single quotes in script name`() {
-        val result = ScriptInjector.wrapInTryCatch("Script's Name", "code")
+    fun `wrapScript escapes single quotes in script name`() {
+        val result = ScriptInjector.wrapScript("Script's Name", "code")
 
         assertTrue(result.contains("Script\\'s Name"))
     }
 
     @Test
-    fun `wrapInTryCatch escapes backslashes in script name`() {
-        val result = ScriptInjector.wrapInTryCatch("Script\\Path", "code")
+    fun `wrapScript escapes backslashes in script name`() {
+        val result = ScriptInjector.wrapScript("Script\\Path", "code")
 
         assertTrue(result.contains("Script\\\\Path"))
     }
@@ -72,73 +72,81 @@ class ScriptInjectorTest {
     // --- buildDeferredBatch ---
 
     @Test
-    fun `buildDeferredBatch wraps scripts in single DOMContentLoaded handler`() {
-        val scripts = listOf(
-            createTestScript("a", "Script A", "code_a"),
-            createTestScript("b", "Script B", "code_b"),
-        )
+    fun `buildDeferredBatch with rewriters uses DOMContentLoaded for them`() {
+        val rewriter = createTestScript("r", "R", "document.open(); rewrite_code")
 
-        val result = ScriptInjector.buildDeferredBatch(scripts)
+        val result = ScriptInjector.buildDeferredBatch(listOf(rewriter))
 
         assertTrue(result.contains("DOMContentLoaded"))
-        assertTrue(result.contains("document.readyState === 'loading'"))
-        assertTrue(result.contains("code_a"))
-        assertTrue(result.contains("code_b"))
-        // Один runAll вызов, не отдельные DOMContentLoaded listeners
-        assertEquals(
-            "Должен быть ровно один DOMContentLoaded listener",
-            1,
-            result.windowed("DOMContentLoaded".length)
-                .count { it == "DOMContentLoaded" },
+        assertTrue(result.contains("rewrite_code"))
+    }
+
+    @Test
+    fun `buildDeferredBatch without rewriters uses DOMContentLoaded for regular`() {
+        val regular = createTestScript("a", "A", "regular_code")
+
+        val result = ScriptInjector.buildDeferredBatch(listOf(regular))
+
+        assertTrue(result.contains("DOMContentLoaded"))
+        assertTrue(result.contains("regular_code"))
+        assertFalse(
+            "Без rewriter'ов не нужен polling",
+            result.contains("setTimeout"),
         )
     }
 
     @Test
-    fun `buildDeferredBatch preserves script order`() {
-        val scripts = listOf(
-            createTestScript("first", "First", "first_code"),
-            createTestScript("second", "Second", "second_code"),
-            createTestScript("third", "Third", "third_code"),
-        )
-
-        val result = ScriptInjector.buildDeferredBatch(scripts)
-
-        val firstIndex = result.indexOf("first_code")
-        val secondIndex = result.indexOf("second_code")
-        val thirdIndex = result.indexOf("third_code")
-        assertTrue(firstIndex < secondIndex)
-        assertTrue(secondIndex < thirdIndex)
-    }
-
-    @Test
-    fun `buildDeferredBatch sets cuiStatus before document-open script`() {
-        val rewriter = createTestScript(
-            "rewriter",
-            "Rewriter",
-            "document.open(); rewrite_code",
-        )
-        val regular = createTestScript("regular", "Regular", "regular_code")
+    fun `buildDeferredBatch with rewriters uses polling for regular scripts`() {
+        val rewriter = createTestScript("r", "R", "document.open(); rewrite_code")
+        val regular = createTestScript("a", "A", "regular_code")
 
         val result = ScriptInjector.buildDeferredBatch(listOf(rewriter, regular))
 
         assertTrue(
-            "cuiStatus='initializing' должен быть перед document.open() скриптом",
-            result.contains("window.cuiStatus = 'initializing'"),
+            "Regular скрипты после rewriter'ов используют polling",
+            result.contains("setTimeout(waitForDom"),
         )
         assertTrue(
-            "cuiStatus должен быть раньше кода скрипта с document.open()",
+            "Polling проверяет cuiStatus guard",
+            result.contains("cuiStatus !== 'initializing'"),
+        )
+    }
+
+    @Test
+    fun `buildDeferredBatch separates document-open and regular scripts`() {
+        val rewriter = createTestScript("r", "R", "document.open(); rewrite_code")
+        val regular = createTestScript("a", "A", "regular_code")
+
+        val result = ScriptInjector.buildDeferredBatch(listOf(rewriter, regular))
+
+        assertTrue(
+            "document.open скрипт должен быть раньше обычного",
+            result.indexOf("rewrite_code") < result.indexOf("regular_code"),
+        )
+    }
+
+    @Test
+    fun `buildDeferredBatch sets cuiStatus initializing at batch start`() {
+        val rewriter = createTestScript("r", "R", "document.open(); rewrite_code")
+        val regular = createTestScript("a", "A", "regular_code")
+
+        val result = ScriptInjector.buildDeferredBatch(listOf(rewriter, regular))
+
+        assertTrue(result.contains("window.cuiStatus = 'initializing'"))
+        assertTrue(
+            "cuiStatus должен быть раньше rewriter кода",
             result.indexOf("cuiStatus") < result.indexOf("rewrite_code"),
         )
     }
 
     @Test
-    fun `buildDeferredBatch does not set cuiStatus before regular script`() {
-        val regular = createTestScript("regular", "Regular", "regular_code")
+    fun `buildDeferredBatch does not set cuiStatus without rewriters`() {
+        val regular = createTestScript("a", "A", "regular_code")
 
         val result = ScriptInjector.buildDeferredBatch(listOf(regular))
 
         assertFalse(
-            "cuiStatus не должен выставляться для обычных скриптов",
+            "cuiStatus не нужен без rewriter'ов",
             result.contains("cuiStatus"),
         )
     }
@@ -152,7 +160,6 @@ class ScriptInjectorTest {
 
         val result = ScriptInjector.buildDeferredBatch(scripts)
 
-        // Каждый скрипт в своём try-catch
         assertEquals(
             "Каждый скрипт должен быть в отдельном try-catch",
             2,
@@ -174,7 +181,7 @@ class ScriptInjectorTest {
         assertTrue(result.contains("try {"))
     }
 
-    // --- inject: single evaluateJavascript ---
+    // --- inject ---
 
     @Test
     fun `inject uses single evaluateJavascript when no scripts`() {
@@ -182,7 +189,6 @@ class ScriptInjectorTest {
 
         injector.inject(webView)
 
-        // Один payload (preamble only), без collectErrors
         verify(exactly = 1) {
             webView.evaluateJavascript(any(), any<ValueCallback<String>>())
         }
@@ -197,7 +203,6 @@ class ScriptInjectorTest {
 
         injector.inject(webView)
 
-        // 1 payload + 1 collectErrors = 2
         verify(exactly = 2) {
             webView.evaluateJavascript(any(), any<ValueCallback<String>>())
         }
@@ -214,25 +219,17 @@ class ScriptInjectorTest {
 
         val payload = injector.buildInjectionPayload(scripts)
 
-        // Preamble
         assertTrue("Должен содержать event fix", payload.contains("EventTarget.prototype.addEventListener"))
         assertTrue("Должен содержать globals", payload.contains("window.__sbg_package"))
         assertTrue("Должен содержать polyfill", payload.contains("navigator.clipboard"))
-        // Скрипты в deferred batch
-        assertTrue("Должен содержать первый скрипт", payload.contains("code_a"))
-        assertTrue("Должен содержать второй скрипт", payload.contains("code_b"))
-        assertTrue("Deferred batch должен использовать DOMContentLoaded", payload.contains("DOMContentLoaded"))
+        assertTrue("Должен содержать скрипты", payload.contains("code_a"))
+        assertTrue("Должен содержать скрипты", payload.contains("code_b"))
     }
 
     @Test
     fun `inject sorts document-open script before others in payload`() {
         val regular = createTestScript("regular", "Regular", "regular_code")
-        val rewriter = createTestScript(
-            "rewriter",
-            "Rewriter",
-            "document.open(); rewriter_code",
-        )
-        // getEnabled возвращает в «неправильном» порядке
+        val rewriter = createTestScript("rewriter", "Rewriter", "document.open(); rewriter_code")
         every { scriptStorage.getEnabled() } returns listOf(regular, rewriter)
         val capturedScripts = mutableListOf<String>()
         every {
@@ -243,7 +240,7 @@ class ScriptInjectorTest {
 
         val payload = capturedScripts[0]
         assertTrue(
-            "document.open() скрипт должен быть раньше обычного в payload",
+            "document.open() скрипт должен быть раньше обычного",
             payload.indexOf("rewriter_code") < payload.indexOf("regular_code"),
         )
     }
@@ -259,8 +256,10 @@ class ScriptInjectorTest {
 
         assertTrue(payload.contains("early_code"))
         assertTrue(payload.contains("deferred_code"))
-        // document-start идёт раньше deferred batch (ищем runAll — маркер deferred batch)
-        assertTrue(payload.indexOf("early_code") < payload.indexOf("runAll"))
+        assertTrue(
+            "document-start раньше deferred",
+            payload.indexOf("early_code") < payload.indexOf("DOMContentLoaded"),
+        )
     }
 
     @Test
@@ -270,8 +269,7 @@ class ScriptInjectorTest {
         assertTrue(payload.contains("EventTarget.prototype.addEventListener"))
         assertTrue(payload.contains("window.__sbg_package"))
         assertTrue(payload.contains("navigator.clipboard"))
-        // Без скриптов не должно быть runAll (deferred batch)
-        assertFalse("Не должно быть deferred batch без скриптов", payload.contains("runAll"))
+        assertFalse("Не должно быть DOMContentLoaded без скриптов", payload.contains("DOMContentLoaded"))
     }
 
     @Test
@@ -314,10 +312,7 @@ class ScriptInjectorTest {
 
     @Test
     fun `buildGlobalVariablesScript sets all four variables`() {
-        val result = ScriptInjector.buildGlobalVariablesScript(
-            "com.example.app",
-            "2.0.1",
-        )
+        val result = ScriptInjector.buildGlobalVariablesScript("com.example.app", "2.0.1")
 
         assertTrue(result.contains("window.__sbg_local = false;"))
         assertTrue(result.contains("window.__sbg_preset = '';"))
@@ -327,10 +322,7 @@ class ScriptInjectorTest {
 
     @Test
     fun `buildGlobalVariablesScript escapes quotes in values`() {
-        val result = ScriptInjector.buildGlobalVariablesScript(
-            "com.app'test",
-            "1.0'beta",
-        )
+        val result = ScriptInjector.buildGlobalVariablesScript("com.app'test", "1.0'beta")
 
         assertTrue(result.contains("com.app\\'test"))
         assertTrue(result.contains("1.0\\'beta"))
@@ -363,25 +355,19 @@ class ScriptInjectorTest {
 
         val results = ScriptInjector.buildResults(scripts, errorsJson)
 
-        val errorResult = results
-            .filterIsInstance<InjectionResult.ScriptError>()
-            .first()
+        val errorResult = results.filterIsInstance<InjectionResult.ScriptError>().first()
         assertEquals(ScriptIdentifier("id-a"), errorResult.identifier)
         assertEquals("Script A", errorResult.scriptName)
         assertEquals("ReferenceError: x is not defined", errorResult.errorMessage)
 
-        val successResult = results
-            .filterIsInstance<InjectionResult.Success>()
-            .first()
+        val successResult = results.filterIsInstance<InjectionResult.Success>().first()
         assertEquals(ScriptIdentifier("id-b"), successResult.identifier)
     }
 
     @Test
     fun `buildResults returns all Success when errors json is null`() {
         val scripts = listOf(createTestScript("id", "Script", "code"))
-
         val results = ScriptInjector.buildResults(scripts, null)
-
         assertEquals(1, results.size)
         assertTrue(results[0] is InjectionResult.Success)
     }
@@ -389,79 +375,20 @@ class ScriptInjectorTest {
     @Test
     fun `buildResults returns all Success when errors json is malformed`() {
         val scripts = listOf(createTestScript("id", "Script", "code"))
-
         val results = ScriptInjector.buildResults(scripts, "not json")
-
         assertEquals(1, results.size)
         assertTrue(results[0] is InjectionResult.Success)
-    }
-
-    // --- DOCUMENT_WRITE_EVENT_FIX: DOMContentLoaded dedup ---
-
-    @Test
-    fun `event fix registers DOMContentLoaded wrappedFn with once true`() {
-        val payload = injector.buildInjectionPayload(emptyList())
-
-        // DOMContentLoaded listener должен регистрироваться с once: true
-        // чтобы автоматически сняться после первого вызова (предотвращает
-        // двойную инициализацию EUI на Chrome 146+ где document.write
-        // не уничтожает window listeners)
-        assertTrue(
-            "Event fix должен содержать once: true для DOMContentLoaded",
-            payload.contains("once: true"),
-        )
-        assertTrue(
-            "Event fix должен проверять type === 'DOMContentLoaded' для once",
-            payload.contains("type === 'DOMContentLoaded'"),
-        )
-    }
-
-    @Test
-    fun `event fix uses invoked flag to prevent double callback invocation`() {
-        val payload = injector.buildInjectionPayload(emptyList())
-
-        // entry.invoked guard предотвращает двойной вызов fn:
-        // один раз из wrappedFn (естественный DOMContentLoaded), другой
-        // из кеша в document.close()
-        assertTrue(
-            "Event fix должен инициализировать invoked=false",
-            payload.contains("invoked: false"),
-        )
-        assertTrue(
-            "Event fix wrappedFn должен проверять entry.invoked",
-            payload.contains("if (entry.invoked) return"),
-        )
-        assertTrue(
-            "Event fix wrappedFn должен ставить entry.invoked=true",
-            payload.contains("entry.invoked = true"),
-        )
-    }
-
-    @Test
-    fun `event fix document close invokes DOMContentLoaded only if not already invoked`() {
-        val payload = injector.buildInjectionPayload(emptyList())
-
-        // document.close() должен проверять entry.invoked перед вызовом fn
-        assertTrue(
-            "document.close должен фильтровать DOMContentLoaded listeners",
-            payload.contains("entry.type === 'DOMContentLoaded'"),
-        )
-        assertTrue(
-            "document.close должен проверять readyState перед вызовом cached callback",
-            payload.contains("document.readyState !== 'loading'"),
-        )
     }
 
     // --- EVENT_PRESERVE_PATTERN ---
 
     @Test
-    fun `EVENT_PRESERVE_PATTERN matches Ready events and DOMContentLoaded`() {
+    fun `EVENT_PRESERVE_PATTERN matches Ready events`() {
         val pattern = Regex(ScriptInjector.EVENT_PRESERVE_PATTERN, RegexOption.IGNORE_CASE)
 
         assertTrue("dbReady", pattern.containsMatchIn("dbReady"))
         assertTrue("olReady", pattern.containsMatchIn("olReady"))
         assertTrue("mapReady", pattern.containsMatchIn("mapReady"))
-        assertTrue("DOMContentLoaded", pattern.containsMatchIn("DOMContentLoaded"))
     }
 
     @Test
@@ -471,7 +398,7 @@ class ScriptInjectorTest {
         assertFalse("click", pattern.containsMatchIn("click"))
         assertFalse("touchmove", pattern.containsMatchIn("touchmove"))
         assertFalse("load", pattern.containsMatchIn("load"))
-        assertFalse("resize", pattern.containsMatchIn("resize"))
+        assertFalse("DOMContentLoaded", pattern.containsMatchIn("DOMContentLoaded"))
     }
 
     // --- rewritesDocument / sortByInjectionPriority ---
@@ -497,8 +424,7 @@ class ScriptInjectorTest {
     fun `sortByInjectionPriority puts document-open scripts first`() {
         val regular = createTestScript("regular", "Regular", "console.log('hi');")
         val rewriter = createTestScript(
-            "rewriter",
-            "Rewriter",
+            "rewriter", "Rewriter",
             "document.open(); document.write('<html></html>');",
         )
         val another = createTestScript("another", "Another", "alert(1);")
@@ -525,6 +451,26 @@ class ScriptInjectorTest {
         assertEquals("a", sorted[0].identifier.value)
         assertEquals("b", sorted[1].identifier.value)
         assertEquals("c", sorted[2].identifier.value)
+    }
+
+    // --- event fix: prototype restoration on reload ---
+
+    @Test
+    fun `event fix restores original prototypes on JS reload`() {
+        val payload = injector.buildInjectionPayload(emptyList())
+
+        assertTrue(
+            "Event fix должен проверять наличие предыдущих оригиналов",
+            payload.contains("window.__sbg_event_fix_originals"),
+        )
+        assertTrue(
+            "Event fix должен восстанавливать addEventListener",
+            payload.contains("EventTarget.prototype.addEventListener = orig.addEventListener"),
+        )
+        assertTrue(
+            "Event fix должен сохранять оригиналы для будущих reload",
+            payload.contains("addEventListener: origAddEventListener"),
+        )
     }
 
     // --- helpers ---

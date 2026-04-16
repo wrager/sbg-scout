@@ -154,8 +154,8 @@ Android-приложение с WebView, загружающее игру SBG (`s
 1. Перехват `localStorage.setItem` (обёртка для `GameSettingsBridge`)
 2. Глобальные переменные (`__sbg_local`, `__sbg_package`, `__sbg_package_version`)
 3. Clipboard-полифил
-4. Скрипты батчатся по группам `@run-at` в **один `evaluateJavascript`-вызов на группу** — это гарантирует атомарность (DOMContentLoaded не может вклиниться между скриптами) и детерминированный порядок. Внутри группы скрипты отсортированы по приоритету: скрипты с `document.open()` первыми (они перестраивают страницу и должны стартовать до остальных). Каждый скрипт в отдельном IIFE с try-catch для изоляции ошибок
-5. Группировка по `@run-at`: `document-start` выполняется сразу (immediate batch), `document-end`/`document-idle`/без `@run-at` — по событию `DOMContentLoaded` (deferred batch). Scout не различает document-end и document-idle: у WebView host нет доступа к браузерной эвристике `document_idle`, а любая фиксированная задержка ломает скрипты вроде CUI, которые зависят от `window.stop()` до выполнения game-скрипта
+4. Вся инжекция (preamble + скрипты) собирается в **один `evaluateJavascript`-вызов** — атомарность гарантирует, что DOMContentLoaded не вклинится между скриптами. Скрипты отсортированы по приоритету: скрипты с `document.open()` первыми (они перестраивают страницу и должны стартовать до остальных). Каждый скрипт в отдельном IIFE с try-catch
+5. Группировка по `@run-at`: `document-start` выполняется сразу (immediate batch), остальные — deferred batch. Внутри deferred batch: скрипты с `document.open()` запускаются на `DOMContentLoaded` (аналог Tampermonkey document-idle); остальные — через readyState polling (WebView не файрит DOMContentLoaded после `document.close()`, в отличие от Chrome browser — подтверждено диагностикой)
 6. Ошибки инжекции собираются через `window.__sbg_injection_errors` и показываются через Toast
 
 ## Обновление приложения

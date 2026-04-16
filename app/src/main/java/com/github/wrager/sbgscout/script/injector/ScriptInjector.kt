@@ -36,6 +36,14 @@ class ScriptInjector(
      * renderer thread, и DOMContentLoaded может вклиниться между задачами.
      * Один вызов = одна атомарная задача = детерминированный тайминг.
      */
+    /**
+     * Собирает ВСЮ инжекцию в одну строку для единственного
+     * `evaluateJavascript`-вызова: preamble (event fix, globals, polyfill)
+     * + скрипты, сгруппированные по @run-at.
+     *
+     * Один вызов = одна задача в очереди WebView renderer = атомарная
+     * обработка. DOMContentLoaded не может вклиниться между скриптами.
+     */
     internal fun buildInjectionPayload(enabledScripts: List<UserScript>): String {
         val parts = mutableListOf<String>()
 
@@ -89,11 +97,11 @@ class ScriptInjector(
             scripts.sortedByDescending { rewritesDocument(it.content) }
 
         /**
-         * Оборачивает скрипт в IIFE с try-catch для изоляции ошибок.
-         * Не добавляет логику тайминга — за это отвечают [buildDeferredBatch]
-         * и [buildImmediateBatch].
+         * Оборачивает скрипт в IIFE — аналог Tampermonkey'шной обёртки
+         * `(function() { 'use strict'; ... })()`. Скрипты изолированы
+         * друг от друга, ошибка одного не блокирует остальные.
          */
-        internal fun wrapInTryCatch(scriptName: String, content: String): String {
+        internal fun wrapScript(scriptName: String, content: String): String {
             val escapedName = scriptName.replace("\\", "\\\\").replace("'", "\\'")
             return """
                 (function() {
@@ -109,54 +117,76 @@ class ScriptInjector(
         }
 
         /**
-         * Собирает document-start скрипты в один evaluateJavascript-вызов.
-         * Каждый скрипт в отдельном IIFE с try-catch, выполняются немедленно.
+         * Собирает document-start скрипты. Выполняются немедленно.
          */
         internal fun buildImmediateBatch(scripts: List<UserScript>): String =
-            scripts.joinToString("\n") { wrapInTryCatch(it.header.name, it.content) }
+            scripts.joinToString("\n") { wrapScript(it.header.name, it.content) }
+
+        /** Оборачивает JS-код в DOMContentLoaded handler (аналог Tampermonkey document-idle). */
+        private fun wrapInDomContentLoaded(code: String): String = """
+            (function() {
+                function run() {
+                    $code
+                }
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', run);
+                } else {
+                    run();
+                }
+            })();
+        """.trimIndent()
 
         /**
-         * Собирает deferred-скрипты (document-end, document-idle, без @run-at)
-         * в один evaluateJavascript-вызов с единым DOMContentLoaded-обработчиком.
+         * Собирает deferred-скрипты (document-end, document-idle, без @run-at).
          *
-         * Все скрипты стартуют в одном handler — DOMContentLoaded не может
-         * вклиниться между ними, и порядок выполнения детерминирован.
-         * Скрипты, перестраивающие страницу (document.open), должны идти
-         * первыми (см. [sortByInjectionPriority]): их document.open()
-         * сбрасывает readyState в 'loading', и следующие скрипты, проверяющие
-         * readyState внутри себя, корректно дожидаются нового DOMContentLoaded.
+         * Rewriters (document.open) → DOMContentLoaded (как Tampermonkey).
+         * Regular → DOMContentLoaded (если нет rewriters) или readyState
+         * polling (если есть rewriters: WebView не файрит DOMContentLoaded
+         * после document.close — подтверждено диагностикой).
          */
         internal fun buildDeferredBatch(scripts: List<UserScript>): String {
-            val wrappedScripts = scripts.joinToString("\n") { script ->
-                val prefix = if (rewritesDocument(script.content)) {
-                    // Скрипт с document.open() перестраивает страницу асинхронно.
-                    // Другие скрипты (EUI) проверяют window.cuiStatus для обнаружения
-                    // CUI, но CUI выставляет свои глобалы (cuiStatus, TeamColors и др.)
-                    // только после полной асинхронной инициализации. На первом запуске
-                    // глобалов нет, и CUI.Detected() возвращает false — EUI идёт по
-                    // неправильному пути (delay 500ms вместо 30-сек polling).
-                    // На перезагрузке глобалы остаются от предыдущей сессии и
-                    // CUI.Detected() работает.
-                    // Маркер 'initializing' — легитимный статус CUI, который EUI
-                    // уже обрабатывает (CUI.Initializing: () => cuiStatus == 'initializing').
-                    "window.cuiStatus = 'initializing';\n"
-                } else {
-                    ""
+            val rewriters = scripts.filter { rewritesDocument(it.content) }
+            val regular = scripts.filter { !rewritesDocument(it.content) }
+
+            val parts = mutableListOf<String>()
+
+            if (rewriters.isNotEmpty()) {
+                val wrappedRewriters = rewriters.joinToString("\n") {
+                    wrapScript(it.header.name, it.content)
                 }
-                prefix + wrapInTryCatch(script.header.name, script.content)
+                // cuiStatus='initializing': guard для EUI polling (без него
+                // polling ловит readyState='interactive' до запуска CUI).
+                parts.add("window.cuiStatus = 'initializing';")
+                parts.add(wrapInDomContentLoaded(wrappedRewriters))
             }
-            return """
-                (function() {
-                    function runAll() {
-                        $wrappedScripts
-                    }
-                    if (document.readyState === 'loading') {
-                        document.addEventListener('DOMContentLoaded', runAll);
-                    } else {
-                        runAll();
-                    }
-                })();
-            """.trimIndent()
+
+            if (regular.isNotEmpty()) {
+                val wrappedRegular = regular.joinToString("\n") {
+                    wrapScript(it.header.name, it.content)
+                }
+                if (rewriters.isNotEmpty()) {
+                    // WebView уничтожает DOMContentLoaded listener'ы при
+                    // document.open() (подтверждено диагностикой). Polling
+                    // readyState + cuiStatus guard — workaround.
+                    parts.add(
+                        """
+                        (function() {
+                            (function waitForDom() {
+                                if (document.readyState !== 'loading' && window.cuiStatus !== 'initializing') {
+                                    $wrappedRegular
+                                } else {
+                                    setTimeout(waitForDom, 10);
+                                }
+                            })();
+                        })();
+                        """.trimIndent(),
+                    )
+                } else {
+                    parts.add(wrapInDomContentLoaded(wrappedRegular))
+                }
+            }
+
+            return parts.joinToString("\n")
         }
 
         internal fun buildGlobalVariablesScript(
@@ -216,19 +246,12 @@ class ScriptInjector(
         // перестройки страницы. olReady диспатчится ВНУТРИ document.write()
         // (из onload OL-скрипта), но listener уже потерян.
         //
-        // Дополнительно: EUI после document.open() от CUI регистрирует
-        // window.addEventListener('DOMContentLoaded', ...) для ожидания
-        // нового документа. Без сохранения DOMContentLoaded-listener
-        // EUI никогда не стартует.
-        //
-        // Паттерн /Ready|DOMContentLoaded/i покрывает:
-        // - CUI: dbReady, olReady, mapReady
-        // - EUI: DOMContentLoaded
-        //
-        // Фикс: сохраняем matching listeners при регистрации. После
+        // Фикс: сохраняем *Ready listeners при регистрации. После
         // document.close() перерегистрируем потерянные listeners и
-        // re-dispatch события.
-        internal const val EVENT_PRESERVE_PATTERN = "Ready|DOMContentLoaded"
+        // re-dispatch события. DOMContentLoaded НЕ обрабатывается здесь —
+        // скрипты без document.open() запускаются через polling readyState
+        // в buildDeferredBatch, что не зависит от event listeners.
+        internal const val EVENT_PRESERVE_PATTERN = "Ready"
 
         private val DOCUMENT_WRITE_EVENT_FIX = """
             (function() {
@@ -238,34 +261,37 @@ class ScriptInjector(
                 var savedListeners = [];
                 var preservePattern = /$EVENT_PRESERVE_PATTERN/i;
 
+                // При JS reload (location.reload) window сохраняется, и
+                // предыдущий event fix оставляет patched prototypes. Без
+                // восстановления оригиналов новый патч ложится поверх старого
+                // (двойная обёртка), старые *Ready listeners выживают, и CUI's
+                // main() вызывается дважды. Восстанавливаем оригиналы перед
+                // повторным патчингом.
+                if (window.__sbg_event_fix_originals) {
+                    var orig = window.__sbg_event_fix_originals;
+                    EventTarget.prototype.addEventListener = orig.addEventListener;
+                    Document.prototype.write = orig.write;
+                    Document.prototype.close = orig.close;
+                    window.dispatchEvent = orig.dispatchEvent;
+                }
+
                 var origAddEventListener = EventTarget.prototype.addEventListener;
+                window.__sbg_event_fix_originals = {
+                    addEventListener: origAddEventListener,
+                    write: Document.prototype.write,
+                    close: Document.prototype.close,
+                    dispatchEvent: window.dispatchEvent.bind(window),
+                };
                 EventTarget.prototype.addEventListener = function(type, fn, opts) {
                     if (this === window && preservePattern.test(type)) {
-                        var entry = { type: type, fn: fn, opts: opts, invoked: false };
-                        savedListeners.push(entry);
+                        savedListeners.push({ type: type, fn: fn, opts: opts });
                         var wrappedFn = function(event) {
-                            if (entry.invoked) return;
-                            entry.invoked = true;
                             if (insideDocWrite) {
                                 listenersCalledDuringWrite[type] = true;
                             }
                             return fn.call(this, event);
                         };
-                        // DOMContentLoaded: once=true чтобы listener автоматически
-                        // снялся после первого вызова. На Chrome 146+ listener
-                        // выживает document.write() — без once wrappedFn сработал бы
-                        // повторно на DOMContentLoaded нового документа.
-                        var regOpts = opts;
-                        if (type === 'DOMContentLoaded') {
-                            if (typeof opts === 'object' && opts !== null) {
-                                regOpts = Object.assign({}, opts, { once: true });
-                            } else if (typeof opts === 'boolean') {
-                                regOpts = { capture: opts, once: true };
-                            } else {
-                                regOpts = { once: true };
-                            }
-                        }
-                        return origAddEventListener.call(this, type, wrappedFn, regOpts);
+                        return origAddEventListener.call(this, type, wrappedFn, opts);
                     }
                     return origAddEventListener.call(this, type, fn, opts);
                 };
@@ -296,42 +322,15 @@ class ScriptInjector(
                 var origDocClose = Document.prototype.close;
                 Document.prototype.close = function() {
                     var result = origDocClose.apply(this, arguments);
-                    // *Ready listeners (olReady, mapReady и др.) перерегистрируем
-                    // только когда есть потерянные события — на современных WebView
-                    // (Chrome 146+) document.write() НЕ уничтожает window listeners,
-                    // и безусловная перерегистрация дублирует их (main() вызывается
-                    // дважды → сломанные touch handlers → нерабочий поворот карты).
                     if (lostEvents.length > 0) {
                         var events = lostEvents.slice();
                         lostEvents = [];
                         savedListeners.forEach(function(entry) {
-                            if (entry.type !== 'DOMContentLoaded') {
-                                origAddEventListener.call(window, entry.type, entry.fn, entry.opts);
-                            }
+                            origAddEventListener.call(window, entry.type, entry.fn, entry.opts);
                         });
                         events.forEach(function(eventType) {
                             console.log('[SBG Fix] Re-dispatching lost event:', eventType);
                             window.dispatchEvent(new Event(eventType));
-                        });
-                    }
-                    // DOMContentLoaded: wrappedFn зарегистрирован с once=true и
-                    // ставит entry.invoked=true при вызове. Если DOMContentLoaded
-                    // уже сработал (wrappedFn вызвал fn) — entry.invoked=true,
-                    // пропускаем. Если listener был уничтожен (WebView 101) или
-                    // DOMContentLoaded ещё не сработал — вызываем fn из кеша.
-                    var domListeners = savedListeners.filter(function(entry) {
-                        return entry.type === 'DOMContentLoaded';
-                    });
-                    if (domListeners.length > 0) {
-                        var domReady = document.readyState !== 'loading';
-                        domListeners.forEach(function(entry) {
-                            if (entry.invoked) return;
-                            if (domReady) {
-                                entry.invoked = true;
-                                try { entry.fn(new Event('DOMContentLoaded')); } catch(e) { console.error(e); }
-                            } else {
-                                origAddEventListener.call(window, entry.type, entry.fn, entry.opts);
-                            }
                         });
                     }
                     return result;
