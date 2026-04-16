@@ -238,27 +238,7 @@ class ScriptInjector(
                 var savedListeners = [];
                 var preservePattern = /$EVENT_PRESERVE_PATTERN/i;
 
-                // При JS reload (location.reload) window сохраняется, и
-                // предыдущий event fix оставляет patched prototypes. Без
-                // восстановления оригиналов новый патч ложится поверх старого
-                // (двойная обёртка), старые *Ready listeners выживают, и CUI's
-                // main() вызывается дважды. Восстанавливаем оригиналы перед
-                // повторным патчингом.
-                if (window.__sbg_event_fix_originals) {
-                    var orig = window.__sbg_event_fix_originals;
-                    EventTarget.prototype.addEventListener = orig.addEventListener;
-                    Document.prototype.write = orig.write;
-                    Document.prototype.close = orig.close;
-                    window.dispatchEvent = orig.dispatchEvent;
-                }
-
                 var origAddEventListener = EventTarget.prototype.addEventListener;
-                window.__sbg_event_fix_originals = {
-                    addEventListener: origAddEventListener,
-                    write: Document.prototype.write,
-                    close: Document.prototype.close,
-                    dispatchEvent: window.dispatchEvent.bind(window),
-                };
                 EventTarget.prototype.addEventListener = function(type, fn, opts) {
                     if (this === window && preservePattern.test(type)) {
                         var entry = { type: type, fn: fn, opts: opts, invoked: false };
