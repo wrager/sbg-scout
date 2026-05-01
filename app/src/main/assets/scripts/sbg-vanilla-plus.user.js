@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         SBG Vanilla+
 // @namespace    https://github.com/wrager/sbg-vanilla-plus
-// @version      0.9.0
+// @version      0.10.1
 // @author       wrager
-// @description  UI/UX enhancements for SBG (SBG v0.6.0)
+// @description  UI/UX enhancements for SBG (SBG v0.6.0 / 0.6.1)
 // @license      MIT
 // @homepage     https://github.com/wrager/sbg-vanilla-plus
 // @homepageURL  https://github.com/wrager/sbg-vanilla-plus
@@ -11,6 +11,7 @@
 // @downloadURL  https://github.com/wrager/sbg-vanilla-plus/releases/latest/download/sbg-vanilla-plus.user.js
 // @updateURL    https://github.com/wrager/sbg-vanilla-plus/releases/latest/download/sbg-vanilla-plus.meta.js
 // @match        https://sbg-game.ru/app/*
+// @match        https://beta.sbg-game.ru/app/*
 // @grant        none
 // @run-at       document-start
 // ==/UserScript==
@@ -18,18 +19,18 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY$3 = "svp_disabled";
+  const STORAGE_KEY$4 = "svp_disabled";
   function isDisabled() {
     const hash = location.hash;
     const match = /[#&]svp-disabled=([01])/.exec(hash);
     if (match) {
       if (match[1] === "1") {
-        sessionStorage.setItem(STORAGE_KEY$3, "1");
+        sessionStorage.setItem(STORAGE_KEY$4, "1");
       } else {
-        sessionStorage.removeItem(STORAGE_KEY$3);
+        sessionStorage.removeItem(STORAGE_KEY$4);
       }
     }
-    return sessionStorage.getItem(STORAGE_KEY$3) === "1";
+    return sessionStorage.getItem(STORAGE_KEY$4) === "1";
   }
   const GAME_SCRIPT_PATTERN = /^script@/;
   const PATCHES = [
@@ -86,6 +87,92 @@
       appendFunction.call(document.head, script);
     }
   }
+  const SBG_COMPATIBLE_VERSIONS = ["0.6.0", "0.6.1"];
+  const VERSION_HEADER = "x-sbg-version";
+  const DEFAULT_DETECTION_TIMEOUT_MS = 5e3;
+  let cachedVersion;
+  let detectionWaiters = [];
+  function normalizeVersion(raw) {
+    return raw.split("-")[0];
+  }
+  function recordCapturedVersion(raw) {
+    if (cachedVersion) return;
+    cachedVersion = normalizeVersion(raw);
+    const resolved = detectionWaiters;
+    detectionWaiters = [];
+    for (const resolve of resolved) resolve();
+  }
+  function installGameVersionCapture() {
+    const originalFetch2 = window.fetch;
+    window.fetch = function patchedFetch(...args) {
+      const responsePromise = originalFetch2.apply(this, args);
+      void responsePromise.then(
+        (response) => {
+          const raw = response.headers.get(VERSION_HEADER);
+          if (raw) recordCapturedVersion(raw);
+        },
+        () => {
+        }
+      );
+      return responsePromise;
+    };
+  }
+  function initGameVersionDetection(timeoutMs = DEFAULT_DETECTION_TIMEOUT_MS) {
+    if (cachedVersion !== void 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      const waiter = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        if (cachedVersion === void 0) cachedVersion = null;
+        const idx = detectionWaiters.indexOf(waiter);
+        if (idx !== -1) detectionWaiters.splice(idx, 1);
+        resolve();
+      }, timeoutMs);
+      detectionWaiters.push(waiter);
+    });
+  }
+  function getDetectedVersion() {
+    if (cachedVersion === void 0) {
+      console.warn(
+        "[SVP] getDetectedVersion() вызвана до initGameVersionDetection(); возвращаю null."
+      );
+      return null;
+    }
+    return cachedVersion;
+  }
+  function compareVersions(a, b) {
+    const partsA = a.split(".").map(Number);
+    const partsB = b.split(".").map(Number);
+    const length = Math.max(partsA.length, partsB.length);
+    for (let i = 0; i < length; i++) {
+      const diff = (partsA[i] ?? 0) - (partsB[i] ?? 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  }
+  function isSbgGreaterThan(version) {
+    const detected = getDetectedVersion();
+    if (detected === null) return false;
+    return compareVersions(detected, version) > 0;
+  }
+  const NATIVE_SINCE_061 = /* @__PURE__ */ new Set([
+    "favoritedPoints",
+    "inventoryCleanup",
+    "keyCountOnPoints",
+    "repairAtFullCharge",
+    "ngrsZoom",
+    "singleFingerRotation",
+    "nextPointNavigation"
+  ]);
+  function isModuleNativeInCurrentGame(moduleId) {
+    return isSbgGreaterThan("0.6.0") && NATIVE_SINCE_061.has(moduleId);
+  }
+  const CONFLICTS_WITH_061 = /* @__PURE__ */ new Set(["swipeToClosePopup"]);
+  function isModuleConflictingWithCurrentGame(moduleId) {
+    return isSbgGreaterThan("0.6.0") && CONFLICTS_WITH_061.has(moduleId);
+  }
   function isSbgScout() {
     return navigator.userAgent.includes("SbgScout/");
   }
@@ -116,7 +203,7 @@
     modules: {},
     errors: {}
   };
-  const STORAGE_KEY$2 = "svp_settings";
+  const STORAGE_KEY$3 = "svp_settings";
   const BACKUP_PREFIX = "svp_settings_backup_v";
   const migrations = [
     // v1 → v2: добавлено поле errors
@@ -169,7 +256,7 @@
   }
   function loadSettings() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY$2);
+      const raw = localStorage.getItem(STORAGE_KEY$3);
       if (!raw) return { ...DEFAULT_SETTINGS };
       const parsed = JSON.parse(raw);
       if (!isSvpSettings(parsed)) return { ...DEFAULT_SETTINGS };
@@ -186,7 +273,7 @@
   }
   function saveSettings(settings) {
     try {
-      localStorage.setItem(STORAGE_KEY$2, JSON.stringify(settings));
+      localStorage.setItem(STORAGE_KEY$3, JSON.stringify(settings));
       return true;
     } catch (error) {
       console.error("[SVP] Не удалось сохранить настройки в localStorage:", error);
@@ -356,7 +443,7 @@
   function buildBugReportUrl(modules) {
     const params = new URLSearchParams({
       template: "bug_report.yml",
-      version: "0.9.0",
+      version: "0.10.1",
       browser: navigator.userAgent,
       modules: buildModuleList(modules)
     });
@@ -429,13 +516,16 @@ ${errorLog}`);
     const toast = document.createElement("div");
     toast.className = TOAST_CLASS;
     toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => {
+    const dismiss = () => {
+      if (toast.classList.contains(TOAST_HIDE_CLASS)) return;
       toast.classList.add(TOAST_HIDE_CLASS);
       toast.addEventListener("transitionend", () => {
         toast.remove();
       });
-    }, duration);
+    };
+    toast.addEventListener("click", dismiss);
+    document.body.appendChild(toast);
+    setTimeout(dismiss, duration);
   }
   function persistOrNotify(settings) {
     if (saveSettings(settings)) return true;
@@ -592,11 +682,17 @@ ${errorLog}`);
 }
 
 .svp-module-row-host-provided .svp-module-name,
-.svp-module-row-host-provided .svp-module-desc {
+.svp-module-row-host-provided .svp-module-desc,
+.svp-module-row-native-in-game .svp-module-name,
+.svp-module-row-native-in-game .svp-module-desc,
+.svp-module-row-conflicting-with-game .svp-module-name,
+.svp-module-row-conflicting-with-game .svp-module-desc {
   color: var(--text-disabled);
 }
 
-.svp-module-row-host-provided-label {
+.svp-module-row-host-provided-label,
+.svp-module-row-native-in-game-label,
+.svp-module-row-conflicting-with-game-label {
   font-size: 10px;
   font-style: italic;
   color: var(--text-disabled);
@@ -674,6 +770,25 @@ ${errorLog}`);
     utility: { en: "Utilities", ru: "Утилиты" },
     fix: { en: "Bugfixes", ru: "Багфиксы" }
   };
+  const UNAVAILABLE_SECTION_LABEL = {
+    en: "Unavailable",
+    ru: "Недоступные"
+  };
+  function isModuleUnavailable(moduleId) {
+    return isModuleDisallowedInCurrentHost(moduleId) || isModuleNativeInCurrentGame(moduleId) || isModuleConflictingWithCurrentGame(moduleId);
+  }
+  function createUnavailableRow(mod, errorMessage) {
+    if (isModuleDisallowedInCurrentHost(mod.id)) {
+      return createHostProvidedRow(mod, errorMessage);
+    }
+    if (isModuleNativeInCurrentGame(mod.id)) {
+      return createNativeInGameRow(mod, errorMessage);
+    }
+    if (isModuleConflictingWithCurrentGame(mod.id)) {
+      return createConflictingWithGameRow(mod, errorMessage);
+    }
+    return null;
+  }
   function createCheckbox(checked, onChange) {
     const input = document.createElement("input");
     input.type = "checkbox";
@@ -687,6 +802,14 @@ ${errorLog}`);
   const HOST_PROVIDED_LABEL = {
     en: "Implemented in SBG Scout",
     ru: "Реализовано в SBG Scout"
+  };
+  const NATIVE_IN_GAME_LABEL = {
+    en: "Implemented natively in the game",
+    ru: "Реализовано в игре"
+  };
+  const CONFLICTING_WITH_GAME_LABEL = {
+    en: "Conflicts with the new version of the game",
+    ru: "Конфликтует с новой версией игры"
   };
   function createHostProvidedRow(mod, errorMessage) {
     const row = document.createElement("div");
@@ -712,6 +835,86 @@ ${errorLog}`);
     info.appendChild(nameLine);
     info.appendChild(desc);
     info.appendChild(hostLabel);
+    const failed = document.createElement("div");
+    failed.className = "svp-module-failed";
+    function setError(message) {
+      if (message) {
+        failed.textContent = message;
+        failed.style.display = "";
+      } else {
+        failed.textContent = "";
+        failed.style.display = "none";
+      }
+    }
+    setError(errorMessage);
+    info.appendChild(failed);
+    row.appendChild(info);
+    return { row, setError };
+  }
+  function createConflictingWithGameRow(mod, errorMessage) {
+    const row = document.createElement("div");
+    row.className = "svp-module-row svp-module-row-conflicting-with-game";
+    const info = document.createElement("div");
+    info.className = "svp-module-info";
+    const nameLine = document.createElement("div");
+    nameLine.className = "svp-module-name-line";
+    const name = document.createElement("div");
+    name.className = "svp-module-name";
+    name.textContent = t(mod.name);
+    const modId = document.createElement("div");
+    modId.className = "svp-module-id";
+    modId.textContent = mod.id;
+    nameLine.appendChild(name);
+    nameLine.appendChild(modId);
+    const desc = document.createElement("div");
+    desc.className = "svp-module-desc";
+    desc.textContent = t(mod.description);
+    const conflictLabel = document.createElement("div");
+    conflictLabel.className = "svp-module-row-conflicting-with-game-label";
+    conflictLabel.textContent = t(CONFLICTING_WITH_GAME_LABEL);
+    info.appendChild(nameLine);
+    info.appendChild(desc);
+    info.appendChild(conflictLabel);
+    const failed = document.createElement("div");
+    failed.className = "svp-module-failed";
+    function setError(message) {
+      if (message) {
+        failed.textContent = message;
+        failed.style.display = "";
+      } else {
+        failed.textContent = "";
+        failed.style.display = "none";
+      }
+    }
+    setError(errorMessage);
+    info.appendChild(failed);
+    row.appendChild(info);
+    return { row, setError };
+  }
+  function createNativeInGameRow(mod, errorMessage) {
+    const row = document.createElement("div");
+    row.className = "svp-module-row svp-module-row-native-in-game";
+    const info = document.createElement("div");
+    info.className = "svp-module-info";
+    const nameLine = document.createElement("div");
+    nameLine.className = "svp-module-name-line";
+    const name = document.createElement("div");
+    name.className = "svp-module-name";
+    name.textContent = t(mod.name);
+    const modId = document.createElement("div");
+    modId.className = "svp-module-id";
+    modId.textContent = mod.id;
+    nameLine.appendChild(name);
+    nameLine.appendChild(modId);
+    const desc = document.createElement("div");
+    desc.className = "svp-module-desc";
+    desc.textContent = t(mod.description);
+    const gameLabel = document.createElement("div");
+    gameLabel.className = "svp-module-row-native-in-game-label";
+    gameLabel.textContent = t(NATIVE_IN_GAME_LABEL);
+    info.appendChild(nameLine);
+    info.appendChild(desc);
+    info.appendChild(gameLabel);
     const failed = document.createElement("div");
     failed.className = "svp-module-failed";
     function setError(message) {
@@ -784,14 +987,7 @@ ${errorLog}`);
     const initialSettings = loadSettings();
     for (const mod of modules) {
       try {
-        const disallowed = isModuleDisallowedInCurrentHost(mod.id);
         const errorMessage = initialSettings.errors[mod.id] ?? null;
-        if (disallowed) {
-          const { row: row2, setError: setError2 } = createHostProvidedRow(mod, errorMessage);
-          errorDisplay.set(mod.id, setError2);
-          section.appendChild(row2);
-          continue;
-        }
         const enabled2 = isModuleEnabled(initialSettings, mod.id, mod.defaultEnabled);
         let checkboxRef = null;
         const { row, checkbox: checkbox2, setError } = createModuleRow(
@@ -853,6 +1049,28 @@ ${errorLog}`);
       setError(message);
     }
     onAnyToggle();
+  }
+  function fillUnavailableSection(section, modules, errorDisplay) {
+    const title = document.createElement("div");
+    title.className = "svp-settings-section-title";
+    title.textContent = t(UNAVAILABLE_SECTION_LABEL);
+    section.appendChild(title);
+    const initialSettings = loadSettings();
+    for (const mod of modules) {
+      try {
+        const errorMessage = initialSettings.errors[mod.id] ?? null;
+        const unavailableRow = createUnavailableRow(mod, errorMessage);
+        if (!unavailableRow) {
+          throw new Error(`module "${mod.id}" classified as unavailable but no row renderer matched`);
+        }
+        errorDisplay.set(mod.id, unavailableRow.setError);
+        section.appendChild(unavailableRow.row);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[SVP] Ошибка рендера настроек модуля "${mod.id}":`, error);
+        section.appendChild(createRenderErrorRow(mod.id, message));
+      }
+    }
   }
   function createRenderErrorRow(moduleId, message) {
     const row = document.createElement("div");
@@ -940,8 +1158,17 @@ ${errorLog}`);
         toggleAllCheckbox.indeterminate = true;
       }
     }
-    const grouped = /* @__PURE__ */ new Map();
+    const regular = [];
+    const unavailable = [];
     for (const mod of modules) {
+      if (isModuleUnavailable(mod.id)) {
+        unavailable.push(mod);
+      } else {
+        regular.push(mod);
+      }
+    }
+    const grouped = /* @__PURE__ */ new Map();
+    for (const mod of regular) {
       const list = grouped.get(mod.category) ?? [];
       list.push(mod);
       grouped.set(mod.category, list);
@@ -952,6 +1179,12 @@ ${errorLog}`);
       const section = document.createElement("div");
       section.className = "svp-settings-section";
       fillSection(section, categoryModules, category, errorDisplay, checkboxMap, updateMasterState);
+      content.appendChild(section);
+    }
+    if (unavailable.length > 0) {
+      const section = document.createElement("div");
+      section.className = "svp-settings-section svp-settings-section-unavailable";
+      fillUnavailableSection(section, unavailable, errorDisplay);
       content.appendChild(section);
     }
     updateMasterState();
@@ -965,7 +1198,7 @@ ${errorLog}`);
     footer.className = "svp-settings-footer";
     const version = document.createElement("span");
     version.className = "svp-settings-version";
-    version.textContent = `SBG Vanilla+ v${"0.9.0"}`;
+    version.textContent = `SBG Vanilla+ v${"0.10.1"}`;
     const reportButton = document.createElement("button");
     reportButton.className = "svp-report-button";
     const reportLabel = { en: "Report a bug", ru: "Сообщить об ошибке" };
@@ -1039,7 +1272,7 @@ ${errorLog}`);
       requestAnimationFrame(updateScrollIndicators);
     }
   }
-  const toastStyles = ".svp-toast{position:fixed;top:50px;left:50%;transform:translate(-50%);background:var(--background);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 12px;font-size:12px;z-index:10002;opacity:1;transition:opacity .3s ease;pointer-events:none;max-width:90vw;text-align:center;box-sizing:border-box}.svp-toast-hide{opacity:0}";
+  const toastStyles = ".svp-toast{position:fixed;top:50px;left:50%;transform:translate(-50%);background:var(--background);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 12px;font-size:12px;z-index:10002;opacity:1;transition:opacity .3s ease;max-width:90vw;text-align:center;box-sizing:border-box;cursor:pointer}.svp-toast-hide{opacity:0}";
   let bootstrapped = false;
   function bootstrap(modules) {
     if (bootstrapped) {
@@ -1056,6 +1289,8 @@ ${errorLog}`);
       modules,
       (id) => {
         if (isModuleDisallowedInCurrentHost(id)) return false;
+        if (isModuleNativeInCurrentGame(id)) return false;
+        if (isModuleConflictingWithCurrentGame(id)) return false;
         const mod = modules.find((m) => m.id === id);
         return isModuleEnabled(settings, id, (mod == null ? void 0 : mod.defaultEnabled) ?? true);
       },
@@ -1076,6 +1311,16 @@ ${errorLog}`);
     );
     saveSettings(settings);
     initSettingsUI(modules, errorDisplay);
+  }
+  function ensureSbgVersionSupported() {
+    const detected = getDetectedVersion();
+    if (detected === null) return true;
+    if (SBG_COMPATIBLE_VERSIONS.includes(detected)) return true;
+    const supported = SBG_COMPATIBLE_VERSIONS.join(", ");
+    const message = `SBG Vanilla+ не тестировался на версии игры ${detected} (поддерживаются: ${supported}).
+
+ОК — включить скрипт, Отмена — продолжить без скрипта.`;
+    return confirm(message);
   }
   function hasTileSource(layer) {
     return "setSource" in layer && typeof layer.setSource === "function";
@@ -1186,7 +1431,7 @@ ${errorLog}`);
     setTimeout(logDiagnostics, DIAG_DELAY);
   }
   const FLAVOR_HEADER = "x-sbg-flavor";
-  const FLAVOR_VALUE = `VanillaPlus/${"0.9.0"}`;
+  const FLAVOR_VALUE = `VanillaPlus/${"0.10.1"}`;
   function installSbgFlavor() {
     const originalFetch2 = window.fetch;
     window.fetch = function(input, init) {
@@ -1205,8 +1450,8 @@ ${errorLog}`);
     };
   }
   const css$1 = ".topleft-container.svp-compact{top:.45em;left:.45em}.topleft-container.svp-compact .self-info{display:flex!important;align-items:center!important;justify-content:flex-start!important;text-align:left!important;width:max-content!important;margin:0;padding:0!important;border:none!important;background:none!important;font-size:.9em}#attack-menu{position:fixed;left:50%;transform:translate(-50%);height:27pt}";
-  const MODULE_ID$i = "enhancedMainScreen";
-  let cleanup = null;
+  const MODULE_ID$j = "enhancedMainScreen";
+  let cleanup$1 = null;
   function isHTMLElement(element) {
     return element instanceof HTMLElement;
   }
@@ -1328,7 +1573,7 @@ ${errorLog}`);
     };
   }
   const enhancedMainScreen = {
-    id: MODULE_ID$i,
+    id: MODULE_ID$j,
     name: { en: "Enhanced Main Screen", ru: "Улучшенный главный экран" },
     description: {
       en: "Compacts the top panel: nick below buttons, inventory in OPS, gear icon for Settings, attack button centered",
@@ -1339,19 +1584,19 @@ ${errorLog}`);
     init() {
     },
     async enable() {
-      injectStyles(css$1, MODULE_ID$i);
-      cleanup = await setup();
+      injectStyles(css$1, MODULE_ID$j);
+      cleanup$1 = await setup();
     },
     disable() {
-      removeStyles(MODULE_ID$i);
-      cleanup == null ? void 0 : cleanup();
-      cleanup = null;
+      removeStyles(MODULE_ID$j);
+      cleanup$1 == null ? void 0 : cleanup$1();
+      cleanup$1 = null;
     }
   };
-  const styles$6 = ".info.popup .i-buttons button{min-height:72px;display:flex;align-items:center;justify-content:center}.i-stat__entry:not(.i-stat__cores){font-size:.7rem}.cores-list__level{font-size:1rem}#magic-deploy-btn{position:fixed;bottom:5px;left:5px;width:32px;height:32px;min-height:auto}";
-  const MODULE_ID$h = "enhancedPointPopupUi";
+  const styles$7 = ".info.popup .i-buttons button{min-height:72px;display:flex;align-items:center;justify-content:center}.i-stat__entry:not(.i-stat__cores){font-size:.7rem}.cores-list__level{font-size:1rem}#magic-deploy-btn{position:fixed;bottom:5px;left:5px;width:32px;height:32px;min-height:auto}";
+  const MODULE_ID$i = "enhancedPointPopupUi";
   const enhancedPointPopupUi = {
-    id: MODULE_ID$h,
+    id: MODULE_ID$i,
     name: { en: "Enhanced Point Popup UI", ru: "Улучшенный UI попапа точки" },
     description: {
       en: "Larger buttons, smaller text, auto-deploy hidden from accidental taps",
@@ -1362,14 +1607,14 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(styles$6, MODULE_ID$h);
+      injectStyles(styles$7, MODULE_ID$i);
     },
     disable() {
-      removeStyles(MODULE_ID$h);
+      removeStyles(MODULE_ID$i);
     }
   };
-  const styles$5 = ".info.popup{touch-action:pan-y}.info.popup .deploy-slider-wrp{touch-action:manipulation}.info.popup.svp-swipe-animating{transition:translate .3s ease-out,rotate .3s ease-out,opacity .3s ease-out}";
-  const MODULE_ID$g = "swipeToClosePopup";
+  const styles$6 = ".info.popup{touch-action:pan-y}.info.popup .deploy-slider-wrp{touch-action:manipulation}.info.popup.svp-swipe-animating{transition:translate .3s ease-out,rotate .3s ease-out,opacity .3s ease-out}";
+  const MODULE_ID$h = "swipeToClosePopup";
   const POPUP_SELECTOR$1 = ".info.popup";
   const DIRECTION_THRESHOLD = 10;
   const DISMISS_THRESHOLD = 100;
@@ -1598,7 +1843,7 @@ ${errorLog}`);
     popup.removeEventListener("touchcancel", onTouchCancel);
   }
   const swipeToClosePopup = {
-    id: MODULE_ID$g,
+    id: MODULE_ID$h,
     name: {
       en: "Swipe to Close Popup",
       ru: "Закрытие попапа свайпом"
@@ -1615,7 +1860,7 @@ ${errorLog}`);
       const element = $(POPUP_SELECTOR$1);
       if (!(element instanceof HTMLElement)) return;
       popup = element;
-      injectStyles(styles$5, MODULE_ID$g);
+      injectStyles(styles$6, MODULE_ID$h);
       addListeners$2();
       startPopupObserver();
     },
@@ -1623,23 +1868,23 @@ ${errorLog}`);
       removeListeners$2();
       stopPopupObserver();
       cleanupAnimation();
-      removeStyles(MODULE_ID$g);
+      removeStyles(MODULE_ID$h);
       lastObservedGuid = null;
       popup = null;
     }
   };
-  const MODULE_ID$f = "shiftMapCenterDown";
+  const MODULE_ID$g = "shiftMapCenterDown";
   const PADDING_FACTOR = 0.35;
   const ACTION_PANEL_SELECTORS = ".attack-slider-wrp, .draw-slider-wrp";
-  let map$5 = null;
+  let map$6 = null;
   let topPadding = 0;
   let actionObserver = null;
   let actionPanelActive = false;
   let actionRafId = null;
   let originalCalculateExtent$1 = null;
   function applyPadding(padding) {
-    if (!map$5) return;
-    const view = map$5.getView();
+    if (!map$6) return;
+    const view = map$6.getView();
     const center = view.getCenter();
     view.padding = padding;
     view.setCenter(center);
@@ -1684,8 +1929,8 @@ ${errorLog}`);
     actionObserver = null;
   }
   function installCalculateExtentWrapper$1() {
-    if (!map$5 || originalCalculateExtent$1 !== null) return;
-    const view = map$5.getView();
+    if (!map$6 || originalCalculateExtent$1 !== null) return;
+    const view = map$6.getView();
     const original = view.calculateExtent;
     originalCalculateExtent$1 = original;
     view.calculateExtent = (size) => {
@@ -1696,13 +1941,13 @@ ${errorLog}`);
     };
   }
   function restoreCalculateExtentWrapper$1() {
-    if (!map$5 || originalCalculateExtent$1 === null) return;
-    const view = map$5.getView();
+    if (!map$6 || originalCalculateExtent$1 === null) return;
+    const view = map$6.getView();
     view.calculateExtent = originalCalculateExtent$1;
     originalCalculateExtent$1 = null;
   }
   const shiftMapCenterDown = {
-    id: MODULE_ID$f,
+    id: MODULE_ID$g,
     name: { en: "Shift Map Center Down", ru: "Сдвиг центра карты вниз" },
     description: {
       en: "Moves map center down so you see more ahead while moving",
@@ -1715,7 +1960,7 @@ ${errorLog}`);
       originalCalculateExtent$1 = null;
       actionPanelActive = false;
       return getOlMap().then((olMap2) => {
-        map$5 = olMap2;
+        map$6 = olMap2;
       });
     },
     enable() {
@@ -1730,13 +1975,13 @@ ${errorLog}`);
       restoreCalculateExtentWrapper$1();
     }
   };
-  const MODULE_ID$e = "ngrsZoom";
+  const MODULE_ID$f = "ngrsZoom";
   const TAP_DURATION_THRESHOLD = 200;
   const MAX_TAP_GAP = 300;
   const MAX_TAP_DISTANCE = 30;
   const DRAG_THRESHOLD = 5;
   const ZOOM_SENSITIVITY = 0.015;
-  let map$4 = null;
+  let map$5 = null;
   let enabled$1 = false;
   let disabledInteractions = [];
   let dragPanControl$1 = null;
@@ -1764,15 +2009,15 @@ ${errorLog}`);
     }
     if (interacting) {
       interacting = false;
-      (_b = map$4 == null ? void 0 : (_a = map$4.getView()).endInteraction) == null ? void 0 : _b.call(_a, END_INTERACTION_DURATION);
+      (_b = map$5 == null ? void 0 : (_a = map$5.getView()).endInteraction) == null ? void 0 : _b.call(_a, END_INTERACTION_DURATION);
     }
   }
   function distanceBetweenTaps(x, y) {
     return Math.sqrt((x - firstTapX) ** 2 + (y - firstTapY) ** 2);
   }
   function applyZoom(currentY) {
-    if (!map$4) return;
-    const view = map$4.getView();
+    if (!map$5) return;
+    const view = map$5.getView();
     if (!view.setResolution) return;
     const deltaY = initialY - currentY;
     view.setResolution(initialResolution * Math.pow(2, -deltaY * ZOOM_SENSITIVITY));
@@ -1805,7 +2050,7 @@ ${errorLog}`);
         clearTimeout(secondTapTimer);
         secondTapTimer = null;
       }
-      const view = map$4 == null ? void 0 : map$4.getView();
+      const view = map$5 == null ? void 0 : map$5.getView();
       const resolution = (_a = view == null ? void 0 : view.getResolution) == null ? void 0 : _a.call(view);
       if (resolution === void 0) {
         resetGesture$1();
@@ -1891,8 +2136,8 @@ ${errorLog}`);
     document.removeEventListener("touchend", onTouchEndCapture, { capture: true });
   }
   function disableDoubleClickZoomInteractions() {
-    if (!map$4) return;
-    const interactions = map$4.getInteractions().getArray();
+    if (!map$5) return;
+    const interactions = map$5.getInteractions().getArray();
     disabledInteractions = interactions.filter(isDoubleClickZoom);
     for (const interaction of disabledInteractions) {
       interaction.setActive(false);
@@ -1905,7 +2150,7 @@ ${errorLog}`);
     disabledInteractions = [];
   }
   const ngrsZoom = {
-    id: MODULE_ID$e,
+    id: MODULE_ID$f,
     name: {
       en: "Ngrs Zoom",
       ru: "Нгрс-зум"
@@ -1923,7 +2168,7 @@ ${errorLog}`);
       addListeners$1();
       return getOlMap().then((olMap2) => {
         if (!enabled$1) return;
-        map$4 = olMap2;
+        map$5 = olMap2;
         if (dragPanControl$1 === null) {
           dragPanControl$1 = createDragPanControl(olMap2);
         }
@@ -1939,10 +2184,10 @@ ${errorLog}`);
       resetGesture$1();
     }
   };
-  const MODULE_ID$d = "drawButtonFix";
+  const MODULE_ID$e = "drawButtonFix";
   let observer$1 = null;
   const drawButtonFix = {
-    id: MODULE_ID$d,
+    id: MODULE_ID$e,
     name: { en: "Draw Button Fix", ru: "Фикс кнопки рисования" },
     description: {
       en: "Draw button is always enabled — fixes a game bug where the button gets stuck in disabled state",
@@ -1971,7 +2216,7 @@ ${errorLog}`);
       observer$1 = null;
     }
   };
-  const MODULE_ID$c = "groupErrorToasts";
+  const MODULE_ID$d = "groupErrorToasts";
   const ERROR_TOAST_CLASS = "error-toast";
   let restorePatch = null;
   function getContainerIdentity(selector) {
@@ -2033,7 +2278,7 @@ ${errorLog}`);
     };
   }
   const groupErrorToasts = {
-    id: MODULE_ID$c,
+    id: MODULE_ID$d,
     name: { en: "Group Error Toasts", ru: "Группировка тостов ошибок" },
     description: {
       en: "Groups identical error toasts into one with a counter instead of stacking",
@@ -2051,10 +2296,10 @@ ${errorLog}`);
       restorePatch = null;
     }
   };
-  const styles$4 = "#attack-slider-close{display:none!important}";
-  const MODULE_ID$b = "removeAttackCloseButton";
+  const styles$5 = "#attack-slider-close{display:none!important}";
+  const MODULE_ID$c = "removeAttackCloseButton";
   const removeAttackCloseButton = {
-    id: MODULE_ID$b,
+    id: MODULE_ID$c,
     name: { en: "Remove Attack Close Button", ru: "Убрать кнопку «Закрыть» в атаке" },
     description: {
       en: "Removes the Close button in attack mode to avoid hitting it instead of Fire. Tap Attack again to exit",
@@ -2065,13 +2310,13 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(styles$4, MODULE_ID$b);
+      injectStyles(styles$5, MODULE_ID$c);
     },
     disable() {
-      removeStyles(MODULE_ID$b);
+      removeStyles(MODULE_ID$c);
     }
   };
-  const MODULE_ID$a = "keepScreenOn";
+  const MODULE_ID$b = "keepScreenOn";
   let wakeLock = null;
   async function requestWakeLock() {
     wakeLock = await navigator.wakeLock.request("screen");
@@ -2086,7 +2331,7 @@ ${errorLog}`);
     }
   }
   const keepScreenOn = {
-    id: MODULE_ID$a,
+    id: MODULE_ID$b,
     name: { en: "Keep Screen On", ru: "Экран не гаснет" },
     description: {
       en: "Keeps screen awake during gameplay (Wake Lock API)",
@@ -2111,17 +2356,17 @@ ${errorLog}`);
   const ITEM_TYPE_CATALYSER = 2;
   const ITEM_TYPE_REFERENCE = 3;
   const ITEM_TYPE_BROOM = 4;
-  function isRecord$1(value) {
+  function isRecord$3(value) {
     return typeof value === "object" && value !== null;
   }
   function isInventoryCore(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_CORE && typeof value.l === "number" && typeof value.a === "number";
+    return isRecord$3(value) && typeof value.g === "string" && value.t === ITEM_TYPE_CORE && typeof value.l === "number" && typeof value.a === "number";
   }
   function isInventoryCatalyser(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_CATALYSER && typeof value.l === "number" && typeof value.a === "number";
+    return isRecord$3(value) && typeof value.g === "string" && value.t === ITEM_TYPE_CATALYSER && typeof value.l === "number" && typeof value.a === "number";
   }
   function isInventoryReference(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_REFERENCE && typeof value.l === "string" && typeof value.a === "number";
+    return isRecord$3(value) && typeof value.g === "string" && value.t === ITEM_TYPE_REFERENCE && typeof value.l === "string" && typeof value.a === "number";
   }
   function isInventoryReferenceFull(value) {
     if (!isInventoryReference(value)) return false;
@@ -2129,7 +2374,7 @@ ${errorLog}`);
     return Array.isArray(record.c) && record.c.length === 2 && typeof record.c[0] === "number" && typeof record.c[1] === "number" && typeof record.ti === "string";
   }
   function isInventoryBroom(value) {
-    return isRecord$1(value) && typeof value.g === "string" && value.t === ITEM_TYPE_BROOM && typeof value.l === "number" && typeof value.a === "number";
+    return isRecord$3(value) && typeof value.g === "string" && value.t === ITEM_TYPE_BROOM && typeof value.l === "number" && typeof value.a === "number";
   }
   function isInventoryItem(value) {
     return isInventoryCore(value) || isInventoryCatalyser(value) || isInventoryReference(value) || isInventoryBroom(value);
@@ -2162,7 +2407,7 @@ ${errorLog}`);
   function getBackgroundColor() {
     return getCssVariable("--background", "#ffffff");
   }
-  const MODULE_ID$9 = "keyCountOnPoints";
+  const MODULE_ID$a = "keyCountOnPoints";
   const MIN_ZOOM = 15;
   const DEBOUNCE_MS = 100;
   function buildRefCounts() {
@@ -2173,7 +2418,7 @@ ${errorLog}`);
     }
     return counts;
   }
-  let map$3 = null;
+  let map$4 = null;
   let pointsSource$1 = null;
   let labelsSource = null;
   let labelsLayer = null;
@@ -2183,9 +2428,9 @@ ${errorLog}`);
   let onZoomChange = null;
   function renderLabels() {
     var _a, _b, _c, _d, _e, _f, _g;
-    if (!labelsSource || !map$3 || !pointsSource$1) return;
+    if (!labelsSource || !map$4 || !pointsSource$1) return;
     labelsSource.clear();
-    const zoom = ((_b = (_a = map$3.getView()).getZoom) == null ? void 0 : _b.call(_a)) ?? 0;
+    const zoom = ((_b = (_a = map$4.getView()).getZoom) == null ? void 0 : _b.call(_a)) ?? 0;
     if (zoom < MIN_ZOOM) return;
     const refCounts = buildRefCounts();
     if (refCounts.size === 0) return;
@@ -2226,7 +2471,7 @@ ${errorLog}`);
     debounceTimer = setTimeout(renderLabels, DEBOUNCE_MS);
   }
   const keyCountOnPoints = {
-    id: MODULE_ID$9,
+    id: MODULE_ID$a,
     name: { en: "Key count on points", ru: "Количество ключей на точках" },
     description: {
       en: "Shows the number of reference keys for each visible point on the map",
@@ -2247,7 +2492,7 @@ ${errorLog}`);
         if (!pointsLayer) return;
         const src = pointsLayer.getSource();
         if (!src) return;
-        map$3 = olMap2;
+        map$4 = olMap2;
         pointsSource$1 = src;
         labelsSource = new OlVectorSource();
         labelsLayer = new OlVectorLayer({
@@ -2283,25 +2528,25 @@ ${errorLog}`);
         pointsSource$1.un("change", onPointsChange);
         onPointsChange = null;
       }
-      if (map$3 && onZoomChange) {
-        (_b = (_a = map$3.getView()).un) == null ? void 0 : _b.call(_a, "change:resolution", onZoomChange);
+      if (map$4 && onZoomChange) {
+        (_b = (_a = map$4.getView()).un) == null ? void 0 : _b.call(_a, "change:resolution", onZoomChange);
         onZoomChange = null;
       }
-      if (map$3 && labelsLayer) {
-        map$3.removeLayer(labelsLayer);
+      if (map$4 && labelsLayer) {
+        map$4.removeLayer(labelsLayer);
       }
-      map$3 = null;
+      map$4 = null;
       pointsSource$1 = null;
       labelsSource = null;
       labelsLayer = null;
     }
   };
-  const MODULE_ID$8 = "largerPointTapArea";
+  const MODULE_ID$9 = "largerPointTapArea";
   const HIT_TOLERANCE_PX = 15;
-  let map$2 = null;
+  let map$3 = null;
   let originalMethod = null;
   const largerPointTapArea = {
-    id: MODULE_ID$8,
+    id: MODULE_ID$9,
     name: { en: "Larger Point Tap Area", ru: "Увеличенная область нажатия" },
     description: {
       en: "Increases the tappable area of map points for easier selection on mobile",
@@ -2314,7 +2559,7 @@ ${errorLog}`);
     enable() {
       return getOlMap().then((olMap2) => {
         if (originalMethod || !olMap2.forEachFeatureAtPixel) return;
-        map$2 = olMap2;
+        map$3 = olMap2;
         originalMethod = olMap2.forEachFeatureAtPixel.bind(olMap2);
         const saved = originalMethod;
         olMap2.forEachFeatureAtPixel = (pixel, callback, options) => {
@@ -2326,21 +2571,21 @@ ${errorLog}`);
       });
     },
     disable() {
-      if (map$2 && originalMethod && map$2.forEachFeatureAtPixel) {
-        map$2.forEachFeatureAtPixel = originalMethod;
+      if (map$3 && originalMethod && map$3.forEachFeatureAtPixel) {
+        map$3.forEachFeatureAtPixel = originalMethod;
       }
       originalMethod = null;
-      map$2 = null;
+      map$3 = null;
     }
   };
-  const styles$3 = ".info.popup .i-buttons .svp-next-point-button{position:fixed;bottom:5px;right:5px;width:32px;height:32px;min-height:auto}";
-  const MODULE_ID$7 = "nextPointNavigation";
+  const styles$4 = ".info.popup .i-buttons .svp-next-point-button{position:fixed;bottom:5px;right:5px;width:32px;height:32px;min-height:auto}";
+  const MODULE_ID$8 = "nextPointNavigation";
   const BUTTON_CLASS$1 = "svp-next-point-button";
   const INTERACTION_RANGE = 45;
   const AUTOZOOM_THRESHOLD = 16;
   const AUTOZOOM_TARGET = 17;
   const AUTOZOOM_TIMEOUT_MS = 3e3;
-  let map$1 = null;
+  let map$2 = null;
   let pointsSource = null;
   let playerSource = null;
   const rangeVisited = /* @__PURE__ */ new Set();
@@ -2429,17 +2674,17 @@ ${errorLog}`);
       window.showInfo(guid);
       return;
     }
-    if (!map$1 || typeof map$1.dispatchEvent !== "function" || typeof map$1.getPixelFromCoordinate !== "function") {
+    if (!map$2 || typeof map$2.dispatchEvent !== "function" || typeof map$2.getPixelFromCoordinate !== "function") {
       return;
     }
     const feature = findFeatureById(guid);
     if (!feature) return;
     const coords = feature.getGeometry().getCoordinates();
-    const pixel = map$1.getPixelFromCoordinate(coords);
-    map$1.dispatchEvent({ type: "click", pixel, originalEvent: {} });
+    const pixel = map$2.getPixelFromCoordinate(coords);
+    map$2.dispatchEvent({ type: "click", pixel, originalEvent: {} });
   }
   function tryNavigateInRange() {
-    if (!map$1 || !pointsSource) return false;
+    if (!map$2 || !pointsSource) return false;
     const currentId = getPopupPointId();
     if (!currentId) return false;
     const playerCoordinates = getPlayerCoordinates();
@@ -2469,8 +2714,8 @@ ${errorLog}`);
   }
   function autozoomAndNavigate() {
     var _a, _b;
-    if (!map$1 || !pointsSource) return;
-    const view = map$1.getView();
+    if (!map$2 || !pointsSource) return;
+    const view = map$2.getView();
     const currentZoom = (_a = view.getZoom) == null ? void 0 : _a.call(view);
     if (currentZoom === void 0 || currentZoom >= AUTOZOOM_THRESHOLD) return;
     const playerCoordinates = getPlayerCoordinates();
@@ -2595,12 +2840,12 @@ ${errorLog}`);
       return;
     }
     void waitForElement(".info.popup").then((element) => {
-      if (!map$1) return;
+      if (!map$2) return;
       startObservingPopup(element);
     });
   }
   const nextPointNavigation = {
-    id: MODULE_ID$7,
+    id: MODULE_ID$8,
     name: { en: "Next point navigation", ru: "Переход к следующей точке" },
     description: {
       en: "Cycle through points in interaction range",
@@ -2618,10 +2863,10 @@ ${errorLog}`);
         if (!source) return;
         const playerLayer = findLayerByName(olMap2, "player");
         const playerLayerSource = (playerLayer == null ? void 0 : playerLayer.getSource()) ?? null;
-        map$1 = olMap2;
+        map$2 = olMap2;
         pointsSource = source;
         playerSource = playerLayerSource;
-        injectStyles(styles$3, MODULE_ID$7);
+        injectStyles(styles$4, MODULE_ID$8);
         observePopup();
         sourceChangeHandler = () => {
           updateButtonStates();
@@ -2651,8 +2896,8 @@ ${errorLog}`);
         sourceChangeHandler = null;
       }
       removeButton$1();
-      removeStyles(MODULE_ID$7);
-      map$1 = null;
+      removeStyles(MODULE_ID$8);
+      map$2 = null;
       pointsSource = null;
       playerSource = null;
       rangeVisited.clear();
@@ -2663,7 +2908,7 @@ ${errorLog}`);
     }
   };
   const css = ".svp-refs-on-map-button{background:none;border:1px solid var(--border-transp);color:var(--text);padding:4px 8px;font-size:14px;cursor:pointer}.svp-refs-on-map-close{position:fixed;bottom:8px;left:50%;transform:translate(-50%);z-index:1;font-size:1.5em;padding:0 .1em;align-self:center}.svp-refs-on-map-trash{position:fixed;bottom:100px;right:20px;z-index:10;background:var(--background-transp);border:1px solid var(--border-transp);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:var(--text);font-size:14px;padding:8px 12px;border-radius:8px;cursor:pointer;min-width:48px;text-align:center}";
-  const MODULE_ID$6 = "refsOnMap";
+  const MODULE_ID$7 = "refsOnMap";
   const REFS_TAB_INDEX = "3";
   const GAME_LAYER_NAMES = ["points", "lines", "regions"];
   const TEAM_BATCH_SIZE = 5;
@@ -2882,7 +3127,7 @@ ${errorLog}`);
     try {
       const response = await deleteRefsFromServer(items);
       if (response.error) {
-        console.error(`[SVP] ${MODULE_ID$6}: deletion error:`, response.error);
+        console.error(`[SVP] ${MODULE_ID$7}: deletion error:`, response.error);
         return;
       }
       for (const feature of selectedFeatures) {
@@ -2896,7 +3141,7 @@ ${errorLog}`);
       uniqueRefsToDelete = 0;
       updateTrashCounter();
     } catch (error) {
-      console.error(`[SVP] ${MODULE_ID$6}: deletion failed:`, error);
+      console.error(`[SVP] ${MODULE_ID$7}: deletion failed:`, error);
     }
   }
   async function loadTeamDataForRefs(refs) {
@@ -3074,7 +3319,7 @@ ${errorLog}`);
     showButton.style.display = tabIndex === REFS_TAB_INDEX ? "" : "none";
   }
   const refsOnMap = {
-    id: MODULE_ID$6,
+    id: MODULE_ID$7,
     name: { en: "Refs on map", ru: "Ключи на карте" },
     description: {
       en: "View and manage points with collected keys on the map at any zoom level",
@@ -3085,7 +3330,7 @@ ${errorLog}`);
     init() {
     },
     enable() {
-      injectStyles(css, MODULE_ID$6);
+      injectStyles(css, MODULE_ID$7);
       return getOlMap().then(
         (map2) => {
           var _a, _b;
@@ -3142,7 +3387,7 @@ ${errorLog}`);
           }
         },
         (error) => {
-          removeStyles(MODULE_ID$6);
+          removeStyles(MODULE_ID$7);
           throw error;
         }
       );
@@ -3178,13 +3423,13 @@ ${errorLog}`);
       }
       tabClickHandler = null;
     }
-    removeStyles(MODULE_ID$6);
+    removeStyles(MODULE_ID$7);
     teamCache.clear();
     olMap = null;
     refsSource = null;
     refsLayer = null;
   }
-  const MODULE_ID$5 = "repairAtFullCharge";
+  const MODULE_ID$6 = "repairAtFullCharge";
   let observer = null;
   function extractTeamFromStyle(element) {
     const style = (element == null ? void 0 : element.getAttribute("style")) ?? "";
@@ -3203,7 +3448,7 @@ ${errorLog}`);
     return readInventoryReferences().some((ref) => ref.l === pointGuid);
   }
   const repairAtFullCharge = {
-    id: MODULE_ID$5,
+    id: MODULE_ID$6,
     name: { en: "Repair at Full Charge", ru: "Зарядка при полном заряде" },
     description: {
       en: "Repair button stays enabled even at 100% charge — allows recharging immediately without waiting for status update",
@@ -3234,9 +3479,9 @@ ${errorLog}`);
       observer = null;
     }
   };
-  const MODULE_ID$4 = "singleFingerRotation";
+  const MODULE_ID$5 = "singleFingerRotation";
   let viewport = null;
-  let map = null;
+  let map$1 = null;
   let dragPanControl = null;
   let latestPoint = null;
   let pendingDelta = 0;
@@ -3246,7 +3491,7 @@ ${errorLog}`);
     return localStorage.getItem("follow") !== "false";
   }
   function getScreenCenter() {
-    const padding = (map ? map.getView().padding : void 0) ?? [0, 0, 0, 0];
+    const padding = (map$1 ? map$1.getView().padding : void 0) ?? [0, 0, 0, 0];
     const [top, right, bottom, left] = padding;
     return {
       x: (left + window.innerWidth - right) / 2,
@@ -3263,8 +3508,8 @@ ${errorLog}`);
     return delta;
   }
   function applyRotation(delta) {
-    if (!map) return;
-    const view = map.getView();
+    if (!map$1) return;
+    const view = map$1.getView();
     view.setRotation(view.getRotation() + delta);
   }
   function applyPendingRotation() {
@@ -3333,8 +3578,8 @@ ${errorLog}`);
     viewport.removeEventListener("touchend", onTouchEnd);
   }
   function installCalculateExtentWrapper() {
-    if (!map || originalCalculateExtent !== null) return;
-    const view = map.getView();
+    if (!map$1 || originalCalculateExtent !== null) return;
+    const view = map$1.getView();
     const original = view.calculateExtent;
     originalCalculateExtent = original;
     view.calculateExtent = (size) => {
@@ -3346,13 +3591,13 @@ ${errorLog}`);
     };
   }
   function restoreCalculateExtentWrapper() {
-    if (!map || originalCalculateExtent === null) return;
-    const view = map.getView();
+    if (!map$1 || originalCalculateExtent === null) return;
+    const view = map$1.getView();
     view.calculateExtent = originalCalculateExtent;
     originalCalculateExtent = null;
   }
   const singleFingerRotation = {
-    id: MODULE_ID$4,
+    id: MODULE_ID$5,
     name: {
       en: "Single-Finger Map Rotation",
       ru: "Вращение карты одним пальцем"
@@ -3367,7 +3612,7 @@ ${errorLog}`);
       originalCalculateExtent = null;
       dragPanControl = null;
       return getOlMap().then((olMap2) => {
-        map = olMap2;
+        map$1 = olMap2;
         const viewportElement = $(".ol-viewport");
         if (viewportElement instanceof HTMLElement) {
           viewport = viewportElement;
@@ -3375,10 +3620,10 @@ ${errorLog}`);
       });
     },
     enable() {
-      if (!map) return;
+      if (!map$1) return;
       installCalculateExtentWrapper();
       if (dragPanControl === null) {
-        dragPanControl = createDragPanControl(map);
+        dragPanControl = createDragPanControl(map$1);
       }
       addListeners();
     },
@@ -3390,8 +3635,8 @@ ${errorLog}`);
       restoreCalculateExtentWrapper();
     }
   };
-  const styles$2 = ".svp-tile-url-input{width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;font-family:inherit;background:var(--background);color:var(--text);border:1px solid var(--border);border-radius:4px;resize:none}.svp-tile-url-input::placeholder{color:var(--text-disabled)}";
-  const MODULE_ID$3 = "mapTileLayers";
+  const styles$3 = ".svp-tile-url-input{width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;font-family:inherit;background:var(--background);color:var(--text);border:1px solid var(--border);border-radius:4px;resize:none}.svp-tile-url-input::placeholder{color:var(--text-disabled)}";
+  const MODULE_ID$4 = "mapTileLayers";
   const STORAGE_KEY_URL = "svp_mapTileLayerUrl";
   const STORAGE_KEY_LAYER = "svp_mapTileLayer";
   const STORAGE_KEY_GAME_LAYER = "svp_mapTileGameLayer";
@@ -3603,7 +3848,7 @@ ${errorLog}`);
     }
   }
   const mapTileLayers = {
-    id: MODULE_ID$3,
+    id: MODULE_ID$4,
     name: { en: "Custom map tiles", ru: "Свои тайлы карты" },
     description: {
       en: "Adds custom tile layers to the map layer switcher",
@@ -3625,7 +3870,7 @@ ${errorLog}`);
         if (saved && isCustomValue(saved) && url) {
           applyCustomSource();
         }
-        injectStyles(styles$2, MODULE_ID$3);
+        injectStyles(styles$3, MODULE_ID$4);
         const existingPopup = document.querySelector(".layers-config");
         if (existingPopup) {
           injectIntoPopup(existingPopup);
@@ -3638,7 +3883,7 @@ ${errorLog}`);
       enabled = false;
       unlockGameSource(true);
       removeStyles(TILE_FILTER_ID);
-      removeStyles(MODULE_ID$3);
+      removeStyles(MODULE_ID$4);
       cleanupInjected();
       restoreGameRadioSelection();
       popupObserver$2 == null ? void 0 : popupObserver$2.disconnect();
@@ -3646,6 +3891,998 @@ ${errorLog}`);
       gameTileLayer = null;
       originalSource = null;
       lastGameRadioValue = null;
+    }
+  };
+  class IitcParseError extends Error {
+    constructor(reason, path, value) {
+      super(`${reason} at ${path}`);
+      this.reason = reason;
+      this.path = path;
+      this.value = value;
+      this.name = "IitcParseError";
+    }
+  }
+  function isRecord$2(value) {
+    return typeof value === "object" && value !== null;
+  }
+  function isLatLng(value) {
+    if (!isRecord$2(value)) return false;
+    return typeof value.lat === "number" && typeof value.lng === "number";
+  }
+  function normalizeColor(value) {
+    if (typeof value !== "string") return null;
+    if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
+    if (/^#[0-9a-fA-F]{3}$/.test(value)) {
+      const r = value[1];
+      const g = value[2];
+      const b = value[3];
+      return `#${r}${r}${g}${g}${b}${b}`;
+    }
+    return null;
+  }
+  function validateDrawItem(item, index) {
+    const path = `items[${index}]`;
+    if (!isRecord$2(item)) {
+      throw new IitcParseError("not_object", path, item);
+    }
+    if (item.type !== "polyline" && item.type !== "polygon") {
+      throw new IitcParseError("unsupported_type", path, item.type);
+    }
+    if (!Array.isArray(item.latLngs)) {
+      throw new IitcParseError("lat_lngs_not_array", path, item.latLngs);
+    }
+    if (item.type === "polyline" && item.latLngs.length < 2) {
+      throw new IitcParseError("polyline_too_few_points", path, item.latLngs.length);
+    }
+    if (item.type === "polygon" && item.latLngs.length < 3) {
+      throw new IitcParseError("polygon_too_few_points", path, item.latLngs.length);
+    }
+    const badIndex = item.latLngs.findIndex((coord) => !isLatLng(coord));
+    if (badIndex >= 0) {
+      throw new IitcParseError("invalid_coordinates", path, item.latLngs[badIndex]);
+    }
+    let color;
+    if (item.color !== void 0) {
+      const normalized = normalizeColor(item.color);
+      if (normalized === null) {
+        throw new IitcParseError("invalid_color", path, item.color);
+      }
+      color = normalized;
+    }
+    return {
+      type: item.type,
+      latLngs: item.latLngs,
+      ...color !== void 0 ? { color } : {}
+    };
+  }
+  function parseIitcDrawItems(raw) {
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new IitcParseError("invalid_json", "root", raw);
+    }
+    if (!Array.isArray(parsed)) {
+      throw new IitcParseError("not_array", "root", parsed);
+    }
+    return parsed.map(validateDrawItem);
+  }
+  function stringifyIitcDrawItems(items) {
+    return JSON.stringify(items);
+  }
+  const SVG_OPEN_TOOLBAR = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svp-draw-tools-icon">';
+  const SVG_OPEN_CONTROL = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svp-draw-tools-icon">';
+  const SVG_CLOSE = "</svg>";
+  const NO_FILL = ' style="fill:none"';
+  function svg(body) {
+    return `${SVG_OPEN_TOOLBAR}${body}${SVG_CLOSE}`;
+  }
+  function svgControl(body) {
+    return `${SVG_OPEN_CONTROL}${body}${SVG_CLOSE}`;
+  }
+  const ICON_LINE = svg(
+    '<circle cx="6" cy="18" r="2.2" fill="currentColor" stroke="none"/><circle cx="18" cy="6" r="2.2" fill="currentColor" stroke="none"/><line x1="7.5" y1="16.5" x2="16.5" y2="7.5"/>'
+  );
+  const ICON_TRIANGLE = svg(`<polygon${NO_FILL} points="12,4 20,20 4,20"/>`);
+  const ICON_EDIT = svg(
+    `<path${NO_FILL} d="M12 20h9"/><path${NO_FILL} d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4z"/>`
+  );
+  const ICON_DELETE = svg(
+    `<path${NO_FILL} d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path${NO_FILL} d="M22 21H7"/><path${NO_FILL} d="m5 11 9 9"/>`
+  );
+  const ICON_WAND = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 586 512" width="16" height="16" fill="currentColor" class="svp-draw-tools-icon"><use href="#fas-wand-magic-sparkles"/>' + SVG_CLOSE;
+  const ICON_COPY = svg(
+    `<rect${NO_FILL} x="9" y="3" width="12" height="14" rx="2"/><rect${NO_FILL} x="3" y="7" width="12" height="14" rx="2"/>`
+  );
+  const ICON_UPLOAD = svg(
+    `<path${NO_FILL} d="M12 16V4"/><path${NO_FILL} d="M7 9l5-5 5 5"/><line x1="3" y1="20" x2="21" y2="20"/>`
+  );
+  const ICON_RESET = svg(
+    `<line x1="3" y1="6" x2="21" y2="6"/><path${NO_FILL} d="M5 6l1 14h12l1-14"/><path${NO_FILL} d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>`
+  );
+  const ICON_CLOSE_X = svg(
+    '<line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/>'
+  );
+  const ICON_DRAW_TOOLS = svgControl(
+    `<path${NO_FILL} d="M3 19c2-2 4-2 6 0s4 2 6 0"/><path${NO_FILL} d="M14 5l4 4-7 7-5 1 1-5z"/>`
+  );
+  const styles$2 = ".svp-draw-tools-control button{width:33px;height:33px;min-height:auto;padding:0}.svp-draw-tools-control button svg{display:block;margin:auto}.svp-draw-tools-icon{display:block}.svp-draw-tools-toolbar{position:fixed;top:122px;left:3px;z-index:2;display:none;flex-wrap:wrap;max-width:calc(100vw - 16px);align-items:center;gap:4px;padding:6px;border-radius:6px;border:1px solid var(--border);background:var(--background)}.svp-draw-tools-toolbar.svp-draw-tools-toolbar-open{display:flex}.svp-draw-tools-toolbar.svp-draw-tools-toolbar-compact-position{top:56px;left:8px}.svp-draw-tools-tool-button{min-width:30px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text);cursor:pointer;font-size:12px}.svp-draw-tools-tool-active{border-color:var(--accent);color:var(--accent)}.svp-draw-tools-color{width:30px;height:28px;border:1px solid var(--border);border-radius:4px;padding:0;background:transparent}.svp-draw-tools-copy-modal-overlay{position:fixed;top:0;right:0;bottom:0;left:0;z-index:1003;display:flex;align-items:center;justify-content:center;background:#00000080}.svp-draw-tools-copy-modal{display:flex;flex-direction:column;gap:8px;width:min(90vw,600px);max-height:80vh;padding:16px;border:1px solid var(--border);border-radius:6px;background:var(--background);color:var(--text)}.svp-draw-tools-copy-modal-heading{font-size:14px;font-weight:700}.svp-draw-tools-copy-textarea{width:100%;min-height:200px;flex:1;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--background);color:var(--text);font-family:monospace;font-size:12px;resize:vertical}.svp-draw-tools-copy-modal-close{align-self:flex-end;padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text);cursor:pointer}";
+  const MODULE_ID$3 = "drawTools";
+  const STORAGE_KEY$2 = "svp_drawTools";
+  const DRAW_LAYER_NAME = "svp-draw-tools";
+  const DRAW_LAYER_Z_INDEX = 9;
+  const SNAP_THRESHOLD_PX = 100;
+  const DEFAULT_COLOR = "#a24ac3";
+  const REGION_PICKER_SELECTOR = ".region-picker.ol-unselectable.ol-control";
+  const CONTROL_BUTTON_ID = "svp-draw-tools-menu-button";
+  let map = null;
+  let drawSource = null;
+  let drawLayer = null;
+  let controlElement = null;
+  let pickerElement = null;
+  let controlMutationObserver = null;
+  let controlResizeObserver = null;
+  let windowResizeHandler = null;
+  let toolbar = null;
+  let copyModalOverlay = null;
+  let copyModalKeydownHandler = null;
+  let documentClickHandler = null;
+  let compactContainerObserver = null;
+  let lineButton = null;
+  let polygonButton = null;
+  let editButton = null;
+  let deleteButton = null;
+  let colorInput = null;
+  let currentMode = "none";
+  let currentColor = DEFAULT_COLOR;
+  let drawInteraction = null;
+  let modifyInteraction = null;
+  let deleteClickHandler = null;
+  let drawEndHandler = null;
+  let modifyEndHandler = null;
+  let enableToken = 0;
+  let keydownHandler = null;
+  function isRecord$1(value) {
+    return typeof value === "object" && value !== null;
+  }
+  function isNumberPair(value) {
+    return Array.isArray(value) && value.length >= 2 && typeof value[0] === "number" && typeof value[1] === "number";
+  }
+  function isLineGeometry(value) {
+    if (!isRecord$1(value)) return false;
+    const getType = value.getType;
+    const getCoordinates = value.getCoordinates;
+    const setCoordinates = value.setCoordinates;
+    return typeof getType === "function" && getType() === "LineString" && typeof getCoordinates === "function" && typeof setCoordinates === "function";
+  }
+  function isPolygonGeometry(value) {
+    if (!isRecord$1(value)) return false;
+    const getType = value.getType;
+    const getCoordinates = value.getCoordinates;
+    const setCoordinates = value.setCoordinates;
+    return typeof getType === "function" && getType() === "Polygon" && typeof getCoordinates === "function" && typeof setCoordinates === "function";
+  }
+  function setFeatureColor(feature, color) {
+    var _a;
+    const withProps = feature;
+    (_a = withProps.set) == null ? void 0 : _a.call(withProps, "color", color);
+  }
+  function getFeatureColor(feature) {
+    var _a;
+    const withProps = feature;
+    const value = (_a = withProps.get) == null ? void 0 : _a.call(withProps, "color");
+    return typeof value === "string" ? value : DEFAULT_COLOR;
+  }
+  function getLatLngFromCoordinate(coordinate) {
+    var _a, _b;
+    if (typeof ((_b = (_a = window.ol) == null ? void 0 : _a.proj) == null ? void 0 : _b.toLonLat) !== "function") {
+      return { lat: coordinate[1], lng: coordinate[0] };
+    }
+    const lonLat = window.ol.proj.toLonLat(coordinate);
+    return { lat: lonLat[1], lng: lonLat[0] };
+  }
+  function getCoordinateFromLatLng(latLng) {
+    var _a, _b;
+    const lonLat = [latLng.lng, latLng.lat];
+    if (typeof ((_b = (_a = window.ol) == null ? void 0 : _a.proj) == null ? void 0 : _b.fromLonLat) !== "function") return lonLat;
+    return window.ol.proj.fromLonLat(lonLat);
+  }
+  function equalLatLng(a, b) {
+    return Math.abs(a.lat - b.lat) < 1e-7 && Math.abs(a.lng - b.lng) < 1e-7;
+  }
+  function serializeFeature(feature) {
+    const geometry = feature.getGeometry();
+    const color = getFeatureColor(feature);
+    if (isLineGeometry(geometry)) {
+      const latLngs = geometry.getCoordinates().map(getLatLngFromCoordinate);
+      return { type: "polyline", latLngs, color };
+    }
+    if (isPolygonGeometry(geometry)) {
+      const ring = geometry.getCoordinates()[0] ?? [];
+      const latLngs = ring.map(getLatLngFromCoordinate);
+      if (latLngs.length >= 2 && equalLatLng(latLngs[0], latLngs[latLngs.length - 1])) {
+        latLngs.pop();
+      }
+      return { type: "polygon", latLngs, color };
+    }
+    return null;
+  }
+  function getDrawItems() {
+    if (!drawSource) return [];
+    const items = [];
+    for (const feature of drawSource.getFeatures()) {
+      const item = serializeFeature(feature);
+      if (item) items.push(item);
+    }
+    return items;
+  }
+  function saveDrawItems() {
+    localStorage.setItem(STORAGE_KEY$2, stringifyIitcDrawItems(getDrawItems()));
+  }
+  function getStorageRaw() {
+    return localStorage.getItem(STORAGE_KEY$2) ?? "[]";
+  }
+  function clearDrawLayer() {
+    drawSource == null ? void 0 : drawSource.clear();
+  }
+  function ensurePolygonClosed(latLngs) {
+    const first = latLngs[0];
+    const last = latLngs[latLngs.length - 1];
+    if (equalLatLng(first, last)) return latLngs;
+    return [...latLngs, first];
+  }
+  function importDrawItems(items) {
+    var _a, _b, _c, _d, _e;
+    const OlFeature = (_a = window.ol) == null ? void 0 : _a.Feature;
+    const OlLineString = (_c = (_b = window.ol) == null ? void 0 : _b.geom) == null ? void 0 : _c.LineString;
+    const OlPolygon = (_e = (_d = window.ol) == null ? void 0 : _d.geom) == null ? void 0 : _e.Polygon;
+    if (!drawSource || !OlFeature || !OlLineString || !OlPolygon) return;
+    for (const item of items) {
+      if (item.type === "polyline") {
+        const coordinates2 = item.latLngs.map(getCoordinateFromLatLng);
+        const geometry2 = new OlLineString(coordinates2);
+        const feature2 = new OlFeature({ geometry: geometry2 });
+        setFeatureColor(feature2, item.color ?? DEFAULT_COLOR);
+        drawSource.addFeature(feature2);
+        continue;
+      }
+      const closed = ensurePolygonClosed(item.latLngs);
+      const coordinates = closed.map(getCoordinateFromLatLng);
+      const geometry = new OlPolygon([coordinates]);
+      const feature = new OlFeature({ geometry });
+      setFeatureColor(feature, item.color ?? DEFAULT_COLOR);
+      drawSource.addFeature(feature);
+    }
+  }
+  function loadFromStorage() {
+    const raw = getStorageRaw();
+    try {
+      const items = parseIitcDrawItems(raw);
+      clearDrawLayer();
+      importDrawItems(items);
+    } catch {
+      clearDrawLayer();
+      localStorage.setItem(STORAGE_KEY$2, "[]");
+    }
+  }
+  function createStyleFunction() {
+    var _a;
+    const styleApi = (_a = window.ol) == null ? void 0 : _a.style;
+    if (!(styleApi == null ? void 0 : styleApi.Style) || !styleApi.Stroke || !styleApi.Fill) return null;
+    const OlStyle = styleApi.Style;
+    const OlStroke = styleApi.Stroke;
+    const OlFill = styleApi.Fill;
+    return (feature) => {
+      const color = getFeatureColor(feature);
+      const geometry = feature.getGeometry();
+      const isPolygon = isPolygonGeometry(geometry);
+      return new OlStyle({
+        stroke: new OlStroke({ color, width: 4 }),
+        fill: new OlFill({ color: isPolygon ? color + "33" : "transparent" })
+      });
+    };
+  }
+  function createDrawInteractionStyle(color) {
+    var _a;
+    const styleApi = (_a = window.ol) == null ? void 0 : _a.style;
+    if (!(styleApi == null ? void 0 : styleApi.Style) || !styleApi.Stroke || !styleApi.Fill || !styleApi.Circle) {
+      return void 0;
+    }
+    const OlStyle = styleApi.Style;
+    const OlStroke = styleApi.Stroke;
+    const OlFill = styleApi.Fill;
+    const OlCircle = styleApi.Circle;
+    return [
+      new OlStyle({
+        stroke: new OlStroke({ color, width: 4 }),
+        fill: new OlFill({ color: color + "33" }),
+        image: new OlCircle({
+          radius: 5,
+          fill: new OlFill({ color }),
+          stroke: new OlStroke({ color, width: 2 })
+        })
+      })
+    ];
+  }
+  function createDrawLayer(olMap2) {
+    var _a, _b, _c, _d;
+    const OlVectorSource = (_b = (_a = window.ol) == null ? void 0 : _a.source) == null ? void 0 : _b.Vector;
+    const OlVectorLayer = (_d = (_c = window.ol) == null ? void 0 : _c.layer) == null ? void 0 : _d.Vector;
+    if (!OlVectorSource || !OlVectorLayer) {
+      throw new Error("OL Vector API is unavailable");
+    }
+    const source = new OlVectorSource();
+    const style = createStyleFunction();
+    drawSource = source;
+    drawLayer = new OlVectorLayer({
+      source,
+      name: DRAW_LAYER_NAME,
+      zIndex: DRAW_LAYER_Z_INDEX,
+      style: style ?? void 0
+    });
+    olMap2.addLayer(drawLayer);
+  }
+  function removeDrawLayer() {
+    if (map && drawLayer) {
+      map.removeLayer(drawLayer);
+    }
+    drawLayer = null;
+    drawSource = null;
+  }
+  function updateModeButtons() {
+    const defs = [
+      ["line", lineButton],
+      ["polygon", polygonButton],
+      ["edit", editButton],
+      ["delete", deleteButton]
+    ];
+    for (const [mode, button] of defs) {
+      if (!button) continue;
+      button.classList.toggle("svp-draw-tools-tool-active", currentMode === mode);
+    }
+  }
+  function cancelActiveDrawing() {
+    if (currentMode !== "line" && currentMode !== "polygon") return;
+    if (!drawInteraction) return;
+    if (typeof drawInteraction.abortDrawing === "function") {
+      drawInteraction.abortDrawing();
+      return;
+    }
+    setMode(currentMode, true);
+  }
+  function clearInteractions() {
+    var _a, _b, _c, _d, _e;
+    if (!map) return;
+    if (drawInteraction) {
+      if (drawEndHandler) {
+        (_a = drawInteraction.un) == null ? void 0 : _a.call(drawInteraction, "drawend", drawEndHandler);
+      }
+      (_b = map.removeInteraction) == null ? void 0 : _b.call(map, drawInteraction);
+      drawInteraction = null;
+      drawEndHandler = null;
+    }
+    if (modifyInteraction) {
+      if (modifyEndHandler) {
+        (_c = modifyInteraction.un) == null ? void 0 : _c.call(modifyInteraction, "modifyend", modifyEndHandler);
+      }
+      (_d = map.removeInteraction) == null ? void 0 : _d.call(map, modifyInteraction);
+      modifyInteraction = null;
+      modifyEndHandler = null;
+    }
+    if (deleteClickHandler) {
+      (_e = map.un) == null ? void 0 : _e.call(map, "click", deleteClickHandler);
+      deleteClickHandler = null;
+    }
+  }
+  function setMode(mode, force = false) {
+    var _a, _b, _c, _d, _e, _f;
+    if (!force && currentMode === mode) {
+      mode = "none";
+    }
+    clearInteractions();
+    currentMode = mode;
+    updateModeButtons();
+    if (!map || !drawSource || mode === "none") return;
+    const interactionApi = (_a = window.ol) == null ? void 0 : _a.interaction;
+    if (!interactionApi) return;
+    if (mode === "line" || mode === "polygon") {
+      const DrawCtor = interactionApi.Draw;
+      if (!DrawCtor) return;
+      const maxPoints = mode === "line" ? 2 : 3;
+      drawInteraction = new DrawCtor({
+        source: drawSource,
+        type: mode === "line" ? "LineString" : "Polygon",
+        maxPoints,
+        style: createDrawInteractionStyle(currentColor)
+      });
+      drawEndHandler = (event) => {
+        setFeatureColor(event.feature, currentColor);
+        saveDrawItems();
+      };
+      (_b = drawInteraction.on) == null ? void 0 : _b.call(drawInteraction, "drawend", drawEndHandler);
+      (_c = map.addInteraction) == null ? void 0 : _c.call(map, drawInteraction);
+      return;
+    }
+    if (mode === "edit") {
+      const ModifyCtor = interactionApi.Modify;
+      if (!ModifyCtor) return;
+      modifyInteraction = new ModifyCtor({
+        source: drawSource,
+        insertVertexCondition: () => false
+      });
+      modifyEndHandler = () => {
+        saveDrawItems();
+      };
+      (_d = modifyInteraction.on) == null ? void 0 : _d.call(modifyInteraction, "modifyend", modifyEndHandler);
+      (_e = map.addInteraction) == null ? void 0 : _e.call(map, modifyInteraction);
+      return;
+    }
+    deleteClickHandler = (event) => {
+      if (!(map == null ? void 0 : map.forEachFeatureAtPixel) || !drawSource) return;
+      const source = drawSource;
+      map.forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          var _a2;
+          (_a2 = source.removeFeature) == null ? void 0 : _a2.call(source, feature);
+        },
+        {
+          hitTolerance: 6,
+          layerFilter: (layer) => layer.get("name") === DRAW_LAYER_NAME
+        }
+      );
+      saveDrawItems();
+    };
+    (_f = map.on) == null ? void 0 : _f.call(map, "click", deleteClickHandler);
+  }
+  function addEscCancelListener() {
+    if (keydownHandler) return;
+    keydownHandler = (event) => {
+      if (event.key !== "Escape") return;
+      cancelActiveDrawing();
+    };
+    document.addEventListener("keydown", keydownHandler);
+  }
+  function removeEscCancelListener() {
+    if (!keydownHandler) return;
+    document.removeEventListener("keydown", keydownHandler);
+    keydownHandler = null;
+  }
+  function isInsideMap(target) {
+    const mapElement = document.getElementById("map");
+    return mapElement !== null && mapElement.contains(target);
+  }
+  function addToolbarOutsideClickListener() {
+    if (documentClickHandler) return;
+    documentClickHandler = (event) => {
+      if (!(toolbar == null ? void 0 : toolbar.classList.contains("svp-draw-tools-toolbar-open"))) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (toolbar.contains(target)) return;
+      if (controlElement == null ? void 0 : controlElement.contains(target)) return;
+      if (isInsideMap(target)) return;
+      const followButton = document.getElementById("toggle-follow-btn");
+      if (followButton !== null && followButton.contains(target)) return;
+      const toast = target instanceof Element ? target.closest(".svp-toast") : null;
+      if (toast !== null) return;
+      const popup2 = target instanceof Element ? target.closest(".popup, .popup-touch") : null;
+      if (popup2 !== null) return;
+      setToolbarOpen(false);
+      setMode("none");
+    };
+    document.addEventListener("click", documentClickHandler);
+  }
+  function removeToolbarOutsideClickListener() {
+    if (!documentClickHandler) return;
+    document.removeEventListener("click", documentClickHandler);
+    documentClickHandler = null;
+  }
+  function buildVertexSnaps(vertices, portalCoordinates) {
+    const currentMap = map;
+    if (!currentMap || !currentMap.getPixelFromCoordinate) return [];
+    const convertToPixel = currentMap.getPixelFromCoordinate.bind(currentMap);
+    const portalPixels = portalCoordinates.map((coord) => {
+      const px = convertToPixel(coord);
+      return isNumberPair(px) ? px : null;
+    });
+    const snaps = [];
+    for (let vertexIndex = 0; vertexIndex < vertices.length; vertexIndex++) {
+      const vertexPixel = convertToPixel(vertices[vertexIndex]);
+      if (!isNumberPair(vertexPixel)) continue;
+      const candidates = [];
+      for (let portalIndex = 0; portalIndex < portalCoordinates.length; portalIndex++) {
+        const portalPixel = portalPixels[portalIndex];
+        if (!portalPixel) continue;
+        const dx = portalPixel[0] - vertexPixel[0];
+        const dy = portalPixel[1] - vertexPixel[1];
+        const distancePx = Math.sqrt(dx * dx + dy * dy);
+        if (distancePx <= SNAP_THRESHOLD_PX) {
+          candidates.push({ portalIndex, distancePx });
+        }
+      }
+      candidates.sort((a, b) => a.distancePx - b.distancePx);
+      snaps.push({ vertexIndex, candidates });
+    }
+    snaps.sort((a, b) => {
+      var _a, _b;
+      const bestA = ((_a = a.candidates[0]) == null ? void 0 : _a.distancePx) ?? Infinity;
+      const bestB = ((_b = b.candidates[0]) == null ? void 0 : _b.distancePx) ?? Infinity;
+      return bestA - bestB;
+    });
+    return snaps;
+  }
+  function snapVertices(vertices, portalCoordinates) {
+    const result = vertices.map((v) => [...v]);
+    const snaps = buildVertexSnaps(vertices, portalCoordinates);
+    const claimedPortals = /* @__PURE__ */ new Set();
+    let moved = 0;
+    for (const snap of snaps) {
+      for (const candidate of snap.candidates) {
+        if (!claimedPortals.has(candidate.portalIndex)) {
+          result[snap.vertexIndex] = portalCoordinates[candidate.portalIndex];
+          claimedPortals.add(candidate.portalIndex);
+          moved++;
+          break;
+        }
+      }
+    }
+    return { result, moved };
+  }
+  function getPortalCoordinates() {
+    if (!map) return [];
+    const pointsLayer = findLayerByName(map, "points");
+    const source = pointsLayer == null ? void 0 : pointsLayer.getSource();
+    if (!source) return [];
+    const result = [];
+    for (const feature of source.getFeatures()) {
+      const coordinates = feature.getGeometry().getCoordinates();
+      if (isNumberPair(coordinates)) {
+        result.push([coordinates[0], coordinates[1]]);
+      }
+    }
+    return result;
+  }
+  function snapAllToPortals() {
+    if (!drawSource) return;
+    const portalCoordinates = getPortalCoordinates();
+    if (portalCoordinates.length === 0) {
+      showToast(t({ en: "No visible portals for snap", ru: "Нет видимых точек для привязки" }));
+      return;
+    }
+    let moved = 0;
+    for (const feature of drawSource.getFeatures()) {
+      const geometry = feature.getGeometry();
+      if (isLineGeometry(geometry)) {
+        const { result, moved: count } = snapVertices(geometry.getCoordinates(), portalCoordinates);
+        geometry.setCoordinates(result);
+        moved += count;
+        continue;
+      }
+      if (isPolygonGeometry(geometry)) {
+        const ring = geometry.getCoordinates()[0] ?? [];
+        const isClosedRing = ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1];
+        const openRing = isClosedRing ? ring.slice(0, -1) : ring;
+        const { result, moved: count } = snapVertices(openRing, portalCoordinates);
+        const closedResult = isClosedRing && result.length > 0 ? [...result, result[0]] : result;
+        geometry.setCoordinates([closedResult]);
+        moved += count;
+      }
+    }
+    if (moved > 0) {
+      saveDrawItems();
+    }
+    showToast(
+      t({
+        en: `Snap complete: vertices moved — ${moved}`,
+        ru: `Привязка завершена: перемещено вершин — ${moved}`
+      })
+    );
+  }
+  function closeCopyFallbackModal() {
+    if (copyModalKeydownHandler) {
+      document.removeEventListener("keydown", copyModalKeydownHandler);
+      copyModalKeydownHandler = null;
+    }
+    if (copyModalOverlay) {
+      copyModalOverlay.remove();
+      copyModalOverlay = null;
+    }
+  }
+  function showCopyFallbackModal(text) {
+    closeCopyFallbackModal();
+    const overlay = document.createElement("div");
+    overlay.className = "svp-draw-tools-copy-modal-overlay";
+    const modal = document.createElement("div");
+    modal.className = "svp-draw-tools-copy-modal";
+    const heading = document.createElement("div");
+    heading.className = "svp-draw-tools-copy-modal-heading";
+    heading.textContent = t({
+      en: "Copy this JSON",
+      ru: "Скопируйте JSON"
+    });
+    const textarea = document.createElement("textarea");
+    textarea.className = "svp-draw-tools-copy-textarea";
+    textarea.readOnly = true;
+    textarea.value = text;
+    const closeButton2 = document.createElement("button");
+    closeButton2.type = "button";
+    closeButton2.className = "svp-draw-tools-copy-modal-close";
+    closeButton2.textContent = t({ en: "Close", ru: "Закрыть" });
+    closeButton2.addEventListener("click", closeCopyFallbackModal);
+    modal.append(heading, textarea, closeButton2);
+    overlay.appendChild(modal);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeCopyFallbackModal();
+    });
+    copyModalKeydownHandler = (event) => {
+      if (event.key !== "Escape") return;
+      closeCopyFallbackModal();
+    };
+    document.addEventListener("keydown", copyModalKeydownHandler);
+    document.body.appendChild(overlay);
+    copyModalOverlay = overlay;
+    textarea.focus();
+    textarea.select();
+  }
+  async function copyDrawPlan() {
+    const raw = stringifyIitcDrawItems(getDrawItems());
+    try {
+      await navigator.clipboard.writeText(raw);
+      showToast(t({ en: "Copied draw plan", ru: "Схема скопирована" }));
+      return;
+    } catch {
+      showCopyFallbackModal(raw);
+    }
+  }
+  function formatValue(value) {
+    if (value === null) return "null";
+    if (value === void 0) return "undefined";
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "<unserializable>";
+    }
+  }
+  function importErrorDetail(error) {
+    if (!(error instanceof IitcParseError)) {
+      return { en: "invalid data", ru: "некорректные данные" };
+    }
+    const { reason, path, value } = error;
+    switch (reason) {
+      case "invalid_json":
+        return { en: "invalid JSON", ru: "некорректный JSON" };
+      case "not_array":
+        return { en: "expected an array of items", ru: "ожидается массив элементов" };
+      case "not_object":
+        return {
+          en: `${path} — item must be an object`,
+          ru: `${path} — фигура должна быть объектом`
+        };
+      case "unsupported_type":
+        return {
+          en: `${path} — unsupported type ${formatValue(value)}`,
+          ru: `${path} — неподдерживаемый тип фигуры ${formatValue(value)}`
+        };
+      case "lat_lngs_not_array":
+        return {
+          en: `${path} — latLngs must be an array`,
+          ru: `${path} — координаты должны быть массивом`
+        };
+      case "polyline_too_few_points":
+        return {
+          en: `${path} — line needs at least 2 points, got ${String(value)}`,
+          ru: `${path} — для линии нужно минимум 2 точки, передано ${String(value)}`
+        };
+      case "polygon_too_few_points":
+        return {
+          en: `${path} — triangle needs at least 3 points, got ${String(value)}`,
+          ru: `${path} — для треугольника нужно минимум 3 точки, передано ${String(value)}`
+        };
+      case "invalid_coordinates":
+        return {
+          en: `${path} — invalid coordinate ${formatValue(value)}`,
+          ru: `${path} — некорректные координаты ${formatValue(value)}`
+        };
+      case "invalid_color":
+        return {
+          en: `${path} — invalid color ${formatValue(value)} (expected #RRGGBB or #RGB)`,
+          ru: `${path} — некорректный цвет ${formatValue(value)} (требуется #RRGGBB или #RGB)`
+        };
+    }
+  }
+  function pasteDrawPlan() {
+    const raw = window.prompt(
+      t({
+        en: "Paste IITC draw-tools JSON",
+        ru: "Вставьте JSON draw-tools (IITC)"
+      }),
+      ""
+    );
+    if (!raw) return;
+    let items;
+    try {
+      items = parseIitcDrawItems(raw.trim());
+    } catch (error) {
+      const detail = importErrorDetail(error);
+      showToast(t({ en: `Import failed: ${detail.en}`, ru: `Импорт не удался: ${detail.ru}` }));
+      return;
+    }
+    const hasData = ((drawSource == null ? void 0 : drawSource.getFeatures().length) ?? 0) > 0;
+    if (hasData) {
+      const ok = confirm(
+        t({
+          en: "Replace current draw plan with imported data?",
+          ru: "Заменить текущую схему импортированной?"
+        })
+      );
+      if (!ok) return;
+    }
+    clearDrawLayer();
+    importDrawItems(items);
+    saveDrawItems();
+    showToast(t({ en: "Import successful", ru: "Импорт выполнен" }));
+  }
+  function resetDrawPlan() {
+    const hasData = ((drawSource == null ? void 0 : drawSource.getFeatures().length) ?? 0) > 0;
+    if (!hasData) return;
+    const ok = confirm(
+      t({
+        en: "Delete all drawn items?",
+        ru: "Удалить всю нарисованную схему?"
+      })
+    );
+    if (!ok) return;
+    clearDrawLayer();
+    saveDrawItems();
+    showToast(t({ en: "Draw plan cleared", ru: "Схема очищена" }));
+  }
+  function setToolbarOpen(open) {
+    if (!toolbar) return;
+    toolbar.classList.toggle("svp-draw-tools-toolbar-open", open);
+  }
+  function toggleToolbar() {
+    if (!toolbar) return;
+    setToolbarOpen(!toolbar.classList.contains("svp-draw-tools-toolbar-open"));
+  }
+  function applySvgIcon(button, svgString) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgString, "image/svg+xml");
+    const root = doc.documentElement;
+    if (root.tagName.toLowerCase() !== "svg") return;
+    button.textContent = "";
+    button.appendChild(document.importNode(root, true));
+  }
+  function createToolButton(iconSvg, title, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "svp-draw-tools-tool-button";
+    button.title = title;
+    button.addEventListener("click", onClick);
+    applySvgIcon(button, iconSvg);
+    return button;
+  }
+  function createToolbar() {
+    const panel2 = document.createElement("div");
+    panel2.className = "svp-draw-tools-toolbar";
+    lineButton = createToolButton(ICON_LINE, t({ en: "Line", ru: "Линия" }), () => {
+      setMode("line");
+    });
+    polygonButton = createToolButton(ICON_TRIANGLE, t({ en: "Triangle", ru: "Треугольник" }), () => {
+      setMode("polygon");
+    });
+    editButton = createToolButton(ICON_EDIT, t({ en: "Edit", ru: "Редактирование" }), () => {
+      setMode("edit");
+    });
+    deleteButton = createToolButton(ICON_DELETE, t({ en: "Delete mode", ru: "Удаление" }), () => {
+      setMode("delete");
+    });
+    colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.className = "svp-draw-tools-color";
+    colorInput.value = currentColor;
+    colorInput.title = t({ en: "Color", ru: "Цвет" });
+    colorInput.addEventListener("input", () => {
+      if (!colorInput) return;
+      currentColor = colorInput.value;
+    });
+    const snapButton = createToolButton(
+      ICON_WAND,
+      t({ en: "Snap all to nearest portals (100px)", ru: "Привязать к ближайшим точкам (100px)" }),
+      snapAllToPortals
+    );
+    const copyButton = createToolButton(
+      ICON_COPY,
+      t({ en: "Copy JSON", ru: "Копировать JSON" }),
+      () => {
+        void copyDrawPlan();
+      }
+    );
+    const pasteButton = createToolButton(
+      ICON_UPLOAD,
+      t({ en: "Paste JSON", ru: "Вставить JSON" }),
+      pasteDrawPlan
+    );
+    const resetButton = createToolButton(
+      ICON_RESET,
+      t({ en: "Clear all", ru: "Очистить всё" }),
+      resetDrawPlan
+    );
+    const closeButton2 = createToolButton(ICON_CLOSE_X, t({ en: "Close", ru: "Закрыть" }), () => {
+      setToolbarOpen(false);
+      setMode("none");
+    });
+    closeButton2.classList.add("svp-draw-tools-close-button");
+    panel2.append(
+      lineButton,
+      polygonButton,
+      editButton,
+      deleteButton,
+      colorInput,
+      snapButton,
+      copyButton,
+      pasteButton,
+      resetButton,
+      closeButton2
+    );
+    return panel2;
+  }
+  function syncControlPosition() {
+    if (!controlElement || !pickerElement) return;
+    const rect = pickerElement.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+    controlElement.style.top = `${rect.bottom}px`;
+    controlElement.style.right = `${window.innerWidth - rect.right}px`;
+    controlElement.style.left = "auto";
+    controlElement.style.bottom = "auto";
+  }
+  function createControlElement() {
+    const element = document.createElement("div");
+    element.className = "svp-draw-tools-control ol-unselectable ol-control";
+    element.style.position = "fixed";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = CONTROL_BUTTON_ID;
+    button.className = "svp-draw-tools-control-button";
+    button.title = t({ en: "Draw tools", ru: "Инструменты рисования" });
+    button.addEventListener("click", toggleToolbar);
+    applySvgIcon(button, ICON_DRAW_TOOLS);
+    element.appendChild(button);
+    return element;
+  }
+  async function mountOlControl(myToken) {
+    let picker = document.querySelector(REGION_PICKER_SELECTOR);
+    if (!picker) {
+      const found = await waitForElement(REGION_PICKER_SELECTOR);
+      if (myToken !== enableToken) return false;
+      if (!(found instanceof HTMLElement)) {
+        throw new Error("Region picker not found");
+      }
+      picker = found;
+    }
+    pickerElement = picker;
+    controlElement = createControlElement();
+    picker.after(controlElement);
+    syncControlPosition();
+    controlMutationObserver = new MutationObserver(() => {
+      if (!controlElement || !pickerElement) return;
+      if (!controlElement.isConnected) {
+        pickerElement.after(controlElement);
+      }
+      syncControlPosition();
+    });
+    controlMutationObserver.observe(document.body, { childList: true, subtree: true });
+    if (typeof ResizeObserver !== "undefined") {
+      controlResizeObserver = new ResizeObserver(() => {
+        syncControlPosition();
+      });
+      controlResizeObserver.observe(picker);
+    }
+    windowResizeHandler = () => {
+      syncControlPosition();
+    };
+    window.addEventListener("resize", windowResizeHandler);
+    return true;
+  }
+  function unmountOlControl() {
+    controlMutationObserver == null ? void 0 : controlMutationObserver.disconnect();
+    controlMutationObserver = null;
+    controlResizeObserver == null ? void 0 : controlResizeObserver.disconnect();
+    controlResizeObserver = null;
+    if (windowResizeHandler) {
+      window.removeEventListener("resize", windowResizeHandler);
+      windowResizeHandler = null;
+    }
+    if (controlElement) {
+      const button = controlElement.querySelector("button");
+      button == null ? void 0 : button.removeEventListener("click", toggleToolbar);
+      controlElement.remove();
+      controlElement = null;
+    }
+    pickerElement = null;
+  }
+  function applyToolbarPositionClass() {
+    if (!toolbar) return;
+    const compact = document.querySelector(".topleft-container.svp-compact");
+    toolbar.classList.toggle("svp-draw-tools-toolbar-compact-position", compact !== null);
+  }
+  function watchCompactContainer() {
+    if (compactContainerObserver) return;
+    const container = document.querySelector(".topleft-container");
+    if (!(container instanceof HTMLElement)) return;
+    compactContainerObserver = new MutationObserver(applyToolbarPositionClass);
+    compactContainerObserver.observe(container, {
+      attributes: true,
+      attributeFilter: ["class"]
+    });
+  }
+  function unwatchCompactContainer() {
+    compactContainerObserver == null ? void 0 : compactContainerObserver.disconnect();
+    compactContainerObserver = null;
+  }
+  function mountToolbar() {
+    if (toolbar) return;
+    toolbar = createToolbar();
+    document.body.appendChild(toolbar);
+    applyToolbarPositionClass();
+    watchCompactContainer();
+  }
+  function unmountToolbar() {
+    if (!toolbar) return;
+    toolbar.remove();
+    toolbar = null;
+    lineButton = null;
+    polygonButton = null;
+    editButton = null;
+    deleteButton = null;
+    colorInput = null;
+  }
+  function cleanup() {
+    enableToken++;
+    removeEscCancelListener();
+    removeToolbarOutsideClickListener();
+    unwatchCompactContainer();
+    closeCopyFallbackModal();
+    setMode("none");
+    clearInteractions();
+    unmountToolbar();
+    unmountOlControl();
+    removeDrawLayer();
+    removeStyles(MODULE_ID$3);
+    map = null;
+  }
+  const drawTools = {
+    id: MODULE_ID$3,
+    name: { en: "Draw tools", ru: "Инструменты рисования" },
+    description: {
+      en: "Draw and edit plans (2-point lines and 3-point triangles), snap to points, import/export between players",
+      ru: "Рисование и редактирование схем (линии из 2 точек и треугольники из 3 точек), привязка к точкам, импорт/экспорт между игроками"
+    },
+    defaultEnabled: true,
+    category: "map",
+    init() {
+    },
+    async enable() {
+      const myToken = ++enableToken;
+      injectStyles(styles$2, MODULE_ID$3);
+      try {
+        mountToolbar();
+        const mounted = await mountOlControl(myToken);
+        if (!mounted) return;
+        const olMap2 = await getOlMap();
+        if (myToken !== enableToken) return;
+        map = olMap2;
+        createDrawLayer(olMap2);
+        loadFromStorage();
+        addEscCancelListener();
+        addToolbarOutsideClickListener();
+        updateModeButtons();
+      } catch (error) {
+        cleanup();
+        throw error;
+      }
+    },
+    disable() {
+      cleanup();
     }
   };
   const FAVORITES_CHANGED_EVENT = "svp:favorites-changed";
@@ -5928,8 +7165,13 @@ ${errorLog}`);
     }
   };
   if (!isDisabled()) {
-    let init = function() {
+    installGameScriptPatcher();
+    initOlMapCapture();
+    installGameVersionCapture();
+    async function init() {
       initErrorLog();
+      await initGameVersionDetection();
+      if (!ensureSbgVersionSupported()) return;
       installSbgFlavor();
       bootstrap([
         // ui
@@ -5950,19 +7192,18 @@ ${errorLog}`);
         keyCountOnPoints,
         singleFingerRotation,
         mapTileLayers,
+        drawTools,
         // feature (map-зависимые)
         nextPointNavigation,
         refsOnMap,
         // fix
         drawButtonFix
       ]);
-    };
-    installGameScriptPatcher();
-    initOlMapCapture();
+    }
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", init);
+      document.addEventListener("DOMContentLoaded", () => void init());
     } else {
-      init();
+      void init();
     }
   }
 
