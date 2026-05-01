@@ -1,8 +1,8 @@
 package com.github.wrager.sbgscout.e2e.screenshots
 
-import android.view.View
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.recyclerview.widget.RecyclerView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
@@ -17,8 +17,8 @@ import org.junit.runner.RunWith
 
 /**
  * Снимает settings.png — overlay настроек приложения (SettingsFragment поверх
- * GameActivity). Через [ReadmeScreenshotCapture.captureViewFullContent] —
- * полный контент включая прокручиваемые за viewport preferences.
+ * GameActivity). Через [ReadmeScreenshotCapture.captureFullScreenWithScroll] —
+ * длинный stitched-PNG с status bar, footer и прокручиваемым списком preferences.
  */
 @RunWith(AndroidJUnit4::class)
 class AppSettingsScreenshotE2ETest : E2ETestBase() {
@@ -48,7 +48,7 @@ class AppSettingsScreenshotE2ETest : E2ETestBase() {
         // (без суффикса) - поэтому подменяем summary preference в тесте.
         // Trim делаем по фактическому значению, чтобы при смене суффикса в gradle
         // (debug/instr/release) тест не приходилось править.
-        var fragmentView: View? = null
+        var recyclerView: RecyclerView? = null
         scenario.onActivity { activity ->
             val fragment = activity.supportFragmentManager
                 .findFragmentById(R.id.settingsContainer) as PreferenceFragmentCompat
@@ -57,11 +57,11 @@ class AppSettingsScreenshotE2ETest : E2ETestBase() {
             ) ?: error("Preference '${SettingsOverlayScreen.KEY_APP_VERSION}' не найден")
             val raw = versionPref.summary?.toString().orEmpty()
             versionPref.summary = raw.substringBefore('-')
-            fragmentView = fragment.requireView()
+            recyclerView = fragment.listView
         }
-        ReadmeScreenshotCapture.captureViewFullContent(
+        ReadmeScreenshotCapture.captureFullScreenWithScroll(
             "settings",
-            fragmentView ?: error("SettingsFragment.view не найден"),
+            recyclerView ?: error("PreferenceFragmentCompat.listView не найден"),
         )
     }
 }

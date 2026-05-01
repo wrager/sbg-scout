@@ -195,94 +195,153 @@ object ReadmeScreenshotCapture {
     }
 
     /**
-     * Снимает [view] целиком, включая прокручиваемый за viewport контент.
-     * `UiAutomation.takeScreenshot()` берёт только видимую область экрана —
-     * для длинного PreferenceFragmentCompat / RecyclerView этого мало.
+     * Снимает экран целиком, включая прокручиваемый за viewport контент
+     * [scrollable]. Для каждого frame используется `UiAutomation.takeScreenshot()`
+     * (даёт system bars, тени, footer Activity), потом frames склеиваются в
+     * длинный PNG.
      *
      * Алгоритм:
-     * 1. Прокручиваем все вложенные RecyclerView через каждую позицию, чтобы
-     *    LayoutManager создал и забиндил ViewHolder'ы для всех items
-     *    (RecyclerView lazy-биндит, без этого `view.draw` нарисует только
-     *    те, что были привязаны к моменту вызова).
-     * 2. Измеряем view с `MeasureSpec.UNSPECIFIED` высотой → получаем полный
-     *    `measuredHeight` всего вложенного контента.
-     * 3. Перекладываем view (`layout(0, 0, w, fullHeight)`) и рисуем на
-     *    bitmap через `view.draw(Canvas)`.
-     * 4. Возвращаем view к исходным размерам, чтобы Activity не сломалась
-     *    в @After.
+     * 1. Прокручиваем [scrollable] на самый верх и снимаем frame[0].
+     * 2. Пока [scrollable] может скроллиться вниз - scrollBy на высоту
+     *    [scrollable], ждём idle, снимаем frame[i].
+     * 3. Stitching: header (от 0 до [scrollable].top из frame[0]) + viewport
+     *    из каждого frame (от [scrollable].top до [scrollable].bottom) +
+     *    footer (от [scrollable].bottom до низа экрана из последнего frame).
      *
-     * Не работает для WebView с прокручиваемой страницей: WebView рисуется
-     * как single texture (visible content). Для веб-фрагментов используйте
-     * [captureRegion] + [webElementBoundsInScreen].
+     * Off-screen `view.draw(Canvas)` не подходит: software canvas не
+     * рендерит elevation-shadows (тени MaterialCardView), не показывает
+     * status/navigation bars и Activity-уровень footer (например, кнопку
+     * закрытия overlay). Через UiAutomation все эти слои попадают.
+     *
+     * Для WebView не работает: WebView рисуется как single texture, и его
+     * прокрутка не идентична scrollable native-view. Для веб-фрагментов
+     * используйте [captureRegion] + [webBoundsInScreen].
      */
-    fun captureViewFullContent(name: String, view: View) {
-        // Шаг 1: forceful binding всех RecyclerView ВНЕ блока с draw, чтобы
-        // promoted layout-passes между scrollToPosition прошли через очередь
-        // main thread.
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.runOnMainSync {
-            collectRecyclerViews(view).forEach { rv ->
-                val count = rv.adapter?.itemCount ?: 0
-                for (i in 0 until count) {
-                    rv.scrollToPosition(i)
-                }
-                rv.scrollToPosition(0)
-            }
+    fun captureFullScreenWithScroll(name: String, scrollable: RecyclerView) {
+        val instr = InstrumentationRegistry.getInstrumentation()
+
+        var topY = 0
+        var bottomY = 0
+        instr.runOnMainSync {
+            val loc = IntArray(2)
+            scrollable.getLocationOnScreen(loc)
+            topY = loc[1]
+            bottomY = loc[1] + scrollable.height
+            scrollable.scrollToPosition(0)
         }
-        instrumentation.waitForIdleSync()
+        instr.waitForIdleSync()
+        Thread.sleep(SCROLL_SETTLE_MS)
 
-        var bitmap: Bitmap? = null
-        instrumentation.runOnMainSync {
-            val width = view.width
-            check(width > 0) { "view.width=0 — view не отлайаучен, скриншот невозможен" }
-
-            // Сохранить оригинальные границы.
-            val origLeft = view.left
-            val origTop = view.top
-            val origRight = view.right
-            val origBottom = view.bottom
-
-            val widthSpec = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
-            val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            view.measure(widthSpec, heightSpec)
-            val fullHeight = view.measuredHeight.coerceAtLeast(1)
-
-            // Перелайаут с full height. Координаты origLeft/origTop сохраняются,
-            // чтобы после восстановления Activity-иерархия не уехала.
-            view.layout(origLeft, origTop, origLeft + width, origTop + fullHeight)
-            // Сбросить scrollY всех скроллируемых child'ов в начало, чтобы
-            // нарисовать с верха.
-            view.scrollTo(0, 0)
-            collectRecyclerViews(view).forEach { it.scrollToPosition(0) }
-
-            val bmp = Bitmap.createBitmap(width, fullHeight, Bitmap.Config.ARGB_8888)
-            view.draw(Canvas(bmp))
-            bitmap = bmp
-
-            // Восстановить оригинальный layout, чтобы tearDown не падал.
-            view.layout(origLeft, origTop, origRight, origBottom)
-        }
-
-        val bmp = bitmap ?: error("captureViewFullContent: bitmap == null")
+        val frames = mutableListOf<Bitmap>()
+        // Сколько физических пикселей фактически промотано в каждом frame
+        // (для frame[0] всегда 0; для остальных - actualScroll). Нужно для
+        // обрезки overlap'а на последнем frame: RecyclerView под конец списка
+        // отдаёт scrollBy меньше, чем запросили (overshoot prevention),
+        // и без обрезки в stitched попадают повторяющиеся items.
+        val actualScrolls = mutableListOf<Int>()
         try {
-            writePng(name, scaleToTargetWidth(bmp))
+            frames += takeScreenshot()
+            actualScrolls += 0
+
+            val viewportHeight = bottomY - topY
+            check(viewportHeight > 0) {
+                "RecyclerView имеет нулевую высоту, scroll-stitch невозможен"
+            }
+            var stepCount = 0
+            while (canScrollDown(scrollable) && stepCount < MAX_SCROLL_STEPS) {
+                var before = 0
+                instr.runOnMainSync {
+                    before = scrollable.computeVerticalScrollOffset()
+                    scrollable.scrollBy(0, viewportHeight)
+                }
+                instr.waitForIdleSync()
+                Thread.sleep(SCROLL_SETTLE_MS)
+                var after = 0
+                instr.runOnMainSync {
+                    after = scrollable.computeVerticalScrollOffset()
+                }
+                actualScrolls += (after - before).coerceIn(0, viewportHeight)
+                frames += takeScreenshot()
+                stepCount++
+            }
+
+            val first = frames[0]
+            val last = frames.last()
+            val srcWidth = first.width
+            // Высота итогового изображения: header + первый viewport (полный) +
+            // фактический scroll-amount каждого следующего frame + footer.
+            val viewportsHeight = viewportHeight + actualScrolls.drop(1).sum()
+            val totalHeight = topY + viewportsHeight + (last.height - bottomY)
+            val stitched = Bitmap.createBitmap(
+                srcWidth,
+                totalHeight.coerceAtLeast(1),
+                Bitmap.Config.ARGB_8888,
+            )
+            try {
+                val canvas = Canvas(stitched)
+                if (topY > 0) {
+                    canvas.drawBitmap(
+                        first,
+                        Rect(0, 0, srcWidth, topY),
+                        Rect(0, 0, srcWidth, topY),
+                        null,
+                    )
+                }
+                var dstTop = topY
+                for ((i, frame) in frames.withIndex()) {
+                    if (i == 0) {
+                        canvas.drawBitmap(
+                            frame,
+                            Rect(0, topY, srcWidth, bottomY),
+                            Rect(0, dstTop, srcWidth, dstTop + viewportHeight),
+                            null,
+                        )
+                        dstTop += viewportHeight
+                    } else {
+                        // На overshoot последнего scroll виден только
+                        // actualScroll новых пикселей внизу viewport-а;
+                        // верхняя часть viewport в этом frame дублирует
+                        // нижнюю часть предыдущего frame и должна быть
+                        // выкинута.
+                        val advance = actualScrolls[i]
+                        if (advance <= 0) continue
+                        val srcTop = bottomY - advance
+                        canvas.drawBitmap(
+                            frame,
+                            Rect(0, srcTop, srcWidth, bottomY),
+                            Rect(0, dstTop, srcWidth, dstTop + advance),
+                            null,
+                        )
+                        dstTop += advance
+                    }
+                }
+                if (last.height > bottomY) {
+                    canvas.drawBitmap(
+                        last,
+                        Rect(0, bottomY, srcWidth, last.height),
+                        Rect(0, dstTop, srcWidth, totalHeight),
+                        null,
+                    )
+                }
+                writePng(name, scaleToTargetWidth(stitched))
+            } finally {
+                stitched.recycle()
+            }
         } finally {
-            bmp.recycle()
+            frames.forEach { it.recycle() }
         }
     }
 
-    private fun collectRecyclerViews(
-        root: View,
-        into: MutableList<RecyclerView> = mutableListOf(),
-    ): List<RecyclerView> {
-        if (root is RecyclerView) into.add(root)
-        if (root is ViewGroup) {
-            for (i in 0 until root.childCount) {
-                collectRecyclerViews(root.getChildAt(i), into)
-            }
+    private fun canScrollDown(view: RecyclerView): Boolean {
+        var canScroll = false
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            canScroll = view.canScrollVertically(1)
         }
-        return into
+        return canScroll
     }
+
+    private const val SCROLL_SETTLE_MS = 200L
+    private const val MAX_SCROLL_STEPS = 40
 
     private fun takeScreenshot(): Bitmap {
         return InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()

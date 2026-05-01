@@ -1,6 +1,7 @@
 package com.github.wrager.sbgscout.e2e.screenshots
 
 import android.view.View
+import androidx.recyclerview.widget.RecyclerView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
@@ -16,8 +17,8 @@ import org.junit.runner.RunWith
  * Снимает script-manager.png — список скриптов (ScriptListFragment) внутри
  * settingsContainer. Bundled SVP-скрипт устанавливается автоматически на
  * первом запуске, так что после открытия экрана его карточка обязана
- * присутствовать. Через [ReadmeScreenshotCapture.captureViewFullContent] —
- * полный контент включая RecyclerView со всеми preset-карточками и footer.
+ * присутствовать. Через [ReadmeScreenshotCapture.captureFullScreenWithScroll] —
+ * длинный stitched-PNG с status bar, footer и тенями карточек.
  */
 @RunWith(AndroidJUnit4::class)
 class ScriptManagerScreenshotE2ETest : E2ETestBase() {
@@ -45,15 +46,26 @@ class ScriptManagerScreenshotE2ETest : E2ETestBase() {
             .openManageScripts()
         scripts.waitForCard("SBG Vanilla+")
 
-        var fragmentView: View? = null
+        var recyclerView: RecyclerView? = null
         scenario.onActivity { activity ->
-            fragmentView = activity.supportFragmentManager
-                .findFragmentById(R.id.settingsContainer)
-                ?.requireView()
+            val container = activity.findViewById<View>(R.id.settingsContainer)
+            recyclerView = findRecyclerView(container, R.id.scriptList)
         }
-        ReadmeScreenshotCapture.captureViewFullContent(
+        ReadmeScreenshotCapture.captureFullScreenWithScroll(
             "script-manager",
-            fragmentView ?: error("ScriptListFragment.view не найден"),
+            recyclerView ?: error("ScriptList RecyclerView не найден"),
         )
+    }
+
+    private fun findRecyclerView(root: View?, id: Int): RecyclerView? {
+        if (root == null) return null
+        if (root.id == id && root is RecyclerView) return root
+        if (root is android.view.ViewGroup) {
+            for (i in 0 until root.childCount) {
+                val match = findRecyclerView(root.getChildAt(i), id)
+                if (match != null) return match
+            }
+        }
+        return null
     }
 }
