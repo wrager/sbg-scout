@@ -5,6 +5,12 @@ import androidx.annotation.StringRes
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.RootMatchers.isDialog
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.R
@@ -96,6 +102,27 @@ class SettingsOverlayScreen(
         }
     }
 
+    fun tapVersionNTimes(times: Int) {
+        repeat(times) { clickPreferenceByKey(KEY_APP_VERSION) }
+    }
+
+    fun assertBetaDialogDisplayed() {
+        val title = targetContext.getString(R.string.settings_beta_server_title)
+        onView(withText(title)).inRoot(isDialog()).check(matches(isDisplayed()))
+    }
+
+    fun confirmBetaToggle() {
+        val label = targetContext.getString(R.string.settings_beta_server_confirm)
+        onView(withText(label)).inRoot(isDialog()).perform(click())
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+    }
+
+    fun cancelBetaToggle() {
+        val label = targetContext.getString(android.R.string.cancel)
+        onView(withText(label)).inRoot(isDialog()).perform(click())
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+    }
+
     /**
      * Кликает "Manage scripts" через Preference API → fragment transaction →
      * ScriptListFragment.newEmbeddedInstance() в том же контейнере.
@@ -116,5 +143,6 @@ class SettingsOverlayScreen(
         const val KEY_CHECK_SCRIPT_UPDATES = "check_script_updates"
         const val KEY_APP_VERSION = "app_version"
         const val KEY_REPORT_BUG = "report_bug"
+        const val BETA_TOGGLE_TAP_COUNT = 5
     }
 }

@@ -114,6 +114,7 @@ abstract class E2ETestBase {
         GameUrls.appUrlOverride = null
         GameUrls.loginUrlOverride = null
         GameUrls.hostMatchOverride = null
+        GameUrls.betaServerEnabled = false
         HttpRewriterFixture.clear()
         server.shutdown()
     }
