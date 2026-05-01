@@ -137,7 +137,18 @@ object ReadmeScreenshotCapture {
                 });
             })()
         """.trimIndent()
-        val raw = evaluateJavascript(webView, script)
+        return webBoundsInScreen(webView, script)
+    }
+
+    /**
+     * Возвращает экранные координаты прямоугольника, вычисленного через произвольный
+     * JS-сценарий [scriptReturningRectJson]. Скрипт обязан вернуть JSON со строковыми
+     * полями `left`, `top`, `width`, `height` (в CSS-пикселях относительно viewport)
+     * либо `{"error": "..."}`. Для случаев сложнее одного `querySelector`,
+     * например crop по нескольким соседним элементам с вычисленным bounding box.
+     */
+    fun webBoundsInScreen(webView: WebView, scriptReturningRectJson: String): Rect {
+        val raw = evaluateJavascript(webView, scriptReturningRectJson)
         // evaluateJavascript возвращает результат как JSON-строку (`"{...}"`),
         // т.е. сначала анэскейпим уровень "выходной строки".
         val unwrapped = if (raw.startsWith("\"") && raw.endsWith("\"")) {
@@ -147,7 +158,7 @@ object ReadmeScreenshotCapture {
         }
         val obj = JSONObject(unwrapped)
         if (obj.has("error")) {
-            error("Element '$cssSelector' not found in WebView")
+            error("webBoundsInScreen: ${obj.getString("error")}")
         }
         val cssLeft = obj.getDouble("left").toFloat()
         val cssTop = obj.getDouble("top").toFloat()

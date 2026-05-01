@@ -17,6 +17,9 @@ local.properties
 # Reference scripts (downloaded via node scripts/fetchRefs.mjs)
 /refs/
 
+# Generated from refs/game/private/ by inlineGameSnapshot gradle task (real game DOM is not committed)
+/app/src/androidTest/assets/fixtures/game-snapshot.html
+
 # Claude Code
 .claude/*
 !.claude/commands/

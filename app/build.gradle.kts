@@ -258,3 +258,107 @@ tasks.register("copyReadmeScreenshots") {
         }
     }
 }
+
+// Превращает локальный snapshot реальной страницы игры (Save Page As Webpage Complete
+// в refs/game/private/) в одиночную HTML-фикстуру для GameSettingsScreenshotE2ETest.
+// Инлайнит CSS, выкидывает <script>-теги и внешние ссылки, добавляет stub-инициализацию
+// (i18next.isInitialized=true, localStorage.settings.lang='ru'). Результат —
+// app/src/androidTest/assets/fixtures/game-snapshot.html (gitignored).
+//
+// Если refs/game/private/ пуст или отсутствует — task удаляет game-snapshot.html (если был).
+// Тест GameSettingsScreenshotE2ETest сам fallback-нет на mock-фикстуру
+// app-page-with-settings-content-realistic.html.
+tasks.register("inlineGameSnapshot") {
+    group = "build"
+    description =
+        "Inline real-game snapshot из refs/game/private/ в androidTest assets как game-snapshot.html"
+
+    val snapshotsDir = rootProject.file("refs/game/private")
+    val outputFile = file("src/androidTest/assets/fixtures/game-snapshot.html")
+
+    inputs.dir(snapshotsDir).optional().withPropertyName("snapshotsDir")
+    outputs.file(outputFile)
+
+    doLast {
+        if (!snapshotsDir.exists() || snapshotsDir.listFiles().isNullOrEmpty()) {
+            if (outputFile.exists()) outputFile.delete()
+            logger.lifecycle("refs/game/private/ пуст, game-snapshot.html не создан")
+            return@doLast
+        }
+        val htmlFile =
+            snapshotsDir.listFiles { f -> f.isFile && f.name.endsWith(".html") }
+                ?.firstOrNull()
+        val filesDir =
+            snapshotsDir.listFiles { f -> f.isDirectory && f.name.endsWith("_files") }
+                ?.firstOrNull()
+        if (htmlFile == null || filesDir == null) {
+            if (outputFile.exists()) outputFile.delete()
+            logger.warn(
+                "В refs/game/private/ ожидаются *.html и *_files/ из 'Save Page As Webpage " +
+                    "Complete'. Не найдено - game-snapshot.html не создан.",
+            )
+            return@doLast
+        }
+        outputFile.parentFile.mkdirs()
+        outputFile.writeText(preprocessGameSnapshot(htmlFile, filesDir), Charsets.UTF_8)
+        logger.lifecycle("Создан game-snapshot.html (${outputFile.length()} байт)")
+    }
+}
+
+// Форсим зависимость сборки androidTest assets от inlineGameSnapshot, чтобы изменения
+// в refs/game/private/ автоматически прокатывались в фикстуры перед каждым тестовым прогоном.
+afterEvaluate {
+    tasks.findByName("mergeInstrAndroidTestAssets")?.dependsOn("inlineGameSnapshot")
+}
+
+fun preprocessGameSnapshot(
+    htmlFile: File,
+    filesDir: File,
+): String {
+    var html = htmlFile.readText(Charsets.UTF_8)
+    // Удалить все <script>...</script> (многострочные, ленивая семантика).
+    html = html.replace(Regex("(?is)<script\\b[^>]*>.*?</script>"), "")
+    // Удалить ссылки на manifest/icons (они уйдут на sbg-game.ru, у нас сети нет).
+    html =
+        html.replace(
+            Regex("(?i)<link\\s+rel=\"(?:manifest|shortcut icon|apple-touch-icon)\"[^>]*>"),
+            "",
+        )
+    // Удалить yandex-metrika noscript-imgs.
+    html = html.replace(Regex("(?is)<noscript>.*?</noscript>"), "")
+    // Раскрыть .settings popup: в DOM-snapshot он сохранён с классом 'hidden'
+    // (popup закрывается JS на close, но в момент сохранения уже был открыт -
+    // Chrome пишет последнее значение className, и `hidden` остаётся атавизмом).
+    // Без JS у нас нет того кода, что снимает `hidden`, поэтому удаляем вручную.
+    html =
+        html.replace(
+            Regex("""(?i)(<div\s+class="settings popup[^"]*?)\s+hidden(\s+[^"]*?|)"""),
+        ) { m -> m.groupValues[1] + m.groupValues[2] }
+    // Inline <link rel="stylesheet" href="./PATH/X.css">: подставить содержимое CSS.
+    val cssLinkRegex =
+        Regex(
+            "(?i)<link\\s+(?:[^>]*?)href=\"\\./[^\"]*?/([^\"/]+\\.css)\"[^>]*>",
+        )
+    html =
+        html.replace(cssLinkRegex) { match ->
+            val cssName = match.groupValues[1]
+            val cssFile = File(filesDir, cssName)
+            if (cssFile.exists()) {
+                "<style>\n${cssFile.readText(Charsets.UTF_8)}\n</style>"
+            } else {
+                "<!-- inlineGameSnapshot: missing $cssName -->"
+            }
+        }
+    // Stub перед </head>: i18next готов, locale ru.
+    val stub =
+        """
+        <script>
+            window.i18next = { isInitialized: true };
+            try { localStorage.setItem('settings', JSON.stringify({ lang: 'ru', theme: 'auto' })); } catch (e) {}
+            window.__sbgFakeReady = true;
+            window.__sbgFakePage = "app";
+        </script>
+        """.trimIndent()
+    html = html.replace(Regex("(?i)</head>"), "$stub\n</head>")
+    return html
+}
