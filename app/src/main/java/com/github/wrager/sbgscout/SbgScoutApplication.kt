@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.preference.PreferenceManager
+import com.github.wrager.sbgscout.config.GameUrls
 import com.github.wrager.sbgscout.game.GameSettingsReader
 
 /**
@@ -24,11 +25,13 @@ class SbgScoutApplication : Application() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         applyStoredTheme(prefs.getString(KEY_APPLIED_GAME_THEME, null))
         applyStoredLanguage(prefs.getString(KEY_APPLIED_GAME_LANGUAGE, null))
+        GameUrls.betaServerEnabled = prefs.getBoolean(KEY_BETA_SERVER_ENABLED, false)
     }
 
     companion object {
         const val KEY_APPLIED_GAME_THEME = "applied_game_theme"
         const val KEY_APPLIED_GAME_LANGUAGE = "applied_game_language"
+        const val KEY_BETA_SERVER_ENABLED = "beta_server_enabled"
 
         internal fun applyStoredTheme(themeName: String?) {
             if (themeName == null) return

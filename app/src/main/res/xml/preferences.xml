@@ -90,7 +90,6 @@
 
         <Preference
             android:key="app_version"
-            android:selectable="false"
             android:title="@string/settings_version"
             app:iconSpaceReserved="false" />
 

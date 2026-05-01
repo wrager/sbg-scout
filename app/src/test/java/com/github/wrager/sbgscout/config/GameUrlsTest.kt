@@ -19,6 +19,7 @@ class GameUrlsTest {
         GameUrls.appUrlOverride = null
         GameUrls.loginUrlOverride = null
         GameUrls.hostMatchOverride = null
+        GameUrls.betaServerEnabled = false
     }
 
     @Test
@@ -41,6 +42,25 @@ class GameUrlsTest {
     fun `loginUrl returns override when set`() {
         GameUrls.loginUrlOverride = "http://127.0.0.1:12345/login"
         assertEquals("http://127.0.0.1:12345/login", GameUrls.loginUrl)
+    }
+
+    @Test
+    fun `appUrl returns beta url when betaServerEnabled is true`() {
+        GameUrls.betaServerEnabled = true
+        assertEquals("https://beta.sbg-game.ru/app", GameUrls.appUrl)
+    }
+
+    @Test
+    fun `loginUrl returns beta url when betaServerEnabled is true`() {
+        GameUrls.betaServerEnabled = true
+        assertEquals("https://beta.sbg-game.ru/login", GameUrls.loginUrl)
+    }
+
+    @Test
+    fun `appUrl override takes precedence over betaServerEnabled`() {
+        GameUrls.betaServerEnabled = true
+        GameUrls.appUrlOverride = "http://127.0.0.1:12345/app"
+        assertEquals("http://127.0.0.1:12345/app", GameUrls.appUrl)
     }
 
     @Test

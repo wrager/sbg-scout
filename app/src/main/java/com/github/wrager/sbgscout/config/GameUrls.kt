@@ -10,6 +10,9 @@ import com.github.wrager.sbgscout.BuildConfig
  * В прод-сборках значения берутся из [BuildConfig]; в androidTest
  * используется runtime-override через [appUrlOverride]/[loginUrlOverride]/[hostMatchOverride],
  * который задаёт локальный fake-сервер (MockWebServer) с произвольным портом.
+ *
+ * При [betaServerEnabled] == true используется `beta.sbg-game.ru` вместо `sbg-game.ru`.
+ * Значение инициализируется из SharedPreferences в `SbgScoutApplication.onCreate`.
  */
 object GameUrls {
 
@@ -25,11 +28,16 @@ object GameUrls {
     @Volatile
     internal var hostMatchOverride: String? = null
 
+    @Volatile
+    var betaServerEnabled: Boolean = false
+
+    private const val BETA_HOST = "beta.sbg-game.ru"
+
     val appUrl: String
-        get() = appUrlOverride ?: BuildConfig.GAME_APP_URL
+        get() = appUrlOverride ?: if (betaServerEnabled) "https://$BETA_HOST/app" else BuildConfig.GAME_APP_URL
 
     val loginUrl: String
-        get() = loginUrlOverride ?: BuildConfig.GAME_LOGIN_URL
+        get() = loginUrlOverride ?: if (betaServerEnabled) "https://$BETA_HOST/login" else BuildConfig.GAME_LOGIN_URL
 
     fun isGameAppPage(url: String?): Boolean {
         if (url == null) return false
