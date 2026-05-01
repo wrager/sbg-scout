@@ -15,6 +15,8 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 Если сборка падает — пофиксить и повторить.
 
+**Это нижняя планка, не полная верификация.** Эта команда покрывает lint + JVM unit-тесты + сборку всех вариантов; e2e на эмуляторе сюда НЕ входят (отдельный workflow `.github/workflows/e2e.yml`, локально — `connectedInstrAndroidTest`). Если правка затрагивает `app/src/androidTest/` (новый тест, изменение POM, изменение E2ETestBase) или поведение, покрываемое существующим e2e, — обязательный локальный прогон `./gradlew connectedInstrAndroidTest` ДО push с подключенным эмулятором (см. memory: API 33, WebView 101). Проверять только CI-команду из этого раздела при правках в androidTest — саботаж: на удалённом CI тест может упасть, а итерация занимает 30-50 минут вместо 5-10 локально. Прогнать локально новый/изменённый тест ровно тот, что добавил, минимум — отдельной задачей `connectedInstrAndroidTest --tests <ClassName>`.
+
 **Почему `testInstrUnitTest`, а не `testDebugUnitTest`.** Из-за `testBuildType = "instr"` в `app/build.gradle.kts` AGP генерирует задачу unit-тестов только для instr-варианта. Это обычные JVM unit-тесты из `app/src/test/`, не требуют эмулятора — имя складывается по шаблону `test<BuildType>UnitTest` и не означает «instrumented». Сами инструментированные тесты живут в `app/src/androidTest/` и запускаются через `connectedInstrAndroidTest`. `assembleInstr` добавлен в CI, чтобы убедиться, что instr-сборка (для e2e-прогона) не сломана. `assembleRelease` — чтобы release-конфигурация (proguard/R8, signing-гейтинг через env) не уехала в красное незамеченной до момента релиза.
 
 ## Исследование
