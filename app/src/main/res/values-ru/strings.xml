@@ -53,7 +53,7 @@
     <string name="app_settings_button">Настройки SBG Scout</string>
     <string name="app_settings_short">Настройки SBG Scout</string>
     <string name="reload_button">Reload</string>
-    <string name="game_initializing">Инициализация игры\u2026</string>
+    <string name="game_initializing">Инициализация игры…</string>
     <string name="close_settings">Закрыть</string>
     <string name="settings_category_display">Экран</string>
     <string name="settings_fullscreen">Полноэкранный режим</string>
@@ -87,7 +87,11 @@
     <string name="settings_open_links_in_app_summary">Открыть системные настройки Android и назначить приложение обработчиком ссылок sbg-game.ru</string>
     <string name="settings_report_bug">Сообщить об ошибке</string>
     <string name="settings_report_bug_summary">Скопировать диагностику и открыть GitHub Issues</string>
-    <string name="bug_report_copied">Скопировано! Открываю\u2026</string>
+    <string name="bug_report_copied">Скопировано! Открываю…</string>
+    <string name="settings_beta_server_title">Бета-сервер</string>
+    <string name="settings_beta_server_enable_message">Переключиться на beta.sbg-game.ru? Страница игры перезагрузится.</string>
+    <string name="settings_beta_server_disable_message">Вернуться на sbg-game.ru? Страница игры перезагрузится.</string>
+    <string name="settings_beta_server_confirm">Переключить</string>
     <string name="download_saved">Сохранено: %s</string>
     <string name="download_failed">Не удалось сохранить файл</string>
 </resources>

@@ -16,8 +16,11 @@ import androidx.preference.PreferenceManager
 import com.github.wrager.sbgscout.BuildConfig
 import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.R
+import com.github.wrager.sbgscout.SbgScoutApplication
+import com.github.wrager.sbgscout.config.GameUrls
 import com.github.wrager.sbgscout.diagnostic.BugReportCollector
 import com.github.wrager.sbgscout.launcher.ScriptListFragment
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * Preference-фрагмент, работающий только как overlay внутри [GameActivity]
@@ -32,6 +35,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private val gameActivity: GameActivity
         get() = requireActivity() as GameActivity
 
+    private var versionTapCount = 0
+
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.preferences, rootKey)
 
@@ -39,7 +44,16 @@ class SettingsFragment : PreferenceFragmentCompat() {
         // preference — это недостижимо в проде, но даёт non-null reference
         // и устраняет synthetic `?.` branches, которые JaCoCo считает
         // непокрытыми.
-        requirePref<Preference>("app_version").summary = BuildConfig.VERSION_NAME
+        val versionPref = requirePref<Preference>("app_version")
+        versionPref.summary = buildVersionSummary()
+        versionPref.setOnPreferenceClickListener {
+            versionTapCount++
+            if (versionTapCount >= VERSION_TAP_THRESHOLD) {
+                versionTapCount = 0
+                showBetaToggleDialog(versionPref)
+            }
+            true
+        }
 
         requirePref<Preference>("manage_scripts").setOnPreferenceClickListener {
             parentFragmentManager.beginTransaction()
@@ -80,6 +94,34 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
     }
 
+    private fun buildVersionSummary(): String =
+        if (GameUrls.betaServerEnabled) "${BuildConfig.VERSION_NAME} (beta)" else BuildConfig.VERSION_NAME
+
+    private fun showBetaToggleDialog(versionPref: Preference) {
+        val betaEnabled = GameUrls.betaServerEnabled
+        val messageRes = if (betaEnabled) {
+            R.string.settings_beta_server_disable_message
+        } else {
+            R.string.settings_beta_server_enable_message
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.settings_beta_server_title)
+            .setMessage(messageRes)
+            .setPositiveButton(R.string.settings_beta_server_confirm) { _, _ ->
+                val newValue = !betaEnabled
+                PreferenceManager.getDefaultSharedPreferences(requireContext())
+                    .edit()
+                    .putBoolean(SbgScoutApplication.KEY_BETA_SERVER_ENABLED, newValue)
+                    .putBoolean(GameActivity.KEY_RELOAD_REQUESTED, true)
+                    .apply()
+                GameUrls.betaServerEnabled = newValue
+                versionPref.summary = buildVersionSummary()
+                gameActivity.closeSettings()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     fun scrollToTop() {
         // Null-check перенесён в companion (исключён из JaCoCo) — ветвление
         // `listView?` в теле фрагмента считалось синтетическим missed branch.
@@ -90,6 +132,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
         requireNotNull(findPreference<T>(key)) { "Preference '$key' missing in R.xml.preferences" }
 
     companion object {
+        private const val VERSION_TAP_THRESHOLD = 5
+
         private fun scrollRecyclerToTop(listView: androidx.recyclerview.widget.RecyclerView?) {
             listView?.scrollToPosition(0)
         }
