@@ -43,10 +43,10 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 ## Скриншоты README
 
-- Скриншоты в `.github/images/screenshots/` (`game_settings.png`, `settings.png`, `script-manager.png`) обновляются перед каждым релизом отдельным коммитом ПЕРЕД релизным коммитом.
+- Скриншоты в `.github/images/screenshots/` (`game_settings.png`, `settings.png`, `script-manager.png`) обновляются как часть каждого релиза тем же коммитом, что bump версии в `app/build.gradle.kts`.
 - Источник истины — e2e-генератор, не ручные снимки. Команда `/screenshots` запускает три тест-класса в `app/src/androidTest/.../e2e/screenshots/` через `connectedInstrAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=...ReadmeScreenshot`, потом `:app:copyReadmeScreenshots`. Эмулятор: API 33, Pixel 4, WebView 101. Локаль приложения форсится на русскую внутри тестов через `LocaleManager.setApplicationLocales`, локаль эмулятора не имеет значения.
-- Если со времени предыдущего релиза не было UI-изменений — `/screenshots` всё равно прогоняется. Diff пустой — ок; diff есть — расследовать (рефакторинг мог незаметно поменять рендер).
-- Релизный коммит остаётся чистым: только `RELEASE_NOTES.md` + `app/build.gradle.kts`. Скриншоты — отдельным коммитом «Обновить скриншоты в README».
+- В `/release` `/screenshots` вызывается ПОСЛЕ обновления `versionMajor`/`versionMinor`/`versionPatch` в `build.gradle.kts`, чтобы новая версия попала на скриншот экрана настроек (`SettingsFragment.kt:48` берёт её из `BuildConfig.VERSION_NAME`).
+- Релизный коммит включает `RELEASE_NOTES.md`, `app/build.gradle.kts` и `.github/images/screenshots/` одной транзакцией. Команда `/screenshots` сама не коммитит — caller (релиз или ручной коммит) решает.
 - `game_settings.png` использует mock-фикстуру (`app-page-with-settings-content-realistic.html`), потому что полные стили игры не лежат в репо. Локально можно подложить snapshot реальной страницы игры в `refs/game/private/` (gitignored через `/refs/`); поддержка такого override добавляется отдельно, когда snapshot появится.
 
 ## Терминология
