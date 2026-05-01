@@ -20,6 +20,13 @@
             android:title="@string/settings_keep_screen_on"
             app:iconSpaceReserved="false" />
 
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="lock_portrait_orientation"
+            android:summary="@string/settings_lock_portrait_orientation_summary"
+            android:title="@string/settings_lock_portrait_orientation"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory
