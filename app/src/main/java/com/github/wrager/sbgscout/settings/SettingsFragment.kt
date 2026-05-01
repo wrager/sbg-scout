@@ -45,12 +45,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
         // и устраняет synthetic `?.` branches, которые JaCoCo считает
         // непокрытыми.
         val versionPref = requirePref<Preference>("app_version")
-        versionPref.summary = buildVersionSummary()
+        versionPref.summary = BuildConfig.VERSION_NAME
         versionPref.setOnPreferenceClickListener {
             versionTapCount++
             if (versionTapCount >= VERSION_TAP_THRESHOLD) {
                 versionTapCount = 0
-                showBetaToggleDialog(versionPref)
+                showBetaToggleDialog()
             }
             true
         }
@@ -94,10 +94,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
     }
 
-    private fun buildVersionSummary(): String =
-        if (GameUrls.betaServerEnabled) "${BuildConfig.VERSION_NAME} (beta)" else BuildConfig.VERSION_NAME
-
-    private fun showBetaToggleDialog(versionPref: Preference) {
+    private fun showBetaToggleDialog() {
         val betaEnabled = GameUrls.betaServerEnabled
         val messageRes = if (betaEnabled) {
             R.string.settings_beta_server_disable_message
@@ -115,7 +112,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     .putBoolean(GameActivity.KEY_RELOAD_REQUESTED, true)
                     .apply()
                 GameUrls.betaServerEnabled = newValue
-                versionPref.summary = buildVersionSummary()
                 gameActivity.closeSettings()
             }
             .setNegativeButton(android.R.string.cancel, null)
