@@ -108,6 +108,7 @@ class SettingsOverlayScreen(
     companion object {
         const val KEY_FULLSCREEN = "fullscreen_mode"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+        const val KEY_LOCK_PORTRAIT_ORIENTATION = "lock_portrait_orientation"
         const val KEY_AUTO_CHECK_UPDATES = "auto_check_updates"
         const val KEY_MANAGE_SCRIPTS = "manage_scripts"
         const val KEY_RELOAD_GAME = "reload_game"

@@ -71,6 +71,24 @@ class SettingsOverlayE2ETest : E2ETestBase() {
     }
 
     @Test
+    fun togglesLockPortraitOrientationPreference_writesBothDirectionsToPrefs() {
+        defaultPrefs.edit().putBoolean(SettingsOverlayScreen.KEY_LOCK_PORTRAIT_ORIENTATION, true).commit()
+        val overlay = setupFakeGameAndLaunch().openSettings()
+
+        overlay.clickPreferenceByKey(SettingsOverlayScreen.KEY_LOCK_PORTRAIT_ORIENTATION)
+        assertFalse(
+            "После клика lock_portrait_orientation должен стать false",
+            defaultPrefs.getBoolean(SettingsOverlayScreen.KEY_LOCK_PORTRAIT_ORIENTATION, true),
+        )
+
+        overlay.clickPreferenceByKey(SettingsOverlayScreen.KEY_LOCK_PORTRAIT_ORIENTATION)
+        assertTrue(
+            "После второго клика lock_portrait_orientation должен стать true",
+            defaultPrefs.getBoolean(SettingsOverlayScreen.KEY_LOCK_PORTRAIT_ORIENTATION, false),
+        )
+    }
+
+    @Test
     fun togglesAutoCheckUpdatesPreference_writesBothDirectionsToPrefs() {
         defaultPrefs.edit().putBoolean(SettingsOverlayScreen.KEY_AUTO_CHECK_UPDATES, true).commit()
         val overlay = setupFakeGameAndLaunch().openSettings()

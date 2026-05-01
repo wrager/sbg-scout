@@ -3,6 +3,7 @@ package com.github.wrager.sbgscout
 import android.Manifest
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -124,6 +125,8 @@ class GameActivity : AppCompatActivity() {
             when (key) {
                 KEY_FULLSCREEN_MODE -> applyFullscreen(prefs.getBoolean(key, false))
                 KEY_KEEP_SCREEN_ON -> applyKeepScreenOn(prefs.getBoolean(key, true))
+                KEY_LOCK_PORTRAIT_ORIENTATION ->
+                    applyLockPortraitOrientation(prefs.getBoolean(key, true))
             }
         }
 
@@ -172,6 +175,7 @@ class GameActivity : AppCompatActivity() {
         setupWindowInsets()
 
         applyKeepScreenOn(prefs.getBoolean(KEY_KEEP_SCREEN_ON, true))
+        applyLockPortraitOrientation(prefs.getBoolean(KEY_LOCK_PORTRAIT_ORIENTATION, true))
         prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
 
         setupWebView()
@@ -288,6 +292,7 @@ class GameActivity : AppCompatActivity() {
             val prefs = PreferenceManager.getDefaultSharedPreferences(this)
             applyFullscreen(prefs.getBoolean(KEY_FULLSCREEN_MODE, false))
             applyKeepScreenOn(prefs.getBoolean(KEY_KEEP_SCREEN_ON, true))
+            applyLockPortraitOrientation(prefs.getBoolean(KEY_LOCK_PORTRAIT_ORIENTATION, true))
             if (prefs.getBoolean(KEY_RELOAD_REQUESTED, false)) {
                 prefs.edit().remove(KEY_RELOAD_REQUESTED).apply()
                 webView.loadUrl(GameUrls.appUrl)
@@ -407,6 +412,17 @@ class GameActivity : AppCompatActivity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    private fun applyLockPortraitOrientation(enabled: Boolean) {
+        // SCREEN_ORIENTATION_UNSPECIFIED возвращает решение системе, что
+        // уважает глобальную настройку авто-поворота и текущее положение
+        // устройства.
+        requestedOrientation = if (enabled) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 
@@ -1248,6 +1264,7 @@ class GameActivity : AppCompatActivity() {
         private const val LOG_TAG = "SbgWebView"
         private const val KEY_FULLSCREEN_MODE = "fullscreen_mode"
         private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+        private const val KEY_LOCK_PORTRAIT_ORIENTATION = "lock_portrait_orientation"
         private const val KEY_APPLIED_GAME_THEME = "applied_game_theme"
         private const val KEY_APPLIED_GAME_LANGUAGE = "applied_game_language"
         private const val SKIP_BUTTON_CONNECT_DELAY_MS = 2_000L

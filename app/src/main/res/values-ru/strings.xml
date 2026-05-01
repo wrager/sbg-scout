@@ -60,6 +60,8 @@
     <string name="settings_fullscreen_summary">Скрывать статус-бар и кнопки навигации</string>
     <string name="settings_keep_screen_on">Не гасить экран</string>
     <string name="settings_keep_screen_on_summary">Не выключать экран во время игры</string>
+    <string name="settings_lock_portrait_orientation">Только вертикальная ориентация</string>
+    <string name="settings_lock_portrait_orientation_summary">Не поворачивать экран в горизонтальную ориентацию</string>
     <string name="settings_category_scripts">Скрипты</string>
     <string name="settings_category_game">Игра</string>
     <string name="settings_auto_update">Проверять обновления раз в день при загрузке игры</string>
