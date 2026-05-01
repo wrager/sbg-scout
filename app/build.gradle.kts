@@ -215,3 +215,46 @@ tasks.register<JacocoReport>("jacocoCombinedReport") {
         },
     )
 }
+
+// Копирует PNG-скриншоты из test storage в .github/images/screenshots/ для
+// README. Запускается после connectedInstrAndroidTest с фильтром по аннотации
+// @ReadmeScreenshot — см. .claude/commands/screenshots.md. AGP при
+// useTestStorageService=true вытаскивает файлы, записанные через
+// PlatformTestStorageRegistry, в build/outputs/connected_android_test_additional_output/
+// (точная структура подкаталогов зависит от версии AGP, поэтому ищем walkTopDown).
+tasks.register("copyReadmeScreenshots") {
+    group = "verification"
+    description = "Скопировать README-скриншоты из test outputs в .github/images/screenshots/"
+    doLast {
+        val outputsDir = layout.buildDirectory.dir("outputs/connected_android_test_additional_output").get().asFile
+        if (!outputsDir.exists()) {
+            error(
+                "Директория $outputsDir не существует. " +
+                    "Сначала прогоните connectedInstrAndroidTest со скриншот-тестами " +
+                    "(см. .claude/commands/screenshots.md).",
+            )
+        }
+        val targetDir = rootProject.file(".github/images/screenshots")
+        targetDir.mkdirs()
+        val expectedNames = setOf("game_settings.png", "settings.png", "script-manager.png")
+        val copied = mutableListOf<String>()
+        outputsDir.walkTopDown()
+            .filter { it.isFile && it.name in expectedNames }
+            .forEach { source ->
+                val target = File(targetDir, source.name)
+                source.copyTo(target, overwrite = true)
+                copied += source.name
+            }
+        if (copied.isEmpty()) {
+            error(
+                "В $outputsDir не найдено ни одного из ${expectedNames.joinToString()}. " +
+                    "Проверьте, что скриншот-тесты с @ReadmeScreenshot прошли успешно.",
+            )
+        }
+        logger.lifecycle("Скопировано в .github/images/screenshots/: ${copied.sorted().joinToString()}")
+        val missing = expectedNames - copied.toSet()
+        if (missing.isNotEmpty()) {
+            logger.warn("Не найдены: ${missing.joinToString()}. Соответствующие тесты упали или не запускались.")
+        }
+    }
+}
