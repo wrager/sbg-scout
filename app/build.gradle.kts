@@ -326,6 +326,10 @@ fun preprocessGameSnapshot(
         )
     // Удалить yandex-metrika noscript-imgs.
     html = html.replace(Regex("(?is)<noscript>.*?</noscript>"), "")
+    // Удалить <div id="map"> с canvas-слоями OpenLayers - на скриншоте нужны
+    // только настройки игры в popup'е, а map канвасы при software-рендере
+    // WebView могут перекрывать popup, давая всю страницу как белый прямоугольник.
+    html = html.replace(Regex("(?is)<div id=\"map\">.*?</div>\\s*(?=<)"), "")
     // Раскрыть .settings popup: в DOM-snapshot он сохранён с классом 'hidden'
     // (popup закрывается JS на close, но в момент сохранения уже был открыт -
     // Chrome пишет последнее значение className, и `hidden` остаётся атавизмом).

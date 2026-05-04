@@ -1,8 +1,10 @@
 package com.github.wrager.sbgscout.e2e.screenshots
 
 import android.os.SystemClock
+import android.view.View
 import android.webkit.WebView
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
@@ -59,13 +61,23 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
         var webView: WebView? = null
         scenario.onActivity { webView = it.webView }
         val wv = webView ?: error("WebView не найден в GameActivity")
-        // CROP_RECT_SCRIPT сам делает scrollIntoView для нашей кнопки и сразу
-        // возвращает bounding rect. Браузер при getBoundingClientRect делает
-        // sync layout pass, поэтому rect соответствует послескроллочному
-        // состоянию в одном tick. Раздельные scroll + измерение через два
-        // отдельных evaluateJavascript давали flaky пустые скриншоты:
-        // между вызовами WebView мог переотрисовать DOM, и второй вызов брал
-        // rect от устаревшего layout.
+
+        // GameActivity на старте показывает loadingOverlay поверх WebView и
+        // нативные кнопки; убираются bootstrap callback'ами, но JNI-call'и не
+        // всегда доходят. Скрываем руками + invalidate WebView, чтобы он
+        // перерисовался в frame buffer ДО UiAutomation.takeScreenshot:
+        // без invalidate UiAutomation иногда захватывает frame ПЕРЕД paint
+        // pass'ом WebView, и crop region попадает на старую полу-прозрачную
+        // overlay (белый прямоугольник).
+        scenario.onActivity { activity ->
+            activity.findViewById<View>(R.id.loadingOverlay)?.visibility = View.GONE
+            activity.findViewById<View>(R.id.gameInitializingLabel)?.visibility = View.GONE
+            activity.findViewById<View>(R.id.reloadButton)?.visibility = View.GONE
+            activity.findViewById<View>(R.id.settingsButton)?.visibility = View.GONE
+            wv.invalidate()
+        }
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        Thread.sleep(RENDER_SETTLE_MS)
         val region = ReadmeScreenshotCapture.webBoundsInScreen(wv, CROP_RECT_SCRIPT)
         check(region.width() >= MIN_RECT_PX && region.height() >= MIN_RECT_PX) {
             "Crop region слишком мал (${region.width()}x${region.height()}) - " +
@@ -93,6 +105,7 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
         const val INJECT_TIMEOUT_MS = 3_000L
         const val POLL_INTERVAL_MS = 50L
         const val MIN_RECT_PX = 20
+        const val RENDER_SETTLE_MS = 500L
 
         // Скроллит к нашей кнопке и в том же tick возвращает rect от нашей
         // .settings-section__item до конца первой следующей .settings-section

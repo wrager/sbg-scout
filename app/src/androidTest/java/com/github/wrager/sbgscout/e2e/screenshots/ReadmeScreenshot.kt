@@ -255,8 +255,16 @@ object ReadmeScreenshotCapture {
         Thread.sleep(SCROLL_SETTLE_MS)
 
         val frames = mutableListOf<Bitmap>()
+        // Каждому frame[i] (i>0) сохраняем фактический сдвиг RV в физических
+        // пикселях: после scrollBy(viewportHeight) RecyclerView в конце списка
+        // отдаёт меньше (overshoot prevention) - в этом случае overlap =
+        // viewportHeight - actualScroll. Используется как fallback, если
+        // pixel-match не нашёл совпадения (бывает на subpixel-render diff
+        // между frame'ами, которое tolerant-проверка тоже не покрывает).
+        val scrollDiffs = mutableListOf<Int>()
         try {
             frames += takeScreenshot()
+            scrollDiffs += 0
 
             val viewportHeight = bottomY - topY
             check(viewportHeight > 0) {
@@ -264,22 +272,30 @@ object ReadmeScreenshotCapture {
             }
             var stepCount = 0
             while (canScrollDown(scrollable) && stepCount < MAX_SCROLL_STEPS) {
-                instr.runOnMainSync { scrollable.scrollBy(0, viewportHeight) }
+                var before = 0
+                instr.runOnMainSync {
+                    before = scrollable.computeVerticalScrollOffset()
+                    scrollable.scrollBy(0, viewportHeight)
+                }
                 instr.waitForIdleSync()
                 Thread.sleep(SCROLL_SETTLE_MS)
+                var after = 0
+                instr.runOnMainSync {
+                    after = scrollable.computeVerticalScrollOffset()
+                }
+                scrollDiffs += (after - before).coerceIn(0, viewportHeight)
                 frames += takeScreenshot()
                 stepCount++
             }
 
-            // Сколько новых пикселей RV-области приносит каждый frame:
-            // advances[0] = viewportHeight (первый frame целиком новый),
-            // для последующих - viewportHeight - overlap, где overlap определяется
-            // pixel-match верхних rows текущего frame с нижними rows предыдущего.
-            // RecyclerView под конец списка отдаёт scrollBy меньше viewportHeight
-            // (overshoot prevention), и без обрезки overlap'а в stitched
-            // повторяются items. computeVerticalScrollOffset не подходит:
-            // у preference-fragment ViewHolder'ы разной высоты, и offset
-            // считается приблизительно. Pixel-match - точный.
+            // advances[0] = viewportHeight (первый frame целиком новый).
+            // Для последующих сначала пытаемся pixel-match (точный), при 0
+            // возвращаемся к scroll-offset (приблизительный, но детерминированный).
+            // Pixel-match strict не всегда срабатывает на subpixel-rendering
+            // или GPU cache, tolerant-проверка с допуском 8/channel помогает,
+            // но тоже не всегда; scroll-offset как fallback гарантирует, что
+            // не пропустится overshoot последнего scroll'а - именно из-за
+            // этого в script-manager.png дублировался весь блок с карточками.
             val advances = IntArray(frames.size)
             advances[0] = viewportHeight
             for (i in 1 until frames.size) {
@@ -290,7 +306,11 @@ object ReadmeScreenshotCapture {
                     bottomY,
                     maxOverlap = viewportHeight - 1,
                 )
-                advances[i] = (viewportHeight - overlap).coerceAtLeast(0)
+                advances[i] = if (overlap > 0) {
+                    (viewportHeight - overlap).coerceAtLeast(0)
+                } else {
+                    scrollDiffs[i].coerceIn(0, viewportHeight)
+                }
             }
 
             val first = frames[0]
