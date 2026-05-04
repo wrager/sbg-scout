@@ -14,6 +14,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
+import org.json.JSONTokener
 
 /**
  * Маркер тестов, генерирующих README-скриншоты.
@@ -118,14 +119,17 @@ object ReadmeScreenshotCapture {
      */
     fun webBoundsInScreen(webView: WebView, scriptReturningRectJson: String): Rect {
         val raw = evaluateJavascript(webView, scriptReturningRectJson)
-        // evaluateJavascript возвращает результат как JSON-строку (`"{...}"`),
-        // т.е. сначала анэскейпим уровень "выходной строки".
-        val unwrapped = if (raw.startsWith("\"") && raw.endsWith("\"")) {
-            raw.substring(1, raw.length - 1).replace("\\\"", "\"").replace("\\\\", "\\")
-        } else {
-            raw
+        // evaluateJavascript возвращает результат как JSON-литерал (если скрипт
+        // вернул строку - это `"\"{...}\""`, т.е. экранированный JSON внутри
+        // строки). JSONTokener.nextValue корректно парсит любой JSON-литерал
+        // (string, object, number, boolean) и обрабатывает все escape-
+        // последовательности, в т.ч. \n, \t, \uXXXX.
+        val tokenized = JSONTokener(raw).nextValue()
+        val obj = when (tokenized) {
+            is String -> JSONObject(tokenized)
+            is JSONObject -> tokenized
+            else -> error("webBoundsInScreen: unexpected JSON type ${tokenized::class.simpleName}: $raw")
         }
-        val obj = JSONObject(unwrapped)
         if (obj.has("error")) {
             error("webBoundsInScreen: ${obj.getString("error")}")
         }
