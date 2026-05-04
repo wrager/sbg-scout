@@ -220,6 +220,28 @@ object ReadmeScreenshotCapture {
     fun captureFullScreenWithScroll(name: String, scrollable: RecyclerView) {
         val instr = InstrumentationRegistry.getInstrumentation()
 
+        // Скроллбар RecyclerView фейдит in/out при scroll; на разных
+        // последовательных frame'ах он попадает в разной фазе alpha и в
+        // stitched изображении дублируется ёлочкой. Отключаем на время
+        // съёмки, восстанавливаем в finally.
+        var origScrollbarEnabled = false
+        instr.runOnMainSync {
+            origScrollbarEnabled = scrollable.isVerticalScrollBarEnabled
+            scrollable.isVerticalScrollBarEnabled = false
+        }
+
+        try {
+            captureFullScreenWithScrollInternal(name, scrollable)
+        } finally {
+            instr.runOnMainSync {
+                scrollable.isVerticalScrollBarEnabled = origScrollbarEnabled
+            }
+        }
+    }
+
+    private fun captureFullScreenWithScrollInternal(name: String, scrollable: RecyclerView) {
+        val instr = InstrumentationRegistry.getInstrumentation()
+
         var topY = 0
         var bottomY = 0
         instr.runOnMainSync {
