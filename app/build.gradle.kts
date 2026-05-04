@@ -39,10 +39,11 @@ android {
         // три скриншот-теста. AGP не позволяет per-task переопределить
         // testInstrumentationRunnerArguments, поэтому смотрим в startParameter
         // на configuration phase.
-        val isUpdateScreenshots = gradle.startParameter.taskNames.any {
-            val name = it.substringAfterLast(":")
-            name == "updateReadmeScreenshots"
-        }
+        val isUpdateScreenshots =
+            gradle.startParameter.taskNames.any {
+                val name = it.substringAfterLast(":")
+                name == "updateReadmeScreenshots"
+            }
         if (isUpdateScreenshots) {
             testInstrumentationRunnerArguments["annotation"] =
                 "com.github.wrager.sbgscout.e2e.screenshots.ReadmeScreenshot"
