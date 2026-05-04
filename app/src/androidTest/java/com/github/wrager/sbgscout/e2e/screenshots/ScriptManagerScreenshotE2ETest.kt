@@ -1,7 +1,5 @@
 package com.github.wrager.sbgscout.e2e.screenshots
 
-import android.view.View
-import androidx.recyclerview.widget.RecyclerView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
@@ -72,14 +70,9 @@ class ScriptManagerScreenshotE2ETest : E2ETestBase() {
         // overlap detection даёт 0, и в stitched дублируется весь viewport.
         Thread.sleep(POST_INSTALL_SETTLE_MS)
 
-        var recyclerView: RecyclerView? = null
-        scenario.onActivity { activity ->
-            val container = activity.findViewById<View>(R.id.settingsContainer)
-            recyclerView = findRecyclerView(container, R.id.scriptList)
-        }
         ReadmeScreenshotCapture.captureFullScreenWithScroll(
             "script-manager",
-            recyclerView ?: error("ScriptList RecyclerView не найден"),
+            scripts.scriptListRecyclerView(),
         )
     }
 
@@ -91,18 +84,6 @@ class ScriptManagerScreenshotE2ETest : E2ETestBase() {
             Thread.sleep(POLL_INTERVAL_MS)
         }
         throw AssertionError("Script $namespace не установился за ${INSTALL_TIMEOUT_MS}ms")
-    }
-
-    private fun findRecyclerView(root: View?, id: Int): RecyclerView? {
-        if (root == null) return null
-        if (root.id == id && root is RecyclerView) return root
-        if (root is android.view.ViewGroup) {
-            for (i in 0 until root.childCount) {
-                val match = findRecyclerView(root.getChildAt(i), id)
-                if (match != null) return match
-            }
-        }
-        return null
     }
 
     private companion object {

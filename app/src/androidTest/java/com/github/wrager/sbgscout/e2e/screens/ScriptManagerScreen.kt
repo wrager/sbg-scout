@@ -93,6 +93,19 @@ class ScriptManagerScreen(
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
+    /**
+     * Возвращает RecyclerView со списком скриптов. Нужен скриншот-тесту,
+     * который использует [ReadmeScreenshotCapture.captureFullScreenWithScroll]
+     * на этом RecyclerView.
+     */
+    fun scriptListRecyclerView(): RecyclerView {
+        var rv: RecyclerView? = null
+        scenario.onActivity { activity ->
+            rv = findScriptRecyclerView(activity)
+        }
+        return rv ?: error("ScriptList RecyclerView не найден")
+    }
+
     /** Возвращает View-объект карточки скрипта по имени для прямого чтения state. */
     fun cardView(cardName: String): View? {
         var result: View? = null

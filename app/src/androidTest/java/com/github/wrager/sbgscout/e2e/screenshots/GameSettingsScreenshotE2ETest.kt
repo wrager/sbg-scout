@@ -2,11 +2,8 @@ package com.github.wrager.sbgscout.e2e.screenshots
 
 import android.graphics.Rect
 import android.os.SystemClock
-import android.view.View
-import android.webkit.WebView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
@@ -60,26 +57,9 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
 
         waitForButtonInjected(game)
 
-        var webView: WebView? = null
-        scenario.onActivity { webView = it.webView }
-        val wv = webView ?: error("WebView не найден в GameActivity")
-
-        // GameActivity на старте показывает loadingOverlay поверх WebView и
-        // нативные кнопки; убираются bootstrap callback'ами, но JNI-call'и не
-        // всегда доходят. Скрываем руками + invalidate WebView, чтобы он
-        // перерисовался в frame buffer ДО UiAutomation.takeScreenshot:
-        // без invalidate UiAutomation иногда захватывает frame ПЕРЕД paint
-        // pass'ом WebView, и crop region попадает на старую полу-прозрачную
-        // overlay (белый прямоугольник).
-        scenario.onActivity { activity ->
-            activity.findViewById<View>(R.id.loadingOverlay)?.visibility = View.GONE
-            activity.findViewById<View>(R.id.gameInitializingLabel)?.visibility = View.GONE
-            activity.findViewById<View>(R.id.reloadButton)?.visibility = View.GONE
-            activity.findViewById<View>(R.id.settingsButton)?.visibility = View.GONE
-            wv.invalidate()
-        }
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        game.hideTransientChromeForScreenshot()
         Thread.sleep(RENDER_SETTLE_MS)
+        val wv = game.webView()
 
         // CROP_RECT_SCRIPT возвращает только bottom-Y нашего content в CSS-координатах.
         // Crop в physical pixels собираем тут: full screen width, top=0
