@@ -353,7 +353,11 @@ fun preprocessGameSnapshot(
                 "<!-- inlineGameSnapshot: missing $cssName -->"
             }
         }
-    // Stub перед </head>: i18next готов, locale ru.
+    // Stub перед </head>: i18next готов, locale ru, ru-переводы для data-i18n
+    // ключей (без сети i18next-http-backend не загружает их сам, default-тексты
+    // в DOM остаются английскими). Перевод ключей, которые попадают в README-
+    // скриншот секции настроек игры. Также подмена опции "System" в селекторе
+    // языка - в snapshot её текст hardcoded без data-i18n.
     val stub =
         """
         <script>
@@ -361,6 +365,39 @@ fun preprocessGameSnapshot(
             try { localStorage.setItem('settings', JSON.stringify({ lang: 'ru', theme: 'auto' })); } catch (e) {}
             window.__sbgFakeReady = true;
             window.__sbgFakePage = "app";
+            (function() {
+                var T = {
+                    'menu.settings': 'Настройки',
+                    'settings.global.header': 'Общее',
+                    'settings.global.language': 'Язык',
+                    'settings.global.theme': 'Тема',
+                    'settings.global.theme-opts.auto': 'Авто',
+                    'settings.global.theme-opts.light': 'Светлая',
+                    'settings.global.theme-opts.dark': 'Тёмная',
+                    'settings.interface.header': 'Интерфейс',
+                    'settings.interface.imghid': 'Скрыть картинку',
+                    'settings.interface.dsvhid': 'Скрыть результат поиска',
+                    'settings.interface.arabic': 'Арабские цифры'
+                };
+                function apply() {
+                    document.querySelectorAll('[data-i18n]').forEach(function(el) {
+                        var k = el.getAttribute('data-i18n');
+                        if (T[k]) el.textContent = T[k];
+                    });
+                    var sysOpt = document.querySelector('select[data-setting="lang"] option[value="sys"]');
+                    if (sysOpt) sysOpt.textContent = 'Системный';
+                    // Выставить selected по нашей локали - в snapshot язык
+                    // мог быть сохранён "sys", а на скриншоте мы хотим
+                    // показать выбранный "Русский".
+                    var langSel = document.querySelector('select[data-setting="lang"]');
+                    if (langSel) langSel.value = 'ru';
+                }
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', apply);
+                } else {
+                    apply();
+                }
+            })();
         </script>
         """.trimIndent()
     html = html.replace(Regex("(?i)</head>"), "$stub\n</head>")

@@ -1,9 +1,11 @@
 package com.github.wrager.sbgscout.e2e.screenshots
 
+import android.graphics.Rect
 import android.os.SystemClock
 import android.view.View
 import android.webkit.WebView
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
@@ -76,14 +78,25 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
             activity.findViewById<View>(R.id.settingsButton)?.visibility = View.GONE
             wv.invalidate()
         }
-        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         Thread.sleep(RENDER_SETTLE_MS)
-        val region = ReadmeScreenshotCapture.webBoundsInScreen(wv, CROP_RECT_SCRIPT)
-        check(region.width() >= MIN_RECT_PX && region.height() >= MIN_RECT_PX) {
-            "Crop region слишком мал (${region.width()}x${region.height()}) - " +
-                "вероятно DOM не отрендерился или элемент за viewport. " +
-                "Проверь fixtures/game-snapshot.html: видна ли наша кнопка #sbg-scout-settings-btn?"
+
+        // CROP_RECT_SCRIPT возвращает только bottom-Y нашего content в CSS-координатах.
+        // Crop в physical pixels собираем тут: full screen width, top=0
+        // (захватывает status bar, как ручной скриншот в origin/main),
+        // bottom = bottom-of-content в screen-coords (через WebView location +
+        // density). Так получаем рамку с popup padding и status bar Android.
+        val anchor = ReadmeScreenshotCapture.webBoundsInScreen(wv, CROP_RECT_SCRIPT)
+        check(anchor.bottom > 0) {
+            "Crop anchor имеет нулевой bottom - DOM не отрендерился или элемент " +
+                "за viewport. Проверь fixtures/game-snapshot.html: видна ли наша " +
+                "кнопка #sbg-scout-settings-btn?"
         }
+        var screenWidth = 0
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            screenWidth = wv.width
+        }
+        val region = Rect(0, 0, screenWidth, anchor.bottom)
         ReadmeScreenshotCapture.captureRegion("game_settings", region)
     }
 
@@ -107,32 +120,24 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
         const val MIN_RECT_PX = 20
         const val RENDER_SETTLE_MS = 500L
 
-        // Скроллит к нашей кнопке и в том же tick возвращает rect от нашей
-        // .settings-section__item до конца первой следующей .settings-section
-        // (h4 + первые 2 пункта). Если nextElementSibling не секция или его
-        // нет (mock-фикстура с одной секцией) - возвращает rect самого
-        // .settings-content.
+        // Скроллит к нашей кнопке и возвращает crop-anchor: top=0 (включит
+        // status bar Activity), bottom = bottom первого item следующей-после-
+        // первой .settings-section в CSS-координатах (для popup это: Scout
+        // item + Global section целиком + Interface header + первый item
+        // Interface). Возвращаемые left/width игнорируются caller'ом - он
+        // делает crop по полной ширине screen, чтобы захватить popup padding
+        // и border (на ручном скриншоте origin/main popup рамка видна).
         //
-        // Якорь - сама кнопка #sbg-scout-settings-btn (она гарантированно
-        // visible после waitForButtonInjected); .settings-section__item-родитель
-        // мог оказаться с display:none/visibility:hidden из-за CSS реальной
-        // игры, тогда его getBoundingClientRect нулевой и crop попадёт на
-        // background. Если parent-rect нулевой, fallback на rect самой кнопки.
-        //
-        // Дополнительно `scrollHostElement` форсит scroll нашего popup
-        // (`.settings`) сам, а не через scrollIntoView на body: реальный
-        // popup имеет `position: absolute` с translate(-50%, -50%), и
-        // scrollIntoView через ancestor-chain до document.scrollingElement
-        // ничего не двигает - окно и так на y=0. Скролл нужен внутри popup,
-        // если у него установлен overflow:scroll/auto. Если нет - scroll
-        // никому не нужен и rect и так корректный.
+        // Якорь scroll - сама кнопка (visible после waitForButtonInjected).
+        // closest('.settings-section__item') может вернуть элемент с
+        // display:none из-за CSS игры; fallback на btn rect, если parent
+        // нулевой.
         private val CROP_RECT_SCRIPT = """
             (function() {
                 var btn = document.getElementById('sbg-scout-settings-btn');
                 if (!btn) return JSON.stringify({error: 'no scout button'});
                 var ourItem = btn.closest('.settings-section__item') || btn.parentElement;
                 if (!ourItem) return JSON.stringify({error: 'no parent of scout button'});
-                // Скроллим scrollable-родителя так, чтобы наш item стал виден.
                 var node = ourItem.parentElement;
                 while (node && node !== document.body) {
                     var st = window.getComputedStyle(node);
@@ -146,47 +151,31 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
                 btn.scrollIntoView({block: 'start'});
 
                 var ourRect = ourItem.getBoundingClientRect();
-                var btnRect = btn.getBoundingClientRect();
                 if (ourRect.width === 0 || ourRect.height === 0) {
-                    ourRect = btnRect;
+                    ourRect = btn.getBoundingClientRect();
                 }
-                var content = ourItem.parentElement;
-                if (!content) return JSON.stringify({error: 'no settings-content'});
-                var nextSection = ourItem.nextElementSibling;
-                var endRect = ourRect;
-                if (nextSection && nextSection.classList.contains('settings-section')) {
-                    var sectionChildren = nextSection.children;
-                    var lastIdx = Math.min(sectionChildren.length - 1, 2);
-                    if (lastIdx >= 0) {
-                        endRect = sectionChildren[lastIdx].getBoundingClientRect();
-                    } else {
-                        endRect = nextSection.getBoundingClientRect();
+                var bottom = ourRect.bottom;
+                var firstSection = ourItem.nextElementSibling;
+                if (firstSection && firstSection.classList.contains('settings-section')) {
+                    var c1 = firstSection.children;
+                    if (c1.length > 0) {
+                        bottom = Math.max(bottom, c1[c1.length - 1].getBoundingClientRect().bottom);
                     }
-                } else {
-                    var contentRect = content.getBoundingClientRect();
-                    endRect = { right: contentRect.right, bottom: contentRect.bottom };
-                }
-                var left = Math.max(0, ourRect.left);
-                var top = Math.max(0, ourRect.top);
-                var right = Math.max(ourRect.right, endRect.right);
-                var bottom = endRect.bottom;
-                if (right - left < 20 || bottom - top < 20) {
-                    return JSON.stringify({
-                        error: 'tiny rect',
-                        diag: {
-                            ourRect: {l: ourRect.left, t: ourRect.top, w: ourRect.width, h: ourRect.height},
-                            btnRect: {l: btnRect.left, t: btnRect.top, w: btnRect.width, h: btnRect.height},
-                            endRect: {r: endRect.right, b: endRect.bottom},
-                            scrollY: window.scrollY,
-                            viewport: {w: window.innerWidth, h: window.innerHeight}
+                    var secondSection = firstSection.nextElementSibling;
+                    if (secondSection && secondSection.classList.contains('settings-section')) {
+                        var c2 = secondSection.children;
+                        // h4-header + первый item следующей секции (как на ручном скрине).
+                        var idx = Math.min(c2.length - 1, 1);
+                        if (idx >= 0) {
+                            bottom = Math.max(bottom, c2[idx].getBoundingClientRect().bottom);
                         }
-                    });
+                    }
                 }
                 return JSON.stringify({
-                    left: left,
-                    top: top,
-                    width: right - left,
-                    height: bottom - top
+                    left: 0,
+                    top: 0,
+                    width: 1,
+                    height: bottom
                 });
             })()
         """
