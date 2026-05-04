@@ -59,18 +59,19 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
         var webView: WebView? = null
         scenario.onActivity { webView = it.webView }
         val wv = webView ?: error("WebView не найден в GameActivity")
-        // На полном snapshot настройки игры могут быть длиннее viewport - наша
-        // кнопка может оказаться за пределами видимой области. Скроллим к ней
-        // ДО измерения bounding rect, иначе crop вернёт область за viewport
-        // и captureRegion вырежет пустоту.
-        ReadmeScreenshotCapture.webBoundsInScreen(
-            wv,
-            "(function(){var b=document.getElementById('sbg-scout-settings-btn');" +
-                "if(b)b.scrollIntoView({block:'start'});" +
-                "return JSON.stringify({left:0,top:0,width:1,height:1});})()",
-        )
-        Thread.sleep(SCROLL_SETTLE_MS)
+        // CROP_RECT_SCRIPT сам делает scrollIntoView для нашей кнопки и сразу
+        // возвращает bounding rect. Браузер при getBoundingClientRect делает
+        // sync layout pass, поэтому rect соответствует послескроллочному
+        // состоянию в одном tick. Раздельные scroll + измерение через два
+        // отдельных evaluateJavascript давали flaky пустые скриншоты:
+        // между вызовами WebView мог переотрисовать DOM, и второй вызов брал
+        // rect от устаревшего layout.
         val region = ReadmeScreenshotCapture.webBoundsInScreen(wv, CROP_RECT_SCRIPT)
+        check(region.width() >= MIN_RECT_PX && region.height() >= MIN_RECT_PX) {
+            "Crop region слишком мал (${region.width()}x${region.height()}) - " +
+                "вероятно DOM не отрендерился или элемент за viewport. " +
+                "Проверь fixtures/game-snapshot.html: видна ли наша кнопка #sbg-scout-settings-btn?"
+        }
         ReadmeScreenshotCapture.captureRegion("game_settings", region)
     }
 
@@ -91,20 +92,53 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
     private companion object {
         const val INJECT_TIMEOUT_MS = 3_000L
         const val POLL_INTERVAL_MS = 50L
-        const val SCROLL_SETTLE_MS = 200L
+        const val MIN_RECT_PX = 20
 
-        // Возвращает rect от нашего инжектированного .settings-section__item
-        // до конца первой следующей .settings-section (h4 + первые 2 пункта).
-        // Если nextElementSibling - не секция, а другой item, или такого нет
-        // (mock-фикстура с одной секцией) - возвращает rect самого .settings-content.
+        // Скроллит к нашей кнопке и в том же tick возвращает rect от нашей
+        // .settings-section__item до конца первой следующей .settings-section
+        // (h4 + первые 2 пункта). Если nextElementSibling не секция или его
+        // нет (mock-фикстура с одной секцией) - возвращает rect самого
+        // .settings-content.
+        //
+        // Якорь - сама кнопка #sbg-scout-settings-btn (она гарантированно
+        // visible после waitForButtonInjected); .settings-section__item-родитель
+        // мог оказаться с display:none/visibility:hidden из-за CSS реальной
+        // игры, тогда его getBoundingClientRect нулевой и crop попадёт на
+        // background. Если parent-rect нулевой, fallback на rect самой кнопки.
+        //
+        // Дополнительно `scrollHostElement` форсит scroll нашего popup
+        // (`.settings`) сам, а не через scrollIntoView на body: реальный
+        // popup имеет `position: absolute` с translate(-50%, -50%), и
+        // scrollIntoView через ancestor-chain до document.scrollingElement
+        // ничего не двигает - окно и так на y=0. Скролл нужен внутри popup,
+        // если у него установлен overflow:scroll/auto. Если нет - scroll
+        // никому не нужен и rect и так корректный.
         private val CROP_RECT_SCRIPT = """
             (function() {
                 var btn = document.getElementById('sbg-scout-settings-btn');
                 if (!btn) return JSON.stringify({error: 'no scout button'});
                 var ourItem = btn.closest('.settings-section__item') || btn.parentElement;
+                if (!ourItem) return JSON.stringify({error: 'no parent of scout button'});
+                // Скроллим scrollable-родителя так, чтобы наш item стал виден.
+                var node = ourItem.parentElement;
+                while (node && node !== document.body) {
+                    var st = window.getComputedStyle(node);
+                    if ((st.overflowY === 'auto' || st.overflowY === 'scroll') &&
+                            node.scrollHeight > node.clientHeight) {
+                        node.scrollTop = ourItem.offsetTop - node.offsetTop;
+                        break;
+                    }
+                    node = node.parentElement;
+                }
+                btn.scrollIntoView({block: 'start'});
+
+                var ourRect = ourItem.getBoundingClientRect();
+                var btnRect = btn.getBoundingClientRect();
+                if (ourRect.width === 0 || ourRect.height === 0) {
+                    ourRect = btnRect;
+                }
                 var content = ourItem.parentElement;
                 if (!content) return JSON.stringify({error: 'no settings-content'});
-                var ourRect = ourItem.getBoundingClientRect();
                 var nextSection = ourItem.nextElementSibling;
                 var endRect = ourRect;
                 if (nextSection && nextSection.classList.contains('settings-section')) {
@@ -119,10 +153,22 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
                     var contentRect = content.getBoundingClientRect();
                     endRect = { right: contentRect.right, bottom: contentRect.bottom };
                 }
-                var left = ourRect.left;
-                var top = ourRect.top;
+                var left = Math.max(0, ourRect.left);
+                var top = Math.max(0, ourRect.top);
                 var right = Math.max(ourRect.right, endRect.right);
                 var bottom = endRect.bottom;
+                if (right - left < 20 || bottom - top < 20) {
+                    return JSON.stringify({
+                        error: 'tiny rect',
+                        diag: {
+                            ourRect: {l: ourRect.left, t: ourRect.top, w: ourRect.width, h: ourRect.height},
+                            btnRect: {l: btnRect.left, t: btnRect.top, w: btnRect.width, h: btnRect.height},
+                            endRect: {r: endRect.right, b: endRect.bottom},
+                            scrollY: window.scrollY,
+                            viewport: {w: window.innerWidth, h: window.innerHeight}
+                        }
+                    });
+                }
                 return JSON.stringify({
                     left: left,
                     top: top,
