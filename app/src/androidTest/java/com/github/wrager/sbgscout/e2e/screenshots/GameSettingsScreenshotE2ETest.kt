@@ -25,10 +25,10 @@ import org.junit.runner.RunWith
  * - Если есть `fixtures/game-snapshot.html` (генерируется gradle-таском
  *   `inlineGameSnapshot` из локального snapshot реальной страницы игры в
  *   `refs/game/private/`) — берётся он, рендер близок к реальной игре.
- * - Иначе fallback на mock-фикстуру
- *   `fixtures/app-page-with-settings-content-realistic.html` — приближение
- *   по тёмной теме из `refs/game/css/variables.css` и структуре из
- *   `refs/game/dom/game-body.html`.
+ * - Иначе fallback на минимальный mock
+ *   `fixtures/app-page-with-settings-content-realistic.html` - в нём только
+ *   контейнер `.settings-content` для инжекции кнопки, без копий игровых
+ *   стилей и контента. На fallback-скриншот попадает только наша кнопка.
  *
  * Crop: наша инжектированная `.settings-section__item` + первая секция настроек
  * игры (h4 + 2-3 пункта). Полный список настроек игры на скриншоте не нужен -

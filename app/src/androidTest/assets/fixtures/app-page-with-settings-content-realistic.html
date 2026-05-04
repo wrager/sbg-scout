@@ -1,102 +1,37 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="dark">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>sbg fake app realistic settings</title>
+    <title>scout fallback fixture</title>
     <style>
-        /* Имитация игровой темы для README-скриншота game_settings.png.
-           Точная копия игровых стилей невозможна без всего CSS пакета игры
-           (он не лежит в repo), поэтому это приближение: тёмный фон,
-           структура .settings-content / .settings-section / .settings-section__item
-           идентична реальной игре (см. refs/game/dom/game-body.html), цветовая
-           палитра соответствует variables.css (--background:#1a1a1a, --text:#d1d1d1). */
-        html, body {
-            margin: 0;
-            padding: 0;
-            background: #1a1a1a;
-            color: #d1d1d1;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-        .settings-content {
-            padding: 8px 12px;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-        .settings-section {
-            margin-bottom: 12px;
-        }
-        .settings-section__header {
-            margin: 0 0 6px 0;
-            padding: 0;
-            font-size: 16px;
-            font-weight: 600;
-            color: #d1d1d1;
-        }
+        /* Минимальный mock для GameSettingsScreenshotE2ETest как fallback,
+           когда нет game-snapshot.html (gitignored, генерируется
+           inlineGameSnapshot из локального refs/game/private/).
+           Содержит только то, что нужно ScoutBridge.BOOTSTRAP_SCRIPT для
+           инжекции - контейнер с классом .settings-content. Никаких копий
+           реальных игровых стилей, селекторов, опций или переводов: имена
+           классов и id - технические identifiers, по которым работает
+           bootstrap, не предмет авторских прав. */
+        body { margin: 0; padding: 16px; font-family: sans-serif; }
+        .settings-content { padding: 8px; }
         .settings-section__item {
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 6px 0;
-            border-bottom: 1px solid #d1d1d122;
-        }
-        .settings-section__item span {
-            flex: 1;
-            min-width: 0;
-            margin-right: 8px;
-        }
-        .settings-section__item select {
-            background: #1a1a1a;
-            color: #d1d1d1;
-            border: 1px solid #d1d1d144;
-            border-radius: 4px;
-            padding: 4px 8px;
-            font-size: 14px;
-        }
-        .settings-section__item input[type="checkbox"] {
-            accent-color: #a00;
-            width: 16px;
-            height: 16px;
         }
         .settings-section__button {
-            background: transparent;
-            color: #d1d1d1;
-            border: 1px solid #d1d1d1;
+            border: 1px solid #888;
             border-radius: 4px;
             padding: 4px 12px;
-            font-size: 14px;
-            cursor: pointer;
+            background: transparent;
         }
     </style>
 </head>
 <body>
-    <div id="game-root">
-        <div class="settings-content">
-            <div class="settings-section">
-                <h4 class="settings-section__header">Глобальные</h4>
-                <label class="settings-section__item">
-                    <span>Язык</span>
-                    <select data-setting="lang">
-                        <option value="sys" selected>Системный</option>
-                        <option value="ru">Русский</option>
-                        <option value="en">English</option>
-                    </select>
-                </label>
-                <label class="settings-section__item">
-                    <span>Тема</span>
-                    <select data-setting="theme">
-                        <option value="auto" selected>Авто</option>
-                        <option value="dark">Тёмная</option>
-                        <option value="light">Светлая</option>
-                    </select>
-                </label>
-            </div>
-        </div>
-    </div>
+    <div class="settings-content"></div>
     <script>
-        localStorage.setItem('settings', JSON.stringify({ lang: 'ru', theme: 'auto' }));
         window.i18next = { isInitialized: true };
         window.__sbgFakeReady = true;
         window.__sbgFakePage = "app";
