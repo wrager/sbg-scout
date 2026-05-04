@@ -5,21 +5,15 @@
 1. Проверить, что эмулятор подключён: `adb devices`. В списке должен быть `emulator-NNNN device`. Параметры эмулятора (см. memory): API 33, Pixel 4, WebView 101, без Google Play.
 
    Локаль эмулятора не имеет значения - тесты сами форсят русскую локаль приложения через `LocaleManager.setApplicationLocales` в `@Before` и сбрасывают в `@After`.
-2. Прогнать скриншот-тесты с фильтром по аннотации `@ReadmeScreenshot`:
+2. Запустить:
 
    ```
-   ./gradlew :app:connectedInstrAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.github.wrager.sbgscout.e2e.screenshots.ReadmeScreenshot
+   ./gradlew :app:updateReadmeScreenshots
    ```
 
-   Длительность 3-10 мин. Аннотация отбирает три класса в `app/src/androidTest/.../e2e/screenshots/`, остальные e2e не запускаются.
-3. Скопировать PNG из test storage в `.github/images/screenshots/`:
+   Task прогоняет три скриншот-теста с аннотацией `@ReadmeScreenshot` (фильтр навешан в `defaultConfig.testInstrumentationRunnerArguments` через `gradle.startParameter`, активируется только при запуске этого task'а - на обычный `connectedInstrAndroidTest` не влияет) и копирует PNG в `.github/images/screenshots/`. Длительность 3-10 мин.
 
-   ```
-   ./gradlew :app:copyReadmeScreenshots
-   ```
-
-   Task падает, если не найдено ни одного из ожидаемых файлов (game_settings.png, settings.png, script-manager.png).
-4. `git status .github/images/screenshots/`. Diff визуально проверить (analyze_image MCP): рендер полный (нет артефактов загрузки), локализация русская, ширина 360 px сохранена.
+3. `git status .github/images/screenshots/`. Diff визуально проверить (analyze_image MCP): рендер полный (нет артефактов загрузки), локализация русская, ширина 360 px сохранена.
 
 **Команда не коммитит сама.** Скриншоты остаются в working tree. Дальше:
 - Внутри `/release` они входят в общий релизный коммит (вместе с `RELEASE_NOTES.md` и `build.gradle.kts`).

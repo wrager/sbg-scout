@@ -34,6 +34,20 @@ android {
         // coverage-файлы теряются между тестами.
         testInstrumentationRunnerArguments["useTestStorageService"] = "true"
 
+        // Если запускают `./gradlew updateReadmeScreenshots` - фильтруем
+        // androidTest по аннотации @ReadmeScreenshot, чтобы прогонялись только
+        // три скриншот-теста. AGP не позволяет per-task переопределить
+        // testInstrumentationRunnerArguments, поэтому смотрим в startParameter
+        // на configuration phase.
+        val isUpdateScreenshots = gradle.startParameter.taskNames.any {
+            val name = it.substringAfterLast(":")
+            name == "updateReadmeScreenshots"
+        }
+        if (isUpdateScreenshots) {
+            testInstrumentationRunnerArguments["annotation"] =
+                "com.github.wrager.sbgscout.e2e.screenshots.ReadmeScreenshot"
+        }
+
         buildConfigField("String", "GAME_APP_URL", "\"https://sbg-game.ru/app\"")
         buildConfigField("String", "GAME_LOGIN_URL", "\"https://sbg-game.ru/login\"")
         buildConfigField("String", "GAME_HOST_MATCH", "\"sbg-game.ru\"")
@@ -257,6 +271,20 @@ tasks.register("copyReadmeScreenshots") {
             logger.warn("Не найдены: ${missing.joinToString()}. Соответствующие тесты упали или не запускались.")
         }
     }
+}
+
+// Одной CLI-командой обновить README-скриншоты: прогон трёх @ReadmeScreenshot
+// тестов на эмуляторе (фильтр по аннотации навешан на configuration phase в
+// defaultConfig.testInstrumentationRunnerArguments при наличии этого task'а в
+// startParameter) + копирование PNG в .github/images/screenshots/.
+//
+// Пользовательская обёртка над `connectedInstrAndroidTest -P...annotation=... && copyReadmeScreenshots`,
+// без необходимости запоминать длинный CLI-флаг.
+tasks.register("updateReadmeScreenshots") {
+    group = "verification"
+    description = "Прогнать @ReadmeScreenshot тесты + скопировать PNG в .github/images/screenshots/"
+    dependsOn("connectedInstrAndroidTest")
+    finalizedBy("copyReadmeScreenshots")
 }
 
 // Превращает локальный snapshot реальной страницы игры (Save Page As Webpage Complete
