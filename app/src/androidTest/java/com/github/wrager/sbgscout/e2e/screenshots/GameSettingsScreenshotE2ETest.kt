@@ -117,7 +117,6 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
     private companion object {
         const val INJECT_TIMEOUT_MS = 3_000L
         const val POLL_INTERVAL_MS = 50L
-        const val MIN_RECT_PX = 20
         const val RENDER_SETTLE_MS = 500L
 
         // Скроллит к нашей кнопке и возвращает crop-anchor: top=0 (включит

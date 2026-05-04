@@ -6,8 +6,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Rect
 import android.os.LocaleList
-import android.view.View
-import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.platform.app.InstrumentationRegistry
@@ -85,15 +83,6 @@ object ReadmeScreenshotCapture {
         return context.getSystemService(Context.LOCALE_SERVICE) as? LocaleManager
     }
 
-    fun captureFullScreen(name: String) {
-        val bitmap = takeScreenshot()
-        try {
-            writePng(name, scaleToTargetWidth(bitmap))
-        } finally {
-            bitmap.recycle()
-        }
-    }
-
     fun captureRegion(name: String, region: Rect) {
         val full = takeScreenshot()
         try {
@@ -116,36 +105,16 @@ object ReadmeScreenshotCapture {
     }
 
     /**
-     * Возвращает экранные координаты (физические пиксели) элемента в [webView]
-     * по CSS-селектору. Используется для crop в [captureRegion].
+     * Возвращает экранные координаты (физические пиксели) прямоугольника,
+     * вычисленного через произвольный JS-сценарий [scriptReturningRectJson].
+     * Скрипт обязан вернуть JSON со строковыми полями `left`, `top`, `width`,
+     * `height` (в CSS-пикселях относительно viewport) либо `{"error": "..."}`.
      *
-     * Реализация: `getBoundingClientRect()` даёт CSS-координаты относительно
-     * viewport WebView. Умножаем на density (= window.devicePixelRatio в
-     * Android WebView при viewport meta `width=device-width`) и прибавляем
+     * Реализация: CSS-координаты умножаем на density (= window.devicePixelRatio
+     * в Android WebView при viewport meta `width=device-width`) и прибавляем
      * экранную позицию WebView, полученную из `View.getLocationOnScreen` —
      * она уже в физических пикселях (то же координатное пространство, что
      * у `UiAutomation.takeScreenshot()`).
-     */
-    fun webElementBoundsInScreen(webView: WebView, cssSelector: String): Rect {
-        val script = """
-            (function() {
-                var el = document.querySelector(${cssSelector.toJsLiteral()});
-                if (!el) return JSON.stringify({error: 'not found'});
-                var r = el.getBoundingClientRect();
-                return JSON.stringify({
-                    left: r.left, top: r.top, width: r.width, height: r.height
-                });
-            })()
-        """.trimIndent()
-        return webBoundsInScreen(webView, script)
-    }
-
-    /**
-     * Возвращает экранные координаты прямоугольника, вычисленного через произвольный
-     * JS-сценарий [scriptReturningRectJson]. Скрипт обязан вернуть JSON со строковыми
-     * полями `left`, `top`, `width`, `height` (в CSS-пикселях относительно viewport)
-     * либо `{"error": "..."}`. Для случаев сложнее одного `querySelector`,
-     * например crop по нескольким соседним элементам с вычисленным bounding box.
      */
     fun webBoundsInScreen(webView: WebView, scriptReturningRectJson: String): Rect {
         val raw = evaluateJavascript(webView, scriptReturningRectJson)
@@ -176,22 +145,6 @@ object ReadmeScreenshotCapture {
         val width = (cssWidth * density).toInt()
         val height = (cssHeight * density).toInt()
         return Rect(left, top, left + width, top + height)
-    }
-
-    /**
-     * Возвращает экранные координаты `View` (физические пиксели).
-     * Используется для crop overlay-секций (settings, script manager).
-     */
-    fun viewBoundsInScreen(view: View): Rect {
-        val location = IntArray(2)
-        var width = 0
-        var height = 0
-        runOnUi {
-            view.getLocationOnScreen(location)
-            width = view.width
-            height = view.height
-        }
-        return Rect(location[0], location[1], location[0] + width, location[1] + height)
     }
 
     /**
@@ -477,7 +430,4 @@ object ReadmeScreenshotCapture {
     private fun runOnUi(block: () -> Unit) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(block)
     }
-
-    private fun String.toJsLiteral(): String =
-        "'" + this.replace("\\", "\\\\").replace("'", "\\'") + "'"
 }
