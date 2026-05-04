@@ -12,7 +12,7 @@
    - Группировать по категориям если применимо
 4. Обновить `versionMajor`/`versionMinor`/`versionPatch` в `app/build.gradle.kts` на новую версию. `versionCode` и `versionName` вычисляются автоматически.
 5. Запустить `/screenshots` (требует подключённого эмулятора). Команда прогоняет скриншот-тесты с уже обновлённым `BuildConfig.VERSION_NAME` и копирует PNG в `.github/images/screenshots/`. На скриншоте экрана настроек попадает новая версия. Diff проверять не надо — даже если визуально не изменилось ничего, кроме версии, файлы перезаписываются.
-6. Запустить полную проверку: `./gradlew ktlintCheck detekt testDebugUnitTest assembleDebug`
+6. Запустить полную проверку: `./gradlew ktlintCheck detekt testInstrUnitTest assembleDebug`
 7. Закоммитить все изменения (`RELEASE_NOTES.md`, `app/build.gradle.kts`, `.github/images/screenshots/`) одним релизным коммитом.
 8. Создать тег `v<версия>`.
 
