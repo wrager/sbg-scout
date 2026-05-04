@@ -255,15 +255,8 @@ object ReadmeScreenshotCapture {
         Thread.sleep(SCROLL_SETTLE_MS)
 
         val frames = mutableListOf<Bitmap>()
-        // Сколько физических пикселей фактически промотано в каждом frame
-        // (для frame[0] всегда 0; для остальных - actualScroll). Нужно для
-        // обрезки overlap'а на последнем frame: RecyclerView под конец списка
-        // отдаёт scrollBy меньше, чем запросили (overshoot prevention),
-        // и без обрезки в stitched попадают повторяющиеся items.
-        val actualScrolls = mutableListOf<Int>()
         try {
             frames += takeScreenshot()
-            actualScrolls += 0
 
             val viewportHeight = bottomY - topY
             check(viewportHeight > 0) {
@@ -271,28 +264,39 @@ object ReadmeScreenshotCapture {
             }
             var stepCount = 0
             while (canScrollDown(scrollable) && stepCount < MAX_SCROLL_STEPS) {
-                var before = 0
-                instr.runOnMainSync {
-                    before = scrollable.computeVerticalScrollOffset()
-                    scrollable.scrollBy(0, viewportHeight)
-                }
+                instr.runOnMainSync { scrollable.scrollBy(0, viewportHeight) }
                 instr.waitForIdleSync()
                 Thread.sleep(SCROLL_SETTLE_MS)
-                var after = 0
-                instr.runOnMainSync {
-                    after = scrollable.computeVerticalScrollOffset()
-                }
-                actualScrolls += (after - before).coerceIn(0, viewportHeight)
                 frames += takeScreenshot()
                 stepCount++
+            }
+
+            // Сколько новых пикселей RV-области приносит каждый frame:
+            // advances[0] = viewportHeight (первый frame целиком новый),
+            // для последующих - viewportHeight - overlap, где overlap определяется
+            // pixel-match верхних rows текущего frame с нижними rows предыдущего.
+            // RecyclerView под конец списка отдаёт scrollBy меньше viewportHeight
+            // (overshoot prevention), и без обрезки overlap'а в stitched
+            // повторяются items. computeVerticalScrollOffset не подходит:
+            // у preference-fragment ViewHolder'ы разной высоты, и offset
+            // считается приблизительно. Pixel-match - точный.
+            val advances = IntArray(frames.size)
+            advances[0] = viewportHeight
+            for (i in 1 until frames.size) {
+                val overlap = findVerticalOverlap(
+                    frames[i - 1],
+                    frames[i],
+                    topY,
+                    bottomY,
+                    maxOverlap = viewportHeight - 1,
+                )
+                advances[i] = (viewportHeight - overlap).coerceAtLeast(0)
             }
 
             val first = frames[0]
             val last = frames.last()
             val srcWidth = first.width
-            // Высота итогового изображения: header + первый viewport (полный) +
-            // фактический scroll-amount каждого следующего frame + footer.
-            val viewportsHeight = viewportHeight + actualScrolls.drop(1).sum()
+            val viewportsHeight = advances.sum()
             val totalHeight = topY + viewportsHeight + (last.height - bottomY)
             val stitched = Bitmap.createBitmap(
                 srcWidth,
@@ -311,31 +315,16 @@ object ReadmeScreenshotCapture {
                 }
                 var dstTop = topY
                 for ((i, frame) in frames.withIndex()) {
-                    if (i == 0) {
-                        canvas.drawBitmap(
-                            frame,
-                            Rect(0, topY, srcWidth, bottomY),
-                            Rect(0, dstTop, srcWidth, dstTop + viewportHeight),
-                            null,
-                        )
-                        dstTop += viewportHeight
-                    } else {
-                        // На overshoot последнего scroll виден только
-                        // actualScroll новых пикселей внизу viewport-а;
-                        // верхняя часть viewport в этом frame дублирует
-                        // нижнюю часть предыдущего frame и должна быть
-                        // выкинута.
-                        val advance = actualScrolls[i]
-                        if (advance <= 0) continue
-                        val srcTop = bottomY - advance
-                        canvas.drawBitmap(
-                            frame,
-                            Rect(0, srcTop, srcWidth, bottomY),
-                            Rect(0, dstTop, srcWidth, dstTop + advance),
-                            null,
-                        )
-                        dstTop += advance
-                    }
+                    val advance = advances[i]
+                    if (advance <= 0) continue
+                    val srcTop = bottomY - advance
+                    canvas.drawBitmap(
+                        frame,
+                        Rect(0, srcTop, srcWidth, bottomY),
+                        Rect(0, dstTop, srcWidth, dstTop + advance),
+                        null,
+                    )
+                    dstTop += advance
                 }
                 if (last.height > bottomY) {
                     canvas.drawBitmap(
@@ -352,6 +341,64 @@ object ReadmeScreenshotCapture {
         } finally {
             frames.forEach { it.recycle() }
         }
+    }
+
+    /**
+     * Находит количество пикселей по вертикали, на которое верхняя часть
+     * RV-области [curr] дублирует нижнюю часть RV-области [prev]. Сначала
+     * strict-проверка по contentEquals (быстрая, точная), при неудаче -
+     * tolerant-проверка с per-channel разницей до [PIXEL_TOLERANCE_PER_CHANNEL]:
+     * subtle отличия от anti-aliasing, alpha-композитинга теней и render
+     * cache могут давать пиксели "почти-одинаковые", но strict equal не
+     * срабатывает - это давало ложный overlap=0 и дубли в stitched.
+     *
+     * 0 = overlap'а нет ни strict, ни tolerant - скролл реально прошёл на
+     * полный viewport.
+     */
+    private fun findVerticalOverlap(
+        prev: Bitmap,
+        curr: Bitmap,
+        rvTop: Int,
+        rvBottom: Int,
+        maxOverlap: Int,
+    ): Int {
+        val width = prev.width
+        val rvHeight = rvBottom - rvTop
+        val checkLimit = minOf(maxOverlap, rvHeight)
+        if (checkLimit <= 0) return 0
+        for (overlap in checkLimit downTo 1) {
+            val prevPixels = IntArray(width * overlap)
+            prev.getPixels(prevPixels, 0, width, 0, rvBottom - overlap, width, overlap)
+            val currPixels = IntArray(width * overlap)
+            curr.getPixels(currPixels, 0, width, 0, rvTop, width, overlap)
+            if (prevPixels.contentEquals(currPixels)) return overlap
+        }
+        for (overlap in checkLimit downTo 1) {
+            val prevPixels = IntArray(width * overlap)
+            prev.getPixels(prevPixels, 0, width, 0, rvBottom - overlap, width, overlap)
+            val currPixels = IntArray(width * overlap)
+            curr.getPixels(currPixels, 0, width, 0, rvTop, width, overlap)
+            if (pixelsTolerantMatch(prevPixels, currPixels)) return overlap
+        }
+        return 0
+    }
+
+    private const val PIXEL_TOLERANCE_PER_CHANNEL = 8
+
+    private fun pixelsTolerantMatch(a: IntArray, b: IntArray): Boolean {
+        if (a.size != b.size) return false
+        for (i in a.indices) {
+            val p1 = a[i]
+            val p2 = b[i]
+            if (p1 == p2) continue
+            val dr = kotlin.math.abs(((p1 ushr 16) and 0xFF) - ((p2 ushr 16) and 0xFF))
+            if (dr > PIXEL_TOLERANCE_PER_CHANNEL) return false
+            val dg = kotlin.math.abs(((p1 ushr 8) and 0xFF) - ((p2 ushr 8) and 0xFF))
+            if (dg > PIXEL_TOLERANCE_PER_CHANNEL) return false
+            val db = kotlin.math.abs((p1 and 0xFF) - (p2 and 0xFF))
+            if (db > PIXEL_TOLERANCE_PER_CHANNEL) return false
+        }
+        return true
     }
 
     private fun canScrollDown(view: RecyclerView): Boolean {
