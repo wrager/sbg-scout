@@ -2,6 +2,7 @@ package com.github.wrager.sbgscout.e2e.screenshots
 
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreferenceCompat
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.wrager.sbgscout.R
@@ -57,6 +58,14 @@ class AppSettingsScreenshotE2ETest : E2ETestBase() {
             ) ?: error("Preference '${SettingsOverlayScreen.KEY_APP_VERSION}' не найден")
             val raw = versionPref.summary?.toString().orEmpty()
             versionPref.summary = raw.substringBefore('-')
+            // E2ETestBase в setUpE2E ставит auto_check_updates=false, чтобы тесты
+            // не ходили в GitHub за релизами на старте Activity. Для скриншота
+            // README показываем prod-default (defaultValue="true" в preferences.xml) -
+            // переключаем switch обратно на on, не задевая prod-код.
+            val autoCheckPref = fragment.findPreference<SwitchPreferenceCompat>(
+                SettingsOverlayScreen.KEY_AUTO_CHECK_UPDATES,
+            ) ?: error("Preference '${SettingsOverlayScreen.KEY_AUTO_CHECK_UPDATES}' не найден")
+            autoCheckPref.isChecked = true
             recyclerView = fragment.listView
         }
         ReadmeScreenshotCapture.captureFullScreenWithScroll(
