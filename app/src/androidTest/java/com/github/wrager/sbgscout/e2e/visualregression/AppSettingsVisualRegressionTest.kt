@@ -13,13 +13,16 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Снимает app-settings-light.png - settings overlay (SettingsFragment поверх
- * GameActivity) в светлой теме.
+ * Снимает settings overlay (SettingsFragment поверх GameActivity) в обеих
+ * темах: app-settings-light.png и app-settings-dark.png.
  *
  * Параллель `AppSettingsScreenshotE2ETest`, но с native-разрешением (без
  * масштабирования до 360px) и зафиксированной темой через [ThemeOverride].
  * Локаль - русская: VR-baseline должен быть устойчив к системной локали
  * эмулятора, иначе тесты на CI с другой системной локалью покажут diff.
+ *
+ * Тема выставляется в теле каждого теста, не в `@Before`: один тест-класс
+ * содержит оба варианта (light, dark), у них разные нужные `nightMode`.
  */
 @RunWith(AndroidJUnit4::class)
 class AppSettingsVisualRegressionTest : E2ETestBase() {
@@ -27,7 +30,6 @@ class AppSettingsVisualRegressionTest : E2ETestBase() {
     @Before
     fun setUpVisualRegression() {
         ReadmeScreenshotCapture.forceRussianLocale()
-        ThemeOverride.forceLightTheme()
     }
 
     @After
@@ -39,6 +41,18 @@ class AppSettingsVisualRegressionTest : E2ETestBase() {
     @Test
     @VisualRegressionTest
     fun captureAppSettingsLight() {
+        ThemeOverride.forceLightTheme()
+        captureSettings("app-settings-light")
+    }
+
+    @Test
+    @VisualRegressionTest
+    fun captureAppSettingsDark() {
+        ThemeOverride.forceDarkTheme()
+        captureSettings("app-settings-dark")
+    }
+
+    private fun captureSettings(baselineName: String) {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
 
@@ -53,7 +67,7 @@ class AppSettingsVisualRegressionTest : E2ETestBase() {
         settings.setSwitchPreferenceChecked(SettingsOverlayScreen.KEY_AUTO_CHECK_UPDATES, true)
 
         VisualRegressionCapture.captureScrollableNative(
-            "app-settings-light",
+            baselineName,
             settings.preferencesRecyclerView(),
         )
     }
