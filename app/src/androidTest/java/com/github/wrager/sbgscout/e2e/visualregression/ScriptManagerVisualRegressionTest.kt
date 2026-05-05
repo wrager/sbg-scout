@@ -31,10 +31,12 @@ class ScriptManagerVisualRegressionTest : E2ETestBase() {
     @Before
     fun setUpVisualRegression() {
         ReadmeScreenshotCapture.forceRussianLocale()
+        StatusBarDemoMode.enable()
     }
 
     @After
     fun tearDownVisualRegression() {
+        StatusBarDemoMode.disable()
         ThemeOverride.resetTheme()
         ReadmeScreenshotCapture.resetLocale()
     }

@@ -33,10 +33,12 @@ class GameSettingsVisualRegressionTest : E2ETestBase() {
     fun setUpVisualRegression() {
         ReadmeScreenshotCapture.forceRussianLocale()
         ThemeOverride.forceLightTheme()
+        StatusBarDemoMode.enable()
     }
 
     @After
     fun tearDownVisualRegression() {
+        StatusBarDemoMode.disable()
         ThemeOverride.resetTheme()
         ReadmeScreenshotCapture.resetLocale()
     }
