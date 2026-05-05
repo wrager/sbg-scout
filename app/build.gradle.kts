@@ -34,6 +34,21 @@ android {
         // coverage-файлы теряются между тестами.
         testInstrumentationRunnerArguments["useTestStorageService"] = "true"
 
+        // Если запускают `./gradlew updateReadmeScreenshots` - фильтруем
+        // androidTest по аннотации @ReadmeScreenshot, чтобы прогонялись только
+        // три скриншот-теста. AGP не позволяет per-task переопределить
+        // testInstrumentationRunnerArguments, поэтому смотрим в startParameter
+        // на configuration phase.
+        val isUpdateScreenshots =
+            gradle.startParameter.taskNames.any {
+                val name = it.substringAfterLast(":")
+                name == "updateReadmeScreenshots"
+            }
+        if (isUpdateScreenshots) {
+            testInstrumentationRunnerArguments["annotation"] =
+                "com.github.wrager.sbgscout.e2e.screenshots.ReadmeScreenshot"
+        }
+
         buildConfigField("String", "GAME_APP_URL", "\"https://sbg-game.ru/app\"")
         buildConfigField("String", "GAME_LOGIN_URL", "\"https://sbg-game.ru/login\"")
         buildConfigField("String", "GAME_HOST_MATCH", "\"sbg-game.ru\"")
@@ -214,4 +229,210 @@ tasks.register<JacocoReport>("jacocoCombinedReport") {
             )
         },
     )
+}
+
+// Копирует PNG-скриншоты из test storage в .github/images/screenshots/ для
+// README. Запускается после connectedInstrAndroidTest с фильтром по аннотации
+// @ReadmeScreenshot — см. .claude/commands/screenshots.md. AGP при
+// useTestStorageService=true вытаскивает файлы, записанные через
+// PlatformTestStorageRegistry, в build/outputs/connected_android_test_additional_output/
+// (точная структура подкаталогов зависит от версии AGP, поэтому ищем walkTopDown).
+tasks.register("copyReadmeScreenshots") {
+    group = "verification"
+    description = "Скопировать README-скриншоты из test outputs в .github/images/screenshots/"
+    doLast {
+        val outputsDir = layout.buildDirectory.dir("outputs/connected_android_test_additional_output").get().asFile
+        if (!outputsDir.exists()) {
+            error(
+                "Директория $outputsDir не существует. " +
+                    "Сначала прогоните connectedInstrAndroidTest со скриншот-тестами " +
+                    "(см. .claude/commands/screenshots.md).",
+            )
+        }
+        val targetDir = rootProject.file(".github/images/screenshots")
+        targetDir.mkdirs()
+        val expectedNames = setOf("game_settings.png", "settings.png", "script-manager.png")
+        val copied = mutableListOf<String>()
+        outputsDir.walkTopDown()
+            .filter { it.isFile && it.name in expectedNames }
+            .forEach { source ->
+                val target = File(targetDir, source.name)
+                source.copyTo(target, overwrite = true)
+                copied += source.name
+            }
+        if (copied.isEmpty()) {
+            error(
+                "В $outputsDir не найдено ни одного из ${expectedNames.joinToString()}. " +
+                    "Проверьте, что скриншот-тесты с @ReadmeScreenshot прошли успешно.",
+            )
+        }
+        logger.lifecycle("Скопировано в .github/images/screenshots/: ${copied.sorted().joinToString()}")
+        val missing = expectedNames - copied.toSet()
+        if (missing.isNotEmpty()) {
+            logger.warn("Не найдены: ${missing.joinToString()}. Соответствующие тесты упали или не запускались.")
+        }
+    }
+}
+
+// Одной CLI-командой обновить README-скриншоты: прогон трёх @ReadmeScreenshot
+// тестов на эмуляторе (фильтр по аннотации навешан на configuration phase в
+// defaultConfig.testInstrumentationRunnerArguments при наличии этого task'а в
+// startParameter) + копирование PNG в .github/images/screenshots/.
+//
+// Пользовательская обёртка над `connectedInstrAndroidTest -P...annotation=... && copyReadmeScreenshots`,
+// без необходимости запоминать длинный CLI-флаг.
+tasks.register("updateReadmeScreenshots") {
+    group = "verification"
+    description = "Прогнать @ReadmeScreenshot тесты + скопировать PNG в .github/images/screenshots/"
+    dependsOn("connectedInstrAndroidTest")
+    finalizedBy("copyReadmeScreenshots")
+}
+
+// Превращает локальный snapshot реальной страницы игры (Save Page As Webpage Complete
+// в refs/game/private/) в одиночную HTML-фикстуру для GameSettingsScreenshotE2ETest.
+// Инлайнит CSS, выкидывает <script>-теги и внешние ссылки, добавляет stub-инициализацию
+// (i18next.isInitialized=true, localStorage.settings.lang='ru'). Результат —
+// app/src/androidTest/assets/fixtures/game-snapshot.html (gitignored).
+//
+// Если refs/game/private/ пуст или отсутствует — task удаляет game-snapshot.html (если был).
+// Тест GameSettingsScreenshotE2ETest сам fallback-нет на mock-фикстуру
+// app-page-with-settings-content-realistic.html.
+tasks.register("inlineGameSnapshot") {
+    group = "build"
+    description =
+        "Inline real-game snapshot из refs/game/private/ в androidTest assets как game-snapshot.html"
+
+    val snapshotsDir = rootProject.file("refs/game/private")
+    val outputFile = file("src/androidTest/assets/fixtures/game-snapshot.html")
+
+    // inputs.files(fileTree(...)) тихо возвращает пустой набор, если директории
+    // нет; в Gradle 9.3.1 inputs.dir(...).optional() не считает отсутствие
+    // допустимым и валит configuration phase в CI, где refs/game/private/ нет
+    // никогда (директория - локальный snapshot реальной игры, gitignored).
+    inputs.files(fileTree(snapshotsDir)).withPropertyName("snapshotsFiles")
+    outputs.file(outputFile)
+
+    doLast {
+        if (!snapshotsDir.exists() || snapshotsDir.listFiles().isNullOrEmpty()) {
+            if (outputFile.exists()) outputFile.delete()
+            logger.lifecycle("refs/game/private/ пуст, game-snapshot.html не создан")
+            return@doLast
+        }
+        val htmlFile =
+            snapshotsDir.listFiles { f -> f.isFile && f.name.endsWith(".html") }
+                ?.firstOrNull()
+        val filesDir =
+            snapshotsDir.listFiles { f -> f.isDirectory && f.name.endsWith("_files") }
+                ?.firstOrNull()
+        if (htmlFile == null || filesDir == null) {
+            if (outputFile.exists()) outputFile.delete()
+            logger.warn(
+                "В refs/game/private/ ожидаются *.html и *_files/ из 'Save Page As Webpage " +
+                    "Complete'. Не найдено - game-snapshot.html не создан.",
+            )
+            return@doLast
+        }
+        outputFile.parentFile.mkdirs()
+        outputFile.writeText(preprocessGameSnapshot(htmlFile, filesDir), Charsets.UTF_8)
+        logger.lifecycle("Создан game-snapshot.html (${outputFile.length()} байт)")
+    }
+}
+
+// Форсим зависимость сборки androidTest assets от inlineGameSnapshot, чтобы изменения
+// в refs/game/private/ автоматически прокатывались в фикстуры перед каждым тестовым прогоном.
+afterEvaluate {
+    tasks.findByName("mergeInstrAndroidTestAssets")?.dependsOn("inlineGameSnapshot")
+}
+
+fun preprocessGameSnapshot(
+    htmlFile: File,
+    filesDir: File,
+): String {
+    var html = htmlFile.readText(Charsets.UTF_8)
+    // Удалить все <script>...</script> (многострочные, ленивая семантика).
+    html = html.replace(Regex("(?is)<script\\b[^>]*>.*?</script>"), "")
+    // Удалить ссылки на manifest/icons (они уйдут на sbg-game.ru, у нас сети нет).
+    html =
+        html.replace(
+            Regex("(?i)<link\\s+rel=\"(?:manifest|shortcut icon|apple-touch-icon)\"[^>]*>"),
+            "",
+        )
+    // Удалить yandex-metrika noscript-imgs.
+    html = html.replace(Regex("(?is)<noscript>.*?</noscript>"), "")
+    // Удалить <div id="map"> с canvas-слоями OpenLayers - на скриншоте нужны
+    // только настройки игры в popup'е, а map канвасы при software-рендере
+    // WebView могут перекрывать popup, давая всю страницу как белый прямоугольник.
+    html = html.replace(Regex("(?is)<div id=\"map\">.*?</div>\\s*(?=<)"), "")
+    // Раскрыть .settings popup: в DOM-snapshot он сохранён с классом 'hidden'
+    // (popup закрывается JS на close, но в момент сохранения уже был открыт -
+    // Chrome пишет последнее значение className, и `hidden` остаётся атавизмом).
+    // Без JS у нас нет того кода, что снимает `hidden`, поэтому удаляем вручную.
+    html =
+        html.replace(
+            Regex("""(?i)(<div\s+class="settings popup[^"]*?)\s+hidden(\s+[^"]*?|)"""),
+        ) { m -> m.groupValues[1] + m.groupValues[2] }
+    // Inline <link rel="stylesheet" href="./PATH/X.css">: подставить содержимое CSS.
+    val cssLinkRegex =
+        Regex(
+            "(?i)<link\\s+(?:[^>]*?)href=\"\\./[^\"]*?/([^\"/]+\\.css)\"[^>]*>",
+        )
+    html =
+        html.replace(cssLinkRegex) { match ->
+            val cssName = match.groupValues[1]
+            val cssFile = File(filesDir, cssName)
+            if (cssFile.exists()) {
+                "<style>\n${cssFile.readText(Charsets.UTF_8)}\n</style>"
+            } else {
+                "<!-- inlineGameSnapshot: missing $cssName -->"
+            }
+        }
+    // Stub перед </head>: i18next готов, locale ru, ru-переводы для data-i18n
+    // ключей (без сети i18next-http-backend не загружает их сам, default-тексты
+    // в DOM остаются английскими). Перевод ключей, которые попадают в README-
+    // скриншот секции настроек игры. Также подмена опции "System" в селекторе
+    // языка - в snapshot её текст hardcoded без data-i18n.
+    val stub =
+        """
+        <script>
+            window.i18next = { isInitialized: true };
+            try { localStorage.setItem('settings', JSON.stringify({ lang: 'ru', theme: 'auto' })); } catch (e) {}
+            window.__sbgFakeReady = true;
+            window.__sbgFakePage = "app";
+            (function() {
+                var T = {
+                    'menu.settings': 'Настройки',
+                    'settings.global.header': 'Общее',
+                    'settings.global.language': 'Язык',
+                    'settings.global.theme': 'Тема',
+                    'settings.global.theme-opts.auto': 'Авто',
+                    'settings.global.theme-opts.light': 'Светлая',
+                    'settings.global.theme-opts.dark': 'Тёмная',
+                    'settings.interface.header': 'Интерфейс',
+                    'settings.interface.imghid': 'Скрыть картинку',
+                    'settings.interface.dsvhid': 'Скрыть результат поиска',
+                    'settings.interface.arabic': 'Арабские цифры'
+                };
+                function apply() {
+                    document.querySelectorAll('[data-i18n]').forEach(function(el) {
+                        var k = el.getAttribute('data-i18n');
+                        if (T[k]) el.textContent = T[k];
+                    });
+                    var sysOpt = document.querySelector('select[data-setting="lang"] option[value="sys"]');
+                    if (sysOpt) sysOpt.textContent = 'Системный';
+                    // Выставить selected по нашей локали - в snapshot язык
+                    // мог быть сохранён "sys", а на скриншоте мы хотим
+                    // показать выбранный "Русский".
+                    var langSel = document.querySelector('select[data-setting="lang"]');
+                    if (langSel) langSel.value = 'ru';
+                }
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', apply);
+                } else {
+                    apply();
+                }
+            })();
+        </script>
+        """.trimIndent()
+    html = html.replace(Regex("(?i)</head>"), "$stub\n</head>")
+    return html
 }

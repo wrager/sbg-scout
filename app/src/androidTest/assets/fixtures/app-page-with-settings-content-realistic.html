@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>scout fallback fixture</title>
+    <style>
+        /* Минимальный mock для GameSettingsScreenshotE2ETest как fallback,
+           когда нет game-snapshot.html (gitignored, генерируется
+           inlineGameSnapshot из локального refs/game/private/).
+           Содержит только то, что нужно ScoutBridge.BOOTSTRAP_SCRIPT для
+           инжекции - контейнер с классом .settings-content. Никаких копий
+           реальных игровых стилей, селекторов, опций или переводов: имена
+           классов и id - технические identifiers, по которым работает
+           bootstrap, не предмет авторских прав. */
+        body { margin: 0; padding: 16px; font-family: sans-serif; }
+        .settings-content { padding: 8px; }
+        .settings-section__item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 0;
+        }
+        .settings-section__button {
+            border: 1px solid #888;
+            border-radius: 4px;
+            padding: 4px 12px;
+            background: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div class="settings-content"></div>
+    <script>
+        window.i18next = { isInitialized: true };
+        window.__sbgFakeReady = true;
+        window.__sbgFakePage = "app";
+    </script>
+</body>
+</html>

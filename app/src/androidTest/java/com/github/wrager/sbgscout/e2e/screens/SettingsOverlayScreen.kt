@@ -4,6 +4,8 @@ import android.view.View
 import androidx.annotation.StringRes
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreferenceCompat
+import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
@@ -70,6 +72,40 @@ class SettingsOverlayScreen(
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
+    /**
+     * Обрезает суффикс buildType (`-debug`, `-instr`) в summary preference версии,
+     * чтобы на скриншоте README отображалась версия в том виде, в каком её
+     * видит пользователь release-APK. Trim делается по фактическому значению,
+     * чтобы при смене suffix в gradle тест не приходилось править.
+     */
+    fun stripBuildTypeSuffixFromAppVersion() {
+        scenario.onActivity { activity ->
+            val versionPref = preference<Preference>(activity, KEY_APP_VERSION)
+            val raw = versionPref.summary?.toString().orEmpty()
+            versionPref.summary = raw.substringBefore('-')
+        }
+    }
+
+    fun setSwitchPreferenceChecked(key: String, checked: Boolean) {
+        scenario.onActivity { activity ->
+            val pref = preference<SwitchPreferenceCompat>(activity, key)
+            pref.isChecked = checked
+        }
+    }
+
+    /**
+     * RecyclerView у [PreferenceFragmentCompat] - тот, на котором фрагмент
+     * рендерит preferences. Нужен для скроллируемого скриншота.
+     */
+    fun preferencesRecyclerView(): RecyclerView {
+        var rv: RecyclerView? = null
+        scenario.onActivity { activity ->
+            val fragment = preferenceFragment(activity)
+            rv = fragment.listView
+        }
+        return rv ?: error("PreferenceFragmentCompat.listView не найден")
+    }
+
     fun assertPreferenceSummaryContains(key: String, substring: String) {
         scenario.onActivity { activity ->
             val fragment = activity.supportFragmentManager
@@ -130,6 +166,18 @@ class SettingsOverlayScreen(
     fun openManageScripts(): ScriptManagerScreen {
         clickPreferenceByKey(KEY_MANAGE_SCRIPTS)
         return ScriptManagerScreen(scenario).waitDisplayed()
+    }
+
+    private fun preferenceFragment(activity: GameActivity): PreferenceFragmentCompat {
+        return activity.supportFragmentManager
+            .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
+            ?: error("SettingsFragment не найден в settingsContainer")
+    }
+
+    private inline fun <reified T : Preference> preference(activity: GameActivity, key: String): T {
+        val fragment = preferenceFragment(activity)
+        return fragment.findPreference<T>(key)
+            ?: error("Preference с key='$key' (${T::class.simpleName}) не найден в PreferenceScreen")
     }
 
     companion object {

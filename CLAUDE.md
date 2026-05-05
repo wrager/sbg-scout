@@ -41,6 +41,14 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 - **Новое UI-поведение требует e2e-теста.** Unit-тест на изолированную логику (GameUrls, утилиты) не заменяет e2e-тест на UI-flow: диалоги, счётчики тапов, навигация, сохранение состояния в prefs. E2e-тесты живут в `app/src/androidTest/`, запускаются через `connectedInstrAndroidTest`.
 - Правило: любое новое поведение покрывается ЛИБО unit-тестом (если логика изолируема), ЛИБО e2e-тестом (если поведение завязано на UI или Activity), ЛИБО обоими.
 
+## Скриншоты README
+
+- Скриншоты в `.github/images/screenshots/` (`game_settings.png`, `settings.png`, `script-manager.png`) обновляются как часть каждого релиза тем же коммитом, что bump версии в `app/build.gradle.kts`.
+- Источник истины — e2e-генератор, не ручные снимки. Команда `/screenshots` запускает три тест-класса в `app/src/androidTest/.../e2e/screenshots/` через `:app:updateReadmeScreenshots` (gradle-обёртка над `connectedInstrAndroidTest` с фильтром по `@ReadmeScreenshot` + `copyReadmeScreenshots`). Эмулятор: API 33, Pixel 4, WebView 101. Локаль приложения форсится на русскую внутри тестов через `LocaleManager.setApplicationLocales`, локаль эмулятора не имеет значения.
+- В `/release` `/screenshots` вызывается ПОСЛЕ обновления `versionMajor`/`versionMinor`/`versionPatch` в `build.gradle.kts`, чтобы новая версия попала на скриншот экрана настроек (`SettingsFragment.kt:48` берёт её из `BuildConfig.VERSION_NAME`).
+- Релизный коммит включает `RELEASE_NOTES.md`, `app/build.gradle.kts` и `.github/images/screenshots/` одной транзакцией. Команда `/screenshots` сама не коммитит — caller (релиз или ручной коммит) решает.
+- `game_settings.png` использует mock-фикстуру (`app-page-with-settings-content-realistic.html`), потому что полные стили игры не лежат в репо. Локально можно подложить snapshot реальной страницы игры в `refs/game/private/` (gitignored через `/refs/`); поддержка такого override добавляется отдельно, когда snapshot появится.
+
 ## Терминология
 
 | Термин | Описание |

@@ -1,5 +1,7 @@
 package com.github.wrager.sbgscout.e2e.screens
 
+import android.view.View
+import android.webkit.WebView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso
 import androidx.test.espresso.Espresso.onView
@@ -74,6 +76,35 @@ class GameScreen(
         // закончит inflate — без этого onView(withText(...)) не найдёт preference.
         waitUntilSettingsFragmentReady()
         return SettingsOverlayScreen(scenario)
+    }
+
+    /**
+     * Возвращает WebView из GameActivity. Нужен скриншот-тестам для прямой
+     * работы с DOM (запросы bounding rects, invalidate перед takeScreenshot).
+     */
+    fun webView(): WebView {
+        var wv: WebView? = null
+        scenario.onActivity { wv = it.webView }
+        return wv ?: error("WebView не найден в GameActivity")
+    }
+
+    /**
+     * Скрывает loadingOverlay и нативные кнопки поверх WebView, чтобы они
+     * не попали на скриншот. На обычном flow эти элементы убираются bootstrap-
+     * callback'ами в JS, но JNI-call'и к Activity не всегда успевают до того,
+     * как тест берёт screenshot. Дополнительно `invalidate()` принудительно
+     * перерисовывает WebView в frame buffer, иначе UiAutomation иногда
+     * захватывает кадр ПЕРЕД paint pass'ом WebView.
+     */
+    fun hideTransientChromeForScreenshot() {
+        scenario.onActivity { activity ->
+            activity.findViewById<View>(R.id.loadingOverlay)?.visibility = View.GONE
+            activity.findViewById<View>(R.id.gameInitializingLabel)?.visibility = View.GONE
+            activity.findViewById<View>(R.id.reloadButton)?.visibility = View.GONE
+            activity.findViewById<View>(R.id.settingsButton)?.visibility = View.GONE
+            activity.webView.invalidate()
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
     private fun waitUntilSettingsFragmentReady() {
