@@ -305,7 +305,11 @@ tasks.register("inlineGameSnapshot") {
     val snapshotsDir = rootProject.file("refs/game/private")
     val outputFile = file("src/androidTest/assets/fixtures/game-snapshot.html")
 
-    inputs.dir(snapshotsDir).optional().withPropertyName("snapshotsDir")
+    // inputs.files(fileTree(...)) тихо возвращает пустой набор, если директории
+    // нет; в Gradle 9.3.1 inputs.dir(...).optional() не считает отсутствие
+    // допустимым и валит configuration phase в CI, где refs/game/private/ нет
+    // никогда (директория - локальный snapshot реальной игры, gitignored).
+    inputs.files(fileTree(snapshotsDir)).withPropertyName("snapshotsFiles")
     outputs.file(outputFile)
 
     doLast {
