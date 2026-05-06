@@ -470,6 +470,14 @@ class GameActivity : AppCompatActivity() {
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.setGeolocationEnabled(true)
+        // WebView хранит per-origin geolocation permissions в собственной БД.
+        // Если туда по любой причине попал deny-state с retain=true (старая
+        // версия, миграция, баг внешнего тулинга), onGeolocationPermissionsShowPrompt
+        // не вызывается, WebView молча отвечает игре отказом из кеша. Наш
+        // callback всегда invoke с retain=false, поэтому в норме кеш пуст и
+        // clearAll() - no-op; на устройствах с прилипшим deny - одноразовое
+        // исцеление при старте Activity.
+        GeolocationPermissions.getInstance().clearAll()
         webView.settings.javaScriptCanOpenWindowsAutomatically = true
         webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         webView.settings.userAgentString =

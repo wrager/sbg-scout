@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>sbg fake app (geolocation)</title>
+</head>
+<body>
+    <div id="game-root">geolocation test</div>
+    <script>
+        window.i18next = { isInitialized: true };
+        window.__sbgFakeReady = true;
+        window.__sbgFakePage = "app";
+
+        // Тест прочитает window.__sbg_geo_result через evaluateJs.
+        // null  -> запрос ещё в процессе (или WebView молча зарубил callback).
+        // {ok}  -> success-callback отработал, пришла координата.
+        // {err} -> error-callback отработал с конкретным error.code.
+        window.__sbg_geo_result = null;
+
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                window.__sbg_geo_result = JSON.stringify({
+                    ok: true,
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                });
+            },
+            function (error) {
+                window.__sbg_geo_result = JSON.stringify({
+                    ok: false,
+                    code: error.code,
+                    message: error.message,
+                });
+            },
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        );
+    </script>
+</body>
+</html>
