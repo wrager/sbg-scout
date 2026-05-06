@@ -332,3 +332,45 @@ app/src/instr/
 
 e2e-тесты **никогда** не обращаются к реальному `sbg-game.ru`. Причина — правила игры квалифицируют автоматизированные обращения как нарушение, что приводит к блокировке аккаунта разработчика. Все HTTP-запросы WebView идут на `127.0.0.1:<port>` fake-сервера; централизация URL через `GameUrls` + `BuildConfig` делает это структурным инвариантом, а не договорённостью.
 
+## Visual regression
+
+Pixel-by-pixel сравнение скриншотов UI с зафиксированными baseline в `.github/images/visual-regression/`. На каждом PR прогон `visualRegressionTest` сравнивает фактический рендер с baseline; различие выше threshold (per-channel diff > 8 + > 0.1% пикселей) фейлит CI и публикует triplet `[baseline | actual | highlight]` в артефактах.
+
+### Покрытие (10 baseline'ов)
+
+- `app-settings-{light,dark}.png` — settings overlay (PreferenceFragment поверх GameActivity).
+- `script-manager-{light,dark}.png` — список скриптов (SVP enabled, EUI скачен но disabled, CUI с download-иконкой).
+- `dialog-app-update-{light,dark}.png` — диалог проверки обновления приложения в фазе UpdateAvailable.
+- `dialog-script-update-{light,dark}.png` — диалог release-notes после auto-check скриптов.
+- `game-settings-light.png` — popup игровых настроек в WebView с инжектированной кнопкой "SBG Scout".
+- `login-light.png` — fake-страница авторизации.
+
+WebView-экраны (`game-settings`, `login`) только в light: фикстуры без dark CSS, dark-вариант потребовал бы отдельной dark-фикстуры.
+
+### Архитектура: device-side capture, host-side compare
+
+Тесты с аннотацией `@VisualRegressionTest` пишут только `actual.png` через [`VisualRegressionCapture`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/VisualRegressionCapture.kt) в test storage. Сравнение делает host-side gradle-задача `compareVisualRegressionBaselines` (pure JVM через `javax.imageio`) — baseline не пакуется в test-APK, режим update = просто overwrite baseline.
+
+- `captureFullNative(name)` — весь экран эмулятора (диалоги, login, popup'ы).
+- `captureScrollableNative(name, recyclerView)` — scroll-stitched длинный bitmap (settings, script-manager) через переиспользуемый [`ScrollStitchCapture`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/screenshots/ScrollStitchCapture.kt).
+- Native-разрешение (1080xN), без масштабирования: pixel-diff чувствителен к anti-aliasing и font-hinting, которые `Bitmap.createScaledBitmap` сглаживает.
+
+### Детерминизация
+
+- [`ThemeOverride`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/ThemeOverride.kt) — записывает `KEY_APPLIED_GAME_THEME` в SharedPreferences до `launchGameActivity()` и вызывает `AppCompatDelegate.setDefaultNightMode`. Без этого тема осталась бы AUTO и тесты были бы недетерминированы по системной теме эмулятора.
+- [`StatusBarDemoMode`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/StatusBarDemoMode.kt) — через SystemUI demo mode broadcast'ы фиксирует часы (12:00), батарею (100%), иконки сети и скрывает notifications. Без этого время в часах HH:MM меняется между прогонами и pixel-diff фейлит на любом тесте, где status bar попадает в captureFullNative или верхний frame scroll-stitch'а.
+- Локаль приложения — русская, через `LocaleManager.setApplicationLocales`.
+- Фиксированные stub'ы FakeGameServer для динамических данных (версии релизов, body release notes).
+
+### Gradle-задачи
+
+- `./gradlew visualRegressionTest` — прогон + сравнение с baseline. Зелёный = регрессий нет.
+- `./gradlew updateVisualRegressionBaselines` — прогон + перезапись baseline в `.github/images/visual-regression/`. Запускается локально при намеренных UI-изменениях; `git diff` показывает реально изменившиеся файлы, коммитятся только они.
+- `./gradlew copyVisualRegressionBaselines` / `compareVisualRegressionBaselines` — host-side финализаторы.
+
+`/visual-regression-update` — slash-command-обёртка над `updateVisualRegressionBaselines` (см. [`.claude/commands/visual-regression-update.md`](../.claude/commands/visual-regression-update.md)).
+
+### CI
+
+`visualRegressionTest` запускается в `e2e.yml` подряд с `connectedInstrAndroidTest` в одном emulator-runner step (переиспользует AVD). Diff-картинки и actual.png попадают в `e2e-reports` artifact при падении.
+

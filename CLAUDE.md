@@ -40,6 +40,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 - **Новое UI-поведение требует e2e-теста.** Unit-тест на изолированную логику (GameUrls, утилиты) не заменяет e2e-тест на UI-flow: диалоги, счётчики тапов, навигация, сохранение состояния в prefs. E2e-тесты живут в `app/src/androidTest/`, запускаются через `connectedInstrAndroidTest`.
 - Правило: любое новое поведение покрывается ЛИБО unit-тестом (если логика изолируема), ЛИБО e2e-тестом (если поведение завязано на UI или Activity), ЛИБО обоими.
+- **UI-изменения требуют обновления visual regression baseline'ов в том же коммите.** Если правка меняет наблюдаемый рендер любого из 10 baseline-сценариев (settings overlay, script manager, диалоги обновлений, popup игровых настроек, login) - запустить `./gradlew :app:updateVisualRegressionBaselines` (или `/visual-regression-update`) и закоммитить обновлённые PNG из `.github/images/visual-regression/` вместе с кодом. Без обновления baseline'ов CI workflow `e2e.yml` падает на намеренное изменение. Подробности архитектуры VR - в `docs/architecture.md`.
 
 ## Скриншоты README
 
