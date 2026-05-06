@@ -1,13 +1,16 @@
 package com.github.wrager.sbgscout.e2e.visualregression
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import android.os.SystemClock
 import android.view.View
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.screens.LoginScreen
 import com.github.wrager.sbgscout.e2e.screenshots.ReadmeScreenshotCapture
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -67,16 +70,32 @@ class LoginVisualRegressionTest : E2ETestBase() {
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
 
-        // saveClipboard в E2ETestBase@Before читает primary clip; на API 33+
-        // это триггерит system "Copied" toast/snackbar. Toast живёт ~2s -
-        // ждём, пока он исчезнет, иначе попадёт на baseline в одном
-        // прогоне и не попадёт в другом.
-        Thread.sleep(CLIPBOARD_TOAST_TIMEOUT_MS)
+        // restoreClipboard в @After предыдущего теста делает setPrimaryClip;
+        // на API 33+ это триггерит system "Copied" toast/snackbar. Toast
+        // живёт переменное время (Snackbar.LENGTH_SHORT ~1.5s + анимация
+        // dismiss), фиксированный sleep флэйкнул: в одном прогоне успевал
+        // исчезнуть, в другом - нет, baseline ловил его, последующие прогоны
+        // - нет. Активно ждём пока UiAutomator перестанет видеть текст
+        // "Copied" в иерархии view, с верхней границей.
+        waitForCopiedSnackbarGone()
 
         VisualRegressionCapture.captureFullNative("login-light")
     }
 
+    private fun waitForCopiedSnackbarGone() {
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        val deadline = SystemClock.uptimeMillis() + COPIED_GONE_TIMEOUT_MS
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (device.findObject(By.text(COPIED_TEXT)) == null) return
+            Thread.sleep(POLL_INTERVAL_MS)
+        }
+        // Snackbar не исчез за timeout - не блокируем тест, capture может
+        // быть нестабильным, host-side compare это поймает.
+    }
+
     private companion object {
-        const val CLIPBOARD_TOAST_TIMEOUT_MS = 3_000L
+        const val COPIED_GONE_TIMEOUT_MS = 6_000L
+        const val POLL_INTERVAL_MS = 100L
+        const val COPIED_TEXT = "Copied"
     }
 }
