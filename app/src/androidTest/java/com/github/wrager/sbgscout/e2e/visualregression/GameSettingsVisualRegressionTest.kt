@@ -17,14 +17,20 @@ import org.junit.runner.RunWith
  * Снимает game-settings-light.png - секцию настроек игры внутри WebView с
  * инжектированной кнопкой "SBG Scout".
  *
- * Только light-вариант: фикстуры (game-snapshot.html / app-page-with-settings-
- * content-realistic.html) содержат только light CSS, dark вариант потребовал
- * бы отдельной dark-фикстуры с инлайн dark-CSS - отложено в будущее.
+ * Принципиально использует ТОЛЬКО mock-фикстуру `app-page-with-settings-
+ * content-realistic.html`, не game-snapshot.html (даже если последний есть в
+ * assets). game-snapshot.html генерируется gradle-таском inlineGameSnapshot
+ * из локального refs/game/private/ snapshot реальной страницы игры
+ * (gitignored). Если бы VR-тест читал его при наличии, baseline в
+ * .github/images/visual-regression/ содержал бы рендер настоящего игрового
+ * UI - нарушение правил проекта (запрет на код/контент, похожий на код игры,
+ * в открытом репо). Mock-фикстура содержит только нужный для injection
+ * контейнер `.settings-content` и нашу инжекцию SBG Scout button - именно
+ * то, что VR должна сторожить от регрессий.
  *
- * Захват через captureFullNative (весь экран эмулятора): popup открыт через
- * preprocessGameSnapshot (раскрытие CSS-класса hidden), наша кнопка
+ * Захват через captureFullNative (весь экран эмулятора), наша кнопка
  * проскроллена в видимую область через scrollIntoView. Native-разрешение,
- * без масштабирования.
+ * без масштабирования. Только light: даже mock-фикстура содержит light CSS.
  */
 @RunWith(AndroidJUnit4::class)
 class GameSettingsVisualRegressionTest : E2ETestBase() {
@@ -46,9 +52,8 @@ class GameSettingsVisualRegressionTest : E2ETestBase() {
     @Test
     @VisualRegressionTest
     fun captureGameSettingsLight() {
-        server.gamePageBody =
-            AssetLoader.readOrNull("fixtures/game-snapshot.html")
-                ?: AssetLoader.read("fixtures/app-page-with-settings-content-realistic.html")
+        // ТОЛЬКО mock, не game-snapshot.html: см. KDoc класса.
+        server.gamePageBody = AssetLoader.read("fixtures/app-page-with-settings-content-realistic.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
 
         val scenario = launchGameActivity()
