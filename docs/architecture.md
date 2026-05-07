@@ -274,6 +274,18 @@ app/src/main/java/com/github/wrager/sbgscout/
 - `testOptions.execution = "ANDROIDX_TEST_ORCHESTRATOR"` + `clearPackageData` — каждый e2e-тест стартует в своём процессе с чистым состоянием (SharedPreferences, WebView cookies, files).
 - Source set `app/src/instr/` содержит свой `network_security_config.xml` (cleartext разрешён только для `127.0.0.1` и `localhost`) и `AndroidManifest.xml` с `tools:replace` — прод-сборки остаются без послаблений network security.
 
+### buildType `diag`
+
+Диагностический вариант release-сборки для штучных проблем у пользователей, которые не воспроизводятся в стандартном release (например, геолокация не приходит на отдельных устройствах).
+
+- Наследуется от `release` (`initWith(release)`): R8/proguard, signingConfig.release при наличии env, та же модель безопасности.
+- **applicationId — без суффикса**, тот же `com.github.wrager.sbgscout`. Diag-APK устанавливается ПОВЕРХ прод-релиза, не как отдельное приложение, и сохраняет cookies/localStorage/прочее состояние пользователя — диагностика идёт в его реальной среде. Условие установки поверх: APK подписан тем же ключом, что и установленная stable (`RELEASE_STORE` + `RELEASE_STORE_PASSWORD` + `RELEASE_KEY_PASSWORD` в env).
+- `versionNameSuffix = "-diag"` — пользователь видит метку в settings и понимает, что у него спец-сборка. `AppUpdateChecker` не ломается: `ScriptVersion.leadingDigitsAsInt` отрезает суффикс, `1.2.0-diag` парсится как `[1,2,0]`. При следующей stable (1.2.1+) diag увидит обновление и предложит перейти.
+- `BuildConfig.GEOLOCATION_DIAGNOSTICS = true` включает `Log.i` под тегом `SbgWebView` с префиксом `[geo]` в `GameActivity.onGeolocationPermissionsShowPrompt`, `locationPermissionRequest` callback, `hasLocationPermission` и `configureGeolocation`. Пользователь снимает logcat фильтром `adb logcat -s SbgWebView` и присылает.
+- В `release`/`instr` флаг `false` — никаких побочных логов в проде и тестах.
+
+Сборка: `assembleDiag`, выходной APK — `app/build/outputs/apk/diag/app-diag.apk`.
+
 ### Централизация URL игры
 
 Все URL игры читаются из единого объекта [`GameUrls`](../app/src/main/java/com/github/wrager/sbgscout/config/GameUrls.kt):

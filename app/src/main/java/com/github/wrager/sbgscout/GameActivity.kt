@@ -148,8 +148,17 @@ class GameActivity : AppCompatActivity() {
     private val locationPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        val granted = fineGranted || coarseGranted
+
+        if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
+            Log.i(
+                LOG_TAG,
+                "[geo] permission request result: FINE=$fineGranted COARSE=$coarseGranted " +
+                    "callback=${if (granted) "ALLOW" else "DENY"}",
+            )
+        }
 
         if (granted) {
             pendingGeolocationCallback?.invoke(pendingGeolocationOrigin, true, false)
@@ -469,15 +478,7 @@ class GameActivity : AppCompatActivity() {
         @Suppress("SetJavaScriptEnabled") // JS обязателен для работы SBG
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
-        webView.settings.setGeolocationEnabled(true)
-        // WebView хранит per-origin geolocation permissions в собственной БД.
-        // Если туда по любой причине попал deny-state с retain=true (старая
-        // версия, миграция, баг внешнего тулинга), onGeolocationPermissionsShowPrompt
-        // не вызывается, WebView молча отвечает игре отказом из кеша. Наш
-        // callback всегда invoke с retain=false, поэтому в норме кеш пуст и
-        // clearAll() - no-op; на устройствах с прилипшим deny - одноразовое
-        // исцеление при старте Activity.
-        GeolocationPermissions.getInstance().clearAll()
+        configureGeolocation()
         webView.settings.javaScriptCanOpenWindowsAutomatically = true
         webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         webView.settings.userAgentString =
@@ -571,9 +572,23 @@ class GameActivity : AppCompatActivity() {
                 origin: String,
                 callback: GeolocationPermissions.Callback,
             ) {
-                if (hasLocationPermission()) {
+                val hasPermission = hasLocationPermission()
+                if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
+                    Log.i(
+                        LOG_TAG,
+                        "[geo] onGeolocationPermissionsShowPrompt origin=$origin " +
+                            "hasPermission=$hasPermission",
+                    )
+                }
+                if (hasPermission) {
+                    if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
+                        Log.i(LOG_TAG, "[geo] granting immediately, callback.invoke(true)")
+                    }
                     callback.invoke(origin, true, false)
                 } else {
+                    if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
+                        Log.i(LOG_TAG, "[geo] requesting Android FINE/COARSE permissions")
+                    }
                     pendingGeolocationCallback = callback
                     pendingGeolocationOrigin = origin
                     locationPermissionRequest.launch(
@@ -660,11 +675,39 @@ class GameActivity : AppCompatActivity() {
         return file.absolutePath
     }
 
-    private fun hasLocationPermission(): Boolean =
-        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+    private fun hasLocationPermission(): Boolean {
+        val fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
+            Log.i(LOG_TAG, "[geo] checkSelfPermission FINE=$fine COARSE=$coarse")
+        }
+        return fine || coarse
+    }
+
+    /**
+     * Включает Geolocation API в WebView и сбрасывает per-origin permissions
+     * cache.
+     *
+     * WebView хранит per-origin geolocation permissions в собственной БД. Если
+     * туда по любой причине попал deny-state с retain=true (от старой версии,
+     * миграции, бага внешнего тулинга), onGeolocationPermissionsShowPrompt не
+     * вызывается - WebView молча отвечает игре отказом из кеша. Наш callback
+     * всегда invoke с retain=false, поэтому в норме кеш пуст и clearAll() -
+     * no-op; на устройствах с прилипшим deny - одноразовое исцеление.
+     */
+    private fun configureGeolocation() {
+        webView.settings.setGeolocationEnabled(true)
+        GeolocationPermissions.getInstance().clearAll()
+        if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
+            Log.i(
+                LOG_TAG,
+                "[geo] setup: setGeolocationEnabled=true, GeolocationPermissions.clearAll() done " +
+                    "(buildType=${BuildConfig.BUILD_TYPE}, version=${BuildConfig.VERSION_NAME})",
+            )
+        }
+    }
 
     private fun setupSettings() {
         val settingsContainer = findViewById<View>(R.id.settingsContainer)

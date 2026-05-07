@@ -52,6 +52,9 @@ android {
         buildConfigField("String", "GAME_APP_URL", "\"https://sbg-game.ru/app\"")
         buildConfigField("String", "GAME_LOGIN_URL", "\"https://sbg-game.ru/login\"")
         buildConfigField("String", "GAME_HOST_MATCH", "\"sbg-game.ru\"")
+        // Включается в build type diag (и debug) - см. ниже. В release/instr -
+        // false, ни одного Log.* по геолокации не пишется.
+        buildConfigField("boolean", "GEOLOCATION_DIAGNOSTICS", "false")
     }
 
     signingConfigs {
@@ -73,6 +76,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            buildConfigField("boolean", "GEOLOCATION_DIAGNOSTICS", "true")
         }
         create("instr") {
             initWith(getByName("debug"))
@@ -99,6 +103,24 @@ android {
             if (hasSigningEnv) {
                 signingConfig = signingConfigs.getByName("release")
             }
+        }
+        // Диагностический build type для штучных проблем у пользователей,
+        // не воспроизводящихся в release (геолокация, WebView quirks).
+        // Наследует release-настройки (proguard, signing) и идёт под ТЕМ ЖЕ
+        // applicationId, что и release - то есть устанавливается ПОВЕРХ
+        // прод-релиза, а не как отдельное приложение. Это сохраняет cookies/
+        // localStorage пользователя и позволяет провести диагностику в его
+        // реальной среде.
+        // versionNameSuffix "-diag" виден пользователю в settings и не ломает
+        // AppUpdateChecker: ScriptVersion отрезает суффикс по leading-digits,
+        // поэтому при выходе следующей stable-версии diag-сборка увидит
+        // обновление и предложит перейти на чистый release.
+        // Включает Log.i по геолокации через BuildConfig.GEOLOCATION_DIAGNOSTICS.
+        create("diag") {
+            initWith(getByName("release"))
+            versionNameSuffix = "-diag"
+            matchingFallbacks += listOf("release")
+            buildConfigField("boolean", "GEOLOCATION_DIAGNOSTICS", "true")
         }
     }
 
@@ -338,10 +360,19 @@ tasks.register("inlineGameSnapshot") {
     }
 }
 
-// Форсим зависимость сборки androidTest assets от inlineGameSnapshot, чтобы изменения
-// в refs/game/private/ автоматически прокатывались в фикстуры перед каждым тестовым прогоном.
+// Форсим зависимость сборки и lint androidTest assets от inlineGameSnapshot,
+// чтобы изменения в refs/game/private/ автоматически прокатывались в фикстуры
+// перед каждым тестовым прогоном. Gradle 9 strict implicit-dependency check
+// валит любой task, который читает app/src/androidTest/assets без явной
+// dependency: помимо merge это разные lint-tasks AGP (модель + анализ).
 afterEvaluate {
-    tasks.findByName("mergeInstrAndroidTestAssets")?.dependsOn("inlineGameSnapshot")
+    tasks.matching {
+        it.name == "mergeInstrAndroidTestAssets" ||
+            (it.name.startsWith("lint") && it.name.contains("InstrAndroidTest")) ||
+            (it.name.startsWith("generate") && it.name.contains("InstrAndroidTestLint"))
+    }.configureEach {
+        dependsOn("inlineGameSnapshot")
+    }
 }
 
 fun preprocessGameSnapshot(
