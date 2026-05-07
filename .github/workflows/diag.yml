@@ -1,0 +1,38 @@
+name: Diag APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or commit to build (default: текущий ref запуска)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build diag APK
+        env:
+          RELEASE_STORE: ${{ secrets.RELEASE_STORE }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew assembleDiag
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbg-scout-diag-${{ github.sha }}
+          path: app/build/outputs/apk/diag/*.apk
+          retention-days: 14
