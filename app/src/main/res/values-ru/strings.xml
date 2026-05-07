@@ -90,6 +90,9 @@
     <string name="settings_report_bug">Сообщить об ошибке</string>
     <string name="settings_report_bug_summary">Скопировать диагностику и открыть GitHub Issues</string>
     <string name="bug_report_copied">Скопировано! Открываю…</string>
+    <string name="settings_copy_geo_diagnostics">Скопировать диагностику геолокации</string>
+    <string name="settings_copy_geo_diagnostics_summary">Скопировать в буфер обмена данные об устройстве и лог геолокации, затем вставить в чат или письмо</string>
+    <string name="geo_diagnostics_copied">Диагностика геолокации скопирована в буфер обмена</string>
     <string name="settings_beta_server_title">Бета-сервер</string>
     <string name="settings_beta_server_enable_message">Переключиться на beta.sbg-game.ru? Страница игры перезагрузится.</string>
     <string name="settings_beta_server_disable_message">Вернуться на sbg-game.ru? Страница игры перезагрузится.</string>

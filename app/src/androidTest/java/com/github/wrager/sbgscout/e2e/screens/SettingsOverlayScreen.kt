@@ -192,6 +192,7 @@ class SettingsOverlayScreen(
         const val KEY_CHECK_SCRIPT_UPDATES = "check_script_updates"
         const val KEY_APP_VERSION = "app_version"
         const val KEY_REPORT_BUG = "report_bug"
+        const val KEY_COPY_GEO_DIAGNOSTICS = "copy_geo_diagnostics"
         const val BETA_TOGGLE_TAP_COUNT = 5
     }
 }

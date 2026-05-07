@@ -135,6 +135,44 @@ class BugReportCollectorTest {
 
         assertTrue("Скрипты:" !in report.clipboardText)
         assertTrue("Лог консоли:" !in report.clipboardText)
+        assertTrue("Лог геолокации:" !in report.clipboardText)
+    }
+
+    @Test
+    fun `clipboard text contains geo log when provided`() {
+        every { consoleLogBuffer.format() } returns ""
+        val collector = BugReportCollector("0.11.0", consoleLogBuffer)
+        val geoLog = GeoDiagnosticLog().apply {
+            add("[geo] checkSelfPermission FINE=true COARSE=true")
+            add("[geo] onGeolocationPermissionsShowPrompt origin=https://sbg-game.ru hasPermission=true")
+        }
+
+        val report = collector.collect(
+            allScripts = emptyList(),
+            injectedSnapshot = null,
+            deviceInfo = testDevice,
+            geoLog = geoLog,
+        )
+
+        assertTrue(report.clipboardText.contains("Лог геолокации:"))
+        assertTrue(report.clipboardText.contains("checkSelfPermission FINE=true COARSE=true"))
+        assertTrue(report.clipboardText.contains("onGeolocationPermissionsShowPrompt origin=https://sbg-game.ru"))
+    }
+
+    @Test
+    fun `clipboard text omits geo log section when log is empty`() {
+        every { consoleLogBuffer.format() } returns ""
+        val collector = BugReportCollector("0.11.0", consoleLogBuffer)
+        val emptyGeoLog = GeoDiagnosticLog()
+
+        val report = collector.collect(
+            allScripts = emptyList(),
+            injectedSnapshot = null,
+            deviceInfo = testDevice,
+            geoLog = emptyGeoLog,
+        )
+
+        assertTrue("Лог геолокации:" !in report.clipboardText)
     }
 
     @Test

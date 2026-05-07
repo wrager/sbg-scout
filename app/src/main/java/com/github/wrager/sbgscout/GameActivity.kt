@@ -50,6 +50,7 @@ import com.github.wrager.sbgscout.bridge.ScoutBridge
 import com.github.wrager.sbgscout.bridge.ShareBridge
 import com.github.wrager.sbgscout.config.GameUrls
 import com.github.wrager.sbgscout.diagnostic.ConsoleLogBuffer
+import com.github.wrager.sbgscout.diagnostic.GeoDiagnosticLog
 import com.github.wrager.sbgscout.game.GameSettingsReader
 import com.github.wrager.sbgscout.launcher.ScriptListFragment
 import com.github.wrager.sbgscout.script.injector.InjectionStateStorage
@@ -93,6 +94,7 @@ class GameActivity : AppCompatActivity() {
     internal lateinit var sbgWebViewClient: SbgWebViewClient
     private lateinit var scriptStorage: ScriptStorage
     val consoleLogBuffer = ConsoleLogBuffer()
+    val geoDiagnosticLog = GeoDiagnosticLog()
     private lateinit var scriptProvisioner: DefaultScriptProvisioner
     private var injectionStateStorage: InjectionStateStorage? = null
     @VisibleForTesting
@@ -152,13 +154,10 @@ class GameActivity : AppCompatActivity() {
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         val granted = fineGranted || coarseGranted
 
-        if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
-            Log.i(
-                LOG_TAG,
-                "[geo] permission request result: FINE=$fineGranted COARSE=$coarseGranted " +
-                    "callback=${if (granted) "ALLOW" else "DENY"}",
-            )
-        }
+        logGeo(
+            "permission request result: FINE=$fineGranted COARSE=$coarseGranted " +
+                "callback=${if (granted) "ALLOW" else "DENY"}",
+        )
 
         if (granted) {
             pendingGeolocationCallback?.invoke(pendingGeolocationOrigin, true, false)
@@ -573,22 +572,12 @@ class GameActivity : AppCompatActivity() {
                 callback: GeolocationPermissions.Callback,
             ) {
                 val hasPermission = hasLocationPermission()
-                if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
-                    Log.i(
-                        LOG_TAG,
-                        "[geo] onGeolocationPermissionsShowPrompt origin=$origin " +
-                            "hasPermission=$hasPermission",
-                    )
-                }
+                logGeo("onGeolocationPermissionsShowPrompt origin=$origin hasPermission=$hasPermission")
                 if (hasPermission) {
-                    if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
-                        Log.i(LOG_TAG, "[geo] granting immediately, callback.invoke(true)")
-                    }
+                    logGeo("granting immediately, callback.invoke(true)")
                     callback.invoke(origin, true, false)
                 } else {
-                    if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
-                        Log.i(LOG_TAG, "[geo] requesting Android FINE/COARSE permissions")
-                    }
+                    logGeo("requesting Android FINE/COARSE permissions")
                     pendingGeolocationCallback = callback
                     pendingGeolocationOrigin = origin
                     locationPermissionRequest.launch(
@@ -680,9 +669,7 @@ class GameActivity : AppCompatActivity() {
             PackageManager.PERMISSION_GRANTED
         val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
-        if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
-            Log.i(LOG_TAG, "[geo] checkSelfPermission FINE=$fine COARSE=$coarse")
-        }
+        logGeo("checkSelfPermission FINE=$fine COARSE=$coarse")
         return fine || coarse
     }
 
@@ -700,13 +687,22 @@ class GameActivity : AppCompatActivity() {
     private fun configureGeolocation() {
         webView.settings.setGeolocationEnabled(true)
         GeolocationPermissions.getInstance().clearAll()
-        if (BuildConfig.GEOLOCATION_DIAGNOSTICS) {
-            Log.i(
-                LOG_TAG,
-                "[geo] setup: setGeolocationEnabled=true, GeolocationPermissions.clearAll() done " +
-                    "(buildType=${BuildConfig.BUILD_TYPE}, version=${BuildConfig.VERSION_NAME})",
-            )
-        }
+        logGeo(
+            "setup: setGeolocationEnabled=true, GeolocationPermissions.clearAll() done " +
+                "(buildType=${BuildConfig.BUILD_TYPE}, version=${BuildConfig.VERSION_NAME})",
+        )
+    }
+
+    /**
+     * Параллельно пишет диагностическое сообщение в logcat (для разработчика
+     * с chrome://inspect / adb) и в [geoDiagnosticLog] (для пользователя через
+     * `Скопировать диагностику геолокации` в settings). No-op в release/instr
+     * по `BuildConfig.GEOLOCATION_DIAGNOSTICS=false`.
+     */
+    private fun logGeo(message: String) {
+        if (!BuildConfig.GEOLOCATION_DIAGNOSTICS) return
+        Log.i(LOG_TAG, "[geo] $message")
+        geoDiagnosticLog.add(message)
     }
 
     private fun setupSettings() {

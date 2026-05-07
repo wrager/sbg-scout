@@ -88,6 +88,12 @@ android {
             buildConfigField("String", "GAME_APP_URL", "\"http://127.0.0.1/app\"")
             buildConfigField("String", "GAME_LOGIN_URL", "\"http://127.0.0.1/login\"")
             buildConfigField("String", "GAME_HOST_MATCH", "\"127.0.0.1\"")
+            // Геодиагностика включена: e2e в `app/src/androidTest/` проверяют
+            // что `Скопировать диагностику геолокации` собирает корректный
+            // clipboard с дампом geo-лога. initWith(debug) уже наследует
+            // GEOLOCATION_DIAGNOSTICS=true, явный re-set нужен только для
+            // читаемости конфига рядом с другими instr-overrides.
+            buildConfigField("boolean", "GEOLOCATION_DIAGNOSTICS", "true")
             // Инструментирование для JaCoCo: testInstrUnitTest и connectedInstrAndroidTest
             // пишут execution data, которую потом объединяет task jacocoCombinedReport.
             enableUnitTestCoverage = true

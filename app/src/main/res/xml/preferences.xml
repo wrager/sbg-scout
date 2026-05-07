@@ -99,6 +99,13 @@
             android:title="@string/settings_report_bug"
             app:iconSpaceReserved="false" />
 
+        <Preference
+            android:key="copy_geo_diagnostics"
+            android:summary="@string/settings_copy_geo_diagnostics_summary"
+            android:title="@string/settings_copy_geo_diagnostics"
+            app:iconSpaceReserved="false"
+            app:isPreferenceVisible="false" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>

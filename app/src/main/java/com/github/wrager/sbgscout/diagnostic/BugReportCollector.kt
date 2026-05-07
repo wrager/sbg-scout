@@ -54,16 +54,21 @@ class BugReportCollector(
      * @param injectedSnapshot снапшот инжектированных скриптов из [InjectionStateStorage]:
      *   null — игра ни разу не загружалась, emptySet — загружалась без скриптов
      * @param deviceInfo информация об устройстве (по умолчанию — текущее устройство)
+     * @param geoLog опциональный лог геолокации из [GeoDiagnosticLog] (включается
+     *   только в diag/debug сборках через BuildConfig.GEOLOCATION_DIAGNOSTICS;
+     *   в release всегда null - секция в clipboardText не появляется)
      */
     fun collect(
         allScripts: List<UserScript>,
         injectedSnapshot: Set<String>?,
         deviceInfo: DeviceInfo = DeviceInfo.current(),
+        geoLog: GeoDiagnosticLog? = null,
     ): DiagnosticReport {
         val scriptsText = formatScripts(allScripts, injectedSnapshot)
         val consoleLog = consoleLogBuffer?.format().orEmpty()
+        val geoLogText = geoLog?.format().orEmpty()
 
-        val clipboardText = buildClipboardText(deviceInfo, scriptsText, consoleLog)
+        val clipboardText = buildClipboardText(deviceInfo, scriptsText, consoleLog, geoLogText)
         val issueUrl = buildIssueUrl(deviceInfo, scriptsText)
 
         return DiagnosticReport(clipboardText = clipboardText, issueUrl = issueUrl)
@@ -94,6 +99,7 @@ class BugReportCollector(
         device: DeviceInfo,
         scriptsText: String,
         consoleLog: String,
+        geoLog: String,
     ): String = buildString {
         appendLine("SBG Scout v$versionName")
         appendLine("Android ${device.androidVersion} (API ${device.sdkVersion})")
@@ -110,6 +116,12 @@ class BugReportCollector(
             appendLine()
             appendLine("Лог консоли:")
             appendLine(consoleLog)
+        }
+
+        if (geoLog.isNotEmpty()) {
+            appendLine()
+            appendLine("Лог геолокации:")
+            appendLine(geoLog)
         }
     }.trimEnd()
 

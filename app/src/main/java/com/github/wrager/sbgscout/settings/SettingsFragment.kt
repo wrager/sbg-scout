@@ -92,6 +92,15 @@ class SettingsFragment : PreferenceFragmentCompat() {
             reportBug()
             true
         }
+
+        // Кнопка видна только в diag/debug сборках, где включена диагностика
+        // геолокации; в release её нет, чтобы не плодить лишний пункт настроек.
+        val copyGeoDiagPref = requirePref<Preference>("copy_geo_diagnostics")
+        copyGeoDiagPref.isVisible = BuildConfig.GEOLOCATION_DIAGNOSTICS
+        copyGeoDiagPref.setOnPreferenceClickListener {
+            copyGeoDiagnostics()
+            true
+        }
     }
 
     private fun showBetaToggleDialog() {
@@ -187,5 +196,30 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         Toast.makeText(requireContext(), R.string.bug_report_copied, Toast.LENGTH_SHORT).show()
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(report.issueUrl)))
+    }
+
+    /**
+     * Собирает diagnostic с дополнительной секцией `Лог геолокации:` и кладёт
+     * только в буфер обмена, без открытия GitHub Issues. Пользователь сам
+     * вставляет содержимое в чат/письмо разработчику.
+     *
+     * Видна и работает только в diag/debug сборках через [BuildConfig.GEOLOCATION_DIAGNOSTICS]:
+     * в release [GameActivity.geoDiagnosticLog] никогда не заполняется
+     * ([GameActivity.logGeo] - no-op без флага).
+     */
+    private fun copyGeoDiagnostics() {
+        val activity = gameActivity
+        val collector = BugReportCollector(BuildConfig.VERSION_NAME, activity.consoleLogBuffer)
+        val report = collector.collect(
+            allScripts = activity.getAllScripts(),
+            injectedSnapshot = activity.getInjectedSnapshot(),
+            geoLog = activity.geoDiagnosticLog,
+        )
+
+        val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(
+            ClipData.newPlainText("SBG Scout geo diagnostics", report.clipboardText),
+        )
+        Toast.makeText(requireContext(), R.string.geo_diagnostics_copied, Toast.LENGTH_SHORT).show()
     }
 }

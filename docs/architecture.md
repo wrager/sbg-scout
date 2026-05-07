@@ -203,6 +203,7 @@ app/src/main/java/com/github/wrager/sbgscout/
 │   └── ShareBridge.kt         Открытие URL
 ├── diagnostic/
 │   ├── ConsoleLogBuffer.kt    Кольцевой буфер console.error/warn (последние 50)
+│   ├── GeoDiagnosticLog.kt    Кольцевой буфер записей о работе геолокации (до 100, заполняется только в diag/debug)
 │   └── BugReportCollector.kt  Сбор диагностики, формирование clipboard-текста и issue URL
 ├── game/
 │   └── GameSettingsReader.kt    Парсинг JSON настроек игры (theme, lang)
@@ -281,10 +282,22 @@ app/src/main/java/com/github/wrager/sbgscout/
 - Наследуется от `release` (`initWith(release)`): R8/proguard, signingConfig.release при наличии env, та же модель безопасности.
 - **applicationId — без суффикса**, тот же `com.github.wrager.sbgscout`. Diag-APK устанавливается ПОВЕРХ прод-релиза, не как отдельное приложение, и сохраняет cookies/localStorage/прочее состояние пользователя — диагностика идёт в его реальной среде. Условие установки поверх: APK подписан тем же ключом, что и установленная stable (`RELEASE_STORE` + `RELEASE_STORE_PASSWORD` + `RELEASE_KEY_PASSWORD` в env).
 - `versionNameSuffix = "-diag"` — пользователь видит метку в settings и понимает, что у него спец-сборка. `AppUpdateChecker` не ломается: `ScriptVersion.leadingDigitsAsInt` отрезает суффикс, `1.2.0-diag` парсится как `[1,2,0]`. При следующей stable (1.2.1+) diag увидит обновление и предложит перейти.
-- `BuildConfig.GEOLOCATION_DIAGNOSTICS = true` включает `Log.i` под тегом `SbgWebView` с префиксом `[geo]` в `GameActivity.onGeolocationPermissionsShowPrompt`, `locationPermissionRequest` callback, `hasLocationPermission` и `configureGeolocation`. Пользователь снимает logcat фильтром `adb logcat -s SbgWebView` и присылает.
-- В `release`/`instr` флаг `false` — никаких побочных логов в проде и тестах.
+- `BuildConfig.GEOLOCATION_DIAGNOSTICS = true` включает helper `GameActivity.logGeo()`, который параллельно пишет в logcat (тег `SbgWebView`, префикс `[geo]`) и в in-memory кольцевой буфер `GeoDiagnosticLog` (`diagnostic/`, до 100 записей). Точки логирования: `configureGeolocation` (clearAll done), `onGeolocationPermissionsShowPrompt` (origin + ветка immediate-grant vs runtime-request), `hasLocationPermission` (FINE/COARSE), `locationPermissionRequest` callback (FINE/COARSE granted + ALLOW/DENY).
+- В `release`/`instr` флаг — false/true соответственно. В release `logGeo` — no-op, никаких побочных логов в проде. В `instr` флаг включён, чтобы e2e-тесты могли проверить корректность сборки diagnostic-текста (см. `CopyGeoDiagnosticsE2ETest`).
 
-Сборка: `assembleDiag`, выходной APK — `app/build/outputs/apk/diag/app-diag.apk`.
+Сборка APK:
+
+- Локально: `./gradlew assembleDiag`, выходной APK — `app/build/outputs/apk/diag/app-diag-1.x.y-diag.apk`. Без `RELEASE_STORE` env APK будет unsigned и не установится поверх существующего release.
+- Через CI: workflow `.github/workflows/diag.yml` (trigger `workflow_dispatch`) собирает signed APK с GitHub-secrets и кладёт в run artifacts. Используется когда у разработчика нет keystore локально.
+
+#### Доставка диагностики пользователю
+
+Цель — пользователь без ADB/SDK/dev-mode присылает диагностику текстом в чат/почту.
+
+- Кнопка **«Скопировать диагностику геолокации»** в settings (preference `copy_geo_diagnostics`). Видна только если `BuildConfig.GEOLOCATION_DIAGNOSTICS=true` (программная visibility в `SettingsFragment.onCreatePreferences`), в release её нет.
+- По клику `SettingsFragment.copyGeoDiagnostics()` собирает diagnostic через `BugReportCollector.collect(..., geoLog = activity.geoDiagnosticLog)` (опциональный `geoLog`-параметр добавлен специально для этого flow), кладёт результат в системный clipboard, показывает Toast «Диагностика геолокации скопирована в буфер обмена». GitHub Issues НЕ открывается (в отличие от стандартной кнопки «Сообщить об ошибке»).
+- Итоговый clipboard-текст содержит секции `SBG Scout v..-diag`, `Android..`, `Device..`, `WebView..`, `Скрипты:`, `Лог консоли:` и (только в diag/debug) `Лог геолокации:` с timestamp'ами.
+- `BugReportCollector` сохраняет обратную совместимость: `geoLog` — опциональный с default `null`, существующий вызов из «Сообщить об ошибке» не меняется и не включает geo-секцию даже в diag-сборке (две кнопки разделены логически).
 
 ### Централизация URL игры
 
