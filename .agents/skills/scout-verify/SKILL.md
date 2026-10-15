@@ -1,5 +1,5 @@
 ---
-name: my-sbg-verify
+name: scout-verify
 description: Проверить изменения SBG Scout перед коммитом или найти причину сбоя Android-сборки, JVM-тестов и e2e.
 ---
 

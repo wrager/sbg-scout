@@ -1,5 +1,5 @@
 ---
-name: my-sbg-screenshots
+name: scout-screenshots
 description: Перегенерировать три README-скриншота SBG Scout через e2e на Android-эмуляторе, в том числе при подготовке релиза.
 ---
 

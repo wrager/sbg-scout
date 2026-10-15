@@ -233,7 +233,7 @@ tasks.register<JacocoReport>("jacocoCombinedReport") {
 
 // Копирует PNG-скриншоты из test storage в .github/images/screenshots/ для
 // README. Запускается после connectedInstrAndroidTest с фильтром по аннотации
-// @ReadmeScreenshot — см. .claude/commands/screenshots.md. AGP при
+// @ReadmeScreenshot — см. .agents/skills/scout-screenshots/SKILL.md. AGP при
 // useTestStorageService=true вытаскивает файлы, записанные через
 // PlatformTestStorageRegistry, в build/outputs/connected_android_test_additional_output/
 // (точная структура подкаталогов зависит от версии AGP, поэтому ищем walkTopDown).
@@ -246,7 +246,7 @@ tasks.register("copyReadmeScreenshots") {
             error(
                 "Директория $outputsDir не существует. " +
                     "Сначала прогоните connectedInstrAndroidTest со скриншот-тестами " +
-                    "(см. .claude/commands/screenshots.md).",
+                    "(см. .agents/skills/scout-screenshots/SKILL.md).",
             )
         }
         val targetDir = rootProject.file(".github/images/screenshots")

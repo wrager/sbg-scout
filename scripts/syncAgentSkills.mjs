@@ -4,7 +4,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SKILL_NAME = /^my-sbg-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SKILL_NAME = /^scout-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MARKER = '.generated';
 
 async function directoryExists(path) {

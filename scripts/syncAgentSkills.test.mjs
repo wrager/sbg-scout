@@ -17,9 +17,9 @@ async function fixture(t) {
   const source = join(root, '.agents', 'skills');
   const target = join(root, '.claude', 'skills');
   await mkdir(source, { recursive: true });
-  const skill = join(source, 'my-sbg-example');
-  await put(join(skill, 'SKILL.md'), '---\nname: my-sbg-example\ndescription: Example workflow.\n---\n\nИнструкции.\n');
-  return { root, source, target, skill, copy: join(target, 'my-sbg-example') };
+  const skill = join(source, 'scout-example');
+  await put(join(skill, 'SKILL.md'), '---\nname: scout-example\ndescription: Example workflow.\n---\n\nИнструкции.\n');
+  return { root, source, target, skill, copy: join(target, 'scout-example') };
 }
 
 async function put(path, content) {
@@ -32,7 +32,7 @@ test('copies skills, nested references and binary assets; second run makes no ch
   await put(join(skill, 'references', 'workflow.md'), 'Референс.\n');
   const binary = Buffer.from([0, 255, 13, 10, 128]);
   await put(join(skill, 'assets', 'sample.bin'), binary);
-  assert.deepEqual(await syncAgentSkills({ root }), ['my-sbg-example']);
+  assert.deepEqual(await syncAgentSkills({ root }), ['scout-example']);
   assert.deepEqual(await readFile(join(copy, 'SKILL.md')), await readFile(join(skill, 'SKILL.md')));
   assert.equal(await readFile(join(copy, 'references', 'workflow.md'), 'utf8'), 'Референс.\n');
   assert.deepEqual(await readFile(join(copy, 'assets', 'sample.bin')), binary);
@@ -44,7 +44,7 @@ test('copies skills, nested references and binary assets; second run makes no ch
 
 test('check reports missing outputs without creating any directory', async (t) => {
   const { root, target } = await fixture(t);
-  assert.deepEqual(await syncAgentSkills({ root, check: true }), ['my-sbg-example']);
+  assert.deepEqual(await syncAgentSkills({ root, check: true }), ['scout-example']);
   await assert.rejects(lstat(target), { code: 'ENOENT' });
 });
 
@@ -53,7 +53,7 @@ test('check detects drift without repairing it; sync repairs it and removes obso
   await syncAgentSkills({ root });
   await put(join(copy, 'SKILL.md'), 'Edited generated copy.\n');
   await put(join(copy, 'references', 'obsolete.md'), 'Old reference.\n');
-  assert.deepEqual(await syncAgentSkills({ root, check: true }), ['my-sbg-example']);
+  assert.deepEqual(await syncAgentSkills({ root, check: true }), ['scout-example']);
   assert.equal(await readFile(join(copy, 'SKILL.md'), 'utf8'), 'Edited generated copy.\n');
   await syncAgentSkills({ root });
   assert.deepEqual(await syncAgentSkills({ root, check: true }), []);
@@ -64,29 +64,29 @@ test('removes a retired generated skill and preserves unrelated Claude skills', 
   const { root, skill, target, copy } = await fixture(t);
   await syncAgentSkills({ root });
   await put(join(target, 'my-private', 'SKILL.md'), 'Personal skill.\n');
-  await put(join(target, 'my-sbg-local', 'SKILL.md'), 'Unmanaged skill.\n');
+  await put(join(target, 'scout-local', 'SKILL.md'), 'Unmanaged skill.\n');
   await rm(skill, { recursive: true });
-  assert.deepEqual(await syncAgentSkills({ root, check: true }), ['my-sbg-example']);
+  assert.deepEqual(await syncAgentSkills({ root, check: true }), ['scout-example']);
   await syncAgentSkills({ root });
   await assert.rejects(lstat(copy), { code: 'ENOENT' });
-  assert.deepEqual((await readdir(target)).sort(), ['my-private', 'my-sbg-local']);
+  assert.deepEqual((await readdir(target)).sort(), ['my-private', 'scout-local']);
 });
 
 test('refuses to overwrite an unmanaged skill before writing any other outputs', async (t) => {
   const { root, source, copy } = await fixture(t);
-  await put(join(source, 'my-sbg-another', 'SKILL.md'), 'Another workflow.\n');
+  await put(join(source, 'scout-another', 'SKILL.md'), 'Another workflow.\n');
   await put(join(copy, 'SKILL.md'), 'Manual instructions.\n');
   await assert.rejects(syncAgentSkills({ root }), /unmanaged skill/);
   assert.equal(await readFile(join(copy, 'SKILL.md'), 'utf8'), 'Manual instructions.\n');
-  await assert.rejects(lstat(join(root, '.claude', 'skills', 'my-sbg-another')), { code: 'ENOENT' });
+  await assert.rejects(lstat(join(root, '.claude', 'skills', 'scout-another')), { code: 'ENOENT' });
 });
 
 test('invalid or incomplete sources fail before changing generated copies', async (t) => {
   const { root, source, copy } = await fixture(t);
   await syncAgentSkills({ root });
-  await mkdir(join(source, 'my-sbg-incomplete'));
+  await mkdir(join(source, 'scout-incomplete'));
   await assert.rejects(syncAgentSkills({ root }), /Missing SKILL.md/);
-  await rm(join(source, 'my-sbg-incomplete'), { recursive: true });
+  await rm(join(source, 'scout-incomplete'), { recursive: true });
   await mkdir(join(source, 'bad-name'));
   await assert.rejects(syncAgentSkills({ root }), /Invalid shared skill directory/);
   assert.match(await readFile(join(copy, 'SKILL.md'), 'utf8'), /Инструкции/);
@@ -97,7 +97,7 @@ test('detects renamed resources even when the file count stays the same', async 
   await put(join(skill, 'references', 'before.md'), 'Reference.\n');
   await syncAgentSkills({ root });
   await rename(join(skill, 'references', 'before.md'), join(skill, 'references', 'after.md'));
-  assert.deepEqual(await syncAgentSkills({ root, check: true }), ['my-sbg-example']);
+  assert.deepEqual(await syncAgentSkills({ root, check: true }), ['scout-example']);
   await syncAgentSkills({ root });
   await assert.rejects(lstat(join(copy, 'references', 'before.md')), { code: 'ENOENT' });
   assert.equal(await readFile(join(copy, 'references', 'after.md'), 'utf8'), 'Reference.\n');

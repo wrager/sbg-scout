@@ -8,9 +8,9 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 - Подготовка окружения, команды для PowerShell и Bash: [docs/agent-setup.md](docs/agent-setup.md).
 - Исходники приложения: `app/src/main/`; JVM-тесты: `app/src/test/`; e2e: `app/src/androidTest/`; тестовая конфигурация: `app/src/instr/`.
-- Общий источник скиллов — `.agents/skills/my-sbg-*/SKILL.md`. Codex обнаруживает их напрямую; `.claude/skills/` содержит генерируемые копии для Claude Code. Менять только исходники, затем запускать `node scripts/syncAgentSkills.mjs`. Копии коммитятся вместе с исходниками; CI проверяет их актуальность через `node scripts/syncAgentSkills.mjs --check`.
-- При проверке приложения использовать `my-sbg-verify`; для скриншотов — `my-sbg-screenshots`; при запросе релиза — `my-sbg-release`; для текста анонса — `my-sbg-announce`. В Codex: `$my-sbg-release 1.3.0`, в Claude: `/my-sbg-release 1.3.0`. Старые команды Claude `/release`, `/screenshots`, `/announce` сохранены как обёртки.
-- Скилл можно прочитать по пути вручную, если текущая сессия ещё не обновила список. Новые скиллы называть с префиксом `my-sbg-`.
+- Общий источник скиллов — `.agents/skills/scout-*/SKILL.md`. Codex обнаруживает их напрямую; `.claude/skills/` содержит генерируемые копии для Claude Code. Менять только исходники, затем запускать `node scripts/syncAgentSkills.mjs`. Копии коммитятся вместе с исходниками; CI проверяет их актуальность через `node scripts/syncAgentSkills.mjs --check`.
+- При проверке приложения использовать `scout-verify`; для скриншотов — `scout-screenshots`; при запросе релиза — `scout-release`; для текста анонса — `scout-announce`. В Codex: `$scout-release 1.3.0`, в Claude: `/scout-release 1.3.0`.
+- Скилл можно прочитать по пути вручную, если текущая сессия ещё не обновила список. Новые скиллы называть с префиксом `scout-`.
 
 ## Критические запреты (нарушение = перманентный бан в игре)
 
@@ -58,8 +58,8 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 ## Скриншоты README
 
 - Скриншоты в `.github/images/screenshots/` (`game_settings.png`, `settings.png`, `script-manager.png`) обновляются как часть каждого релиза тем же коммитом, что bump версии в `app/build.gradle.kts`.
-- Источник истины — e2e-генератор, не ручные снимки. Скилл `my-sbg-screenshots` запускает три тест-класса в `app/src/androidTest/.../e2e/screenshots/` через `:app:updateReadmeScreenshots` (gradle-обёртка над `connectedInstrAndroidTest` с фильтром по `@ReadmeScreenshot` + `copyReadmeScreenshots`). Эмулятор: API 33, Pixel 4, WebView 101. Локаль приложения форсится на русскую внутри тестов через `LocaleManager.setApplicationLocales`, локаль эмулятора не имеет значения.
-- В `my-sbg-release` скриншоты обновляются ПОСЛЕ `versionMajor`/`versionMinor`/`versionPatch` в `app/build.gradle.kts`, чтобы новая версия попала на экран настроек из `BuildConfig.VERSION_NAME`.
+- Источник истины — e2e-генератор, не ручные снимки. Скилл `scout-screenshots` запускает три тест-класса в `app/src/androidTest/.../e2e/screenshots/` через `:app:updateReadmeScreenshots` (gradle-обёртка над `connectedInstrAndroidTest` с фильтром по `@ReadmeScreenshot` + `copyReadmeScreenshots`). Эмулятор: API 33, Pixel 4, WebView 101. Локаль приложения форсится на русскую внутри тестов через `LocaleManager.setApplicationLocales`, локаль эмулятора не имеет значения.
+- В `scout-release` скриншоты обновляются ПОСЛЕ `versionMajor`/`versionMinor`/`versionPatch` в `app/build.gradle.kts`, чтобы новая версия попала на экран настроек из `BuildConfig.VERSION_NAME`.
 - Релизный коммит включает `RELEASE_NOTES.md`, `app/build.gradle.kts` и `.github/images/screenshots/` одной транзакцией. Скилл скриншотов сам не коммитит — это решает вызывающий сценарий.
 - `game_settings.png` использует mock-фикстуру (`app-page-with-settings-content-realistic.html`), потому что полные стили игры не лежат в репо. Локальный snapshot в `refs/game/private/` (gitignored через `/refs/`) подхватывается задачей `inlineGameSnapshot` как override фикстуры.
 

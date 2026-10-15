@@ -42,9 +42,8 @@ node --test scripts/syncAgentSkills.test.mjs
 ## Один источник скиллов
 
 ```text
-.agents/skills/my-sbg-*/     <- редактируемые исходники, обнаруживаются Codex
-.claude/skills/my-sbg-*/     <- генерируемые копии, обнаруживаются Claude Code
-.claude/commands/           <- совместимость со старыми /release, /screenshots, /announce
+.agents/skills/scout-*/     <- редактируемые исходники, обнаруживаются Codex
+.claude/skills/scout-*/     <- генерируемые копии, обнаруживаются Claude Code
 scripts/syncAgentSkills.mjs <- синхронизация и проверка копий
 ```
 
@@ -52,14 +51,14 @@ scripts/syncAgentSkills.mjs <- синхронизация и проверка к
 
 | Назначение | Codex | Claude Code |
 |---|---|---|
-| Сборка, lint, unit-тесты, e2e | `$my-sbg-verify` | `/my-sbg-verify` |
-| Три скриншота README | `$my-sbg-screenshots` | `/my-sbg-screenshots` или `/screenshots` |
-| Релиз указанной версии без push | `$my-sbg-release 1.3.0` | `/my-sbg-release 1.3.0` или `/release 1.3.0` |
-| Текст анонса с базовой версии | `$my-sbg-announce 1.2.0` | `/my-sbg-announce 1.2.0` или `/announce 1.2.0` |
+| Сборка, lint, unit-тесты, e2e | `$scout-verify` | `/scout-verify` |
+| Три скриншота README | `$scout-screenshots` | `/scout-screenshots` |
+| Релиз указанной версии без push | `$scout-release 1.3.0` | `/scout-release 1.3.0` |
+| Текст анонса с базовой версии | `$scout-announce 1.2.0` | `/scout-announce 1.2.0` |
 
 Скиллы также могут выбираться по описанию задачи. Аргументы берутся из сообщения пользователя: общие `SKILL.md` не используют специфичные для Claude `$ARGUMENTS` и названия его инструментов. Между сценариями агент переходит чтением общего `SKILL.md`, поэтому наличие slash-команд не требуется.
 
-Для нового скилла создать `.agents/skills/my-sbg-<имя>/SKILL.md` с YAML-полями `name` (совпадает с именем каталога, до 64 символов) и `description`. При необходимости добавить `scripts/`, `references/`, `assets/`; синхронизатор копирует всё дерево, включая бинарные файлы. Ссылки на файлы проекта писать от корня репозитория; локальные ресурсы скилла — относительно `SKILL.md`.
+Для нового скилла создать `.agents/skills/scout-<имя>/SKILL.md` с YAML-полями `name` (совпадает с именем каталога, до 64 символов) и `description`. При необходимости добавить `scripts/`, `references/`, `assets/`; синхронизатор копирует всё дерево, включая бинарные файлы. Ссылки на файлы проекта писать от корня репозитория; локальные ресурсы скилла — относительно `SKILL.md`.
 
 После добавления, изменения или удаления исходников:
 
@@ -71,6 +70,6 @@ node --test scripts/syncAgentSkills.test.mjs
 
 Коммитить исходники и копии вместе. Маркер `.generated` обозначает управляемые каталоги Claude: синхронизация заменяет их содержимое и удаляет копии удалённых скиллов. Ручные правки в копиях будут перезаписаны. Посторонние скиллы не затрагиваются; при конфликте с неуправляемым каталогом синхронизатор останавливается. `--check` ничего не записывает и возвращает ненулевой код при расхождении; CI запускает эту проверку отдельно от Android-сборки.
 
-После добавления скиллов начать новую сессию Codex/Claude, если список не обновился. В уже открытом чате агент может прочитать нужный `.agents/skills/my-sbg-*/SKILL.md` вручную.
+После добавления скиллов начать новую сессию Codex/Claude, если список не обновился. В уже открытом чате агент может прочитать нужный `.agents/skills/scout-*/SKILL.md` вручную.
 
 Основание для путей и формата: [официальная документация OpenAI о скиллах](https://learn.chatgpt.com/docs/build-skills), [скиллы Claude Code](https://code.claude.com/docs/en/skills), [импорт общих инструкций в Claude Code](https://code.claude.com/docs/en/memory#share-one-file-with-other-coding-tools).

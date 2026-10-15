@@ -61,10 +61,10 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 
 | Сценарий | Codex | Claude Code |
 |---|---|---|
-| Проверка проекта | `$my-sbg-verify` | `/my-sbg-verify` |
-| Скриншоты README | `$my-sbg-screenshots` | `/my-sbg-screenshots` (или `/screenshots`) |
-| Подготовка релиза | `$my-sbg-release 1.3.0` | `/my-sbg-release 1.3.0` (или `/release 1.3.0`) |
-| Анонс изменений | `$my-sbg-announce 1.2.0` | `/my-sbg-announce 1.2.0` (или `/announce 1.2.0`) |
+| Проверка проекта | `$scout-verify` | `/scout-verify` |
+| Скриншоты README | `$scout-screenshots` | `/scout-screenshots` |
+| Подготовка релиза | `$scout-release 1.3.0` | `/scout-release 1.3.0` |
+| Анонс изменений | `$scout-announce 1.2.0` | `/scout-announce 1.2.0` |
 
 Подробности: [окружение и общие скиллы](docs/agent-setup.md).
 

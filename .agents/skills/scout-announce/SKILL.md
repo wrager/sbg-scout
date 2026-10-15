@@ -1,5 +1,5 @@
 ---
-name: my-sbg-announce
+name: scout-announce
 description: Составить короткий русский анонс пользовательских изменений SBG Scout с указанной версии, без публикации.
 ---
 
