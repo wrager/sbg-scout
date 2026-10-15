@@ -10,6 +10,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  agent-skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check shared agent skills
+        run: node scripts/syncAgentSkills.mjs --check
+
+      - name: Test skill synchronization
+        run: node --test scripts/syncAgentSkills.test.mjs
+
   check:
     runs-on: ubuntu-latest
     steps:
