@@ -270,7 +270,7 @@ app/src/main/java/com/github/wrager/sbgscout/
 
 - Наследуется от `debug` (`initWith(debug)`) c `applicationIdSuffix = ".instr"` — тестовый APK ставится параллельно debug-сборке на эмуляторе, не затирая её.
 - Свой `BuildConfig.GAME_APP_URL / GAME_LOGIN_URL / GAME_HOST_MATCH` указывает на `http://127.0.0.1` — вместо `sbg-game.ru`.
-- `testBuildType = "instr"` делает `connectedAndroidTest` запускающим именно instr-вариант APK (задача `connectedInstrAndroidTest`). Побочный эффект: AGP генерирует unit-тесты только как `testInstrUnitTest` (см. команду CI в корневом CLAUDE.md). Это обычные JVM unit-тесты из `app/src/test/`, не инструментированные — имя складывается по шаблону `test<BuildType>UnitTest`.
+- `testBuildType = "instr"` делает `connectedAndroidTest` запускающим именно instr-вариант APK (задача `connectedInstrAndroidTest`). Побочный эффект: AGP генерирует unit-тесты только как `testInstrUnitTest` (см. команду CI в корневом AGENTS.md). Это обычные JVM unit-тесты из `app/src/test/`, не инструментированные — имя складывается по шаблону `test<BuildType>UnitTest`.
 - `testOptions.execution = "ANDROIDX_TEST_ORCHESTRATOR"` + `clearPackageData` — каждый e2e-тест стартует в своём процессе с чистым состоянием (SharedPreferences, WebView cookies, files).
 - Source set `app/src/instr/` содержит свой `network_security_config.xml` (cleartext разрешён только для `127.0.0.1` и `localhost`) и `AndroidManifest.xml` с `tools:replace` — прод-сборки остаются без послаблений network security.
 
