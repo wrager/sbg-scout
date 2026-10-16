@@ -3,8 +3,9 @@ package com.github.wrager.sbgscout.script.injector
 import android.content.SharedPreferences
 import com.github.wrager.sbgscout.script.model.UserScript
 
-class InjectionStateStorage(private val preferences: SharedPreferences) {
-
+class InjectionStateStorage(
+    private val preferences: SharedPreferences,
+) {
     fun saveSnapshot(scripts: List<UserScript>) {
         val entries = scripts.map { buildSnapshotEntry(it) }.toSet()
         preferences.edit().putStringSet(KEY_LAST_INJECTED, entries).apply()
@@ -12,9 +13,7 @@ class InjectionStateStorage(private val preferences: SharedPreferences) {
 
     // null — игра ни разу не загружалась (ключ отсутствует)
     // emptySet() — игра загружалась, но скрипты не были включены
-    fun getSnapshot(): Set<String>? {
-        return preferences.getStringSet(KEY_LAST_INJECTED, null)
-    }
+    fun getSnapshot(): Set<String>? = preferences.getStringSet(KEY_LAST_INJECTED, null)
 
     companion object {
         private const val KEY_LAST_INJECTED = "last_injected_state"

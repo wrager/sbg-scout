@@ -11,15 +11,15 @@ import org.junit.Before
 import org.junit.Test
 
 class BugReportCollectorTest {
-
     private lateinit var consoleLogBuffer: ConsoleLogBuffer
 
-    private val testDevice = BugReportCollector.DeviceInfo(
-        model = "Google Pixel 7",
-        androidVersion = "14",
-        sdkVersion = 34,
-        webViewVersion = "120.0.6099.144",
-    )
+    private val testDevice =
+        BugReportCollector.DeviceInfo(
+            model = "Google Pixel 7",
+            androidVersion = "14",
+            sdkVersion = 34,
+            webViewVersion = "120.0.6099.144",
+        )
 
     @Before
     fun setUp() {
@@ -43,10 +43,11 @@ class BugReportCollectorTest {
     fun `clipboard text contains injected scripts with checkmark`() {
         every { consoleLogBuffer.format() } returns ""
         val collector = BugReportCollector("0.11.0", consoleLogBuffer)
-        val scripts = listOf(
-            userScript("SVP", "0.6.0"),
-            userScript("EUI", "1.2.0"),
-        )
+        val scripts =
+            listOf(
+                userScript("SVP", "0.6.0"),
+                userScript("EUI", "1.2.0"),
+            )
         val snapshot = setOf("test/SVP::0.6.0", "test/EUI::1.2.0")
 
         val report = collector.collect(scripts, snapshot, testDevice)
@@ -85,11 +86,12 @@ class BugReportCollectorTest {
     fun `all three script states shown correctly`() {
         every { consoleLogBuffer.format() } returns ""
         val collector = BugReportCollector("0.11.0", consoleLogBuffer)
-        val scripts = listOf(
-            userScript("SVP", "0.6.0"),
-            userScript("EUI", "1.2.0"),
-            userScript("CUI", "0.8.0", enabled = false),
-        )
+        val scripts =
+            listOf(
+                userScript("SVP", "0.6.0"),
+                userScript("EUI", "1.2.0"),
+                userScript("CUI", "0.8.0", enabled = false),
+            )
         // Только SVP в снапшоте — EUI включён, но не применён
         val snapshot = setOf("test/SVP::0.6.0")
 
@@ -104,10 +106,11 @@ class BugReportCollectorTest {
     fun `null snapshot marks all enabled scripts as pending`() {
         every { consoleLogBuffer.format() } returns ""
         val collector = BugReportCollector("0.11.0", consoleLogBuffer)
-        val scripts = listOf(
-            userScript("SVP", "0.6.0"),
-            userScript("CUI", "0.8.0", enabled = false),
-        )
+        val scripts =
+            listOf(
+                userScript("SVP", "0.6.0"),
+                userScript("CUI", "0.8.0", enabled = false),
+            )
 
         val report = collector.collect(scripts, injectedSnapshot = null, testDevice)
 
@@ -248,12 +251,13 @@ class BugReportCollectorTest {
         name: String,
         version: String?,
         enabled: Boolean = true,
-    ): UserScript = UserScript(
-        identifier = ScriptIdentifier("test/$name"),
-        header = ScriptHeader(name = name, version = version),
-        sourceUrl = null,
-        updateUrl = null,
-        content = "",
-        enabled = enabled,
-    )
+    ): UserScript =
+        UserScript(
+            identifier = ScriptIdentifier("test/$name"),
+            header = ScriptHeader(name = name, version = version),
+            sourceUrl = null,
+            updateUrl = null,
+            content = "",
+            enabled = enabled,
+        )
 }

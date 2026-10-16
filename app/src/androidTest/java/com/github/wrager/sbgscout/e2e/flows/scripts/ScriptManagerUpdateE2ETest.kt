@@ -37,7 +37,6 @@ import org.junit.Test
  *    → applyUpdate для каждого UpdateAvailable → storage обновляется на v0.8.1.
  */
 class ScriptManagerUpdateE2ETest : E2ETestBase() {
-
     @Test
     fun updateSingleScript_viaUpdateAllDialog_installsNewVersion() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -45,7 +44,11 @@ class ScriptManagerUpdateE2ETest : E2ETestBase() {
         sideloadSvp("0.8.0")
         val svp081 = AssetLoader.read("fixtures/scripts/svp-v0.8.1.user.js")
         server.stubScriptAsset(
-            "wrager", "sbg-vanilla-plus", "latest", "sbg-vanilla-plus.user.js", svp081,
+            "wrager",
+            "sbg-vanilla-plus",
+            "latest",
+            "sbg-vanilla-plus.user.js",
+            svp081,
         )
         // Releases list: ScriptUpdateChecker сравнивает по tag_name, а
         // ScriptReleaseNotesProvider берёт отсюда же release notes.
@@ -61,8 +64,11 @@ class ScriptManagerUpdateE2ETest : E2ETestBase() {
         )
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
         scriptManager.waitForCard("SBG Vanilla+")
 
         // Клик "Check for updates" → открывается диалог release notes.
@@ -83,11 +89,14 @@ class ScriptManagerUpdateE2ETest : E2ETestBase() {
             try {
                 onView(withText(text)).inRoot(isDialog()).check(
                     androidx.test.espresso.assertion.ViewAssertions.matches(
-                        androidx.test.espresso.matcher.ViewMatchers.isDisplayed(),
+                        androidx.test.espresso.matcher.ViewMatchers
+                            .isDisplayed(),
                     ),
                 )
                 return
-            } catch (@Suppress("TooGenericExceptionCaught") _: Throwable) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") _: Throwable,
+            ) {
                 Thread.sleep(POLL_INTERVAL_MS)
             }
         }
@@ -98,9 +107,12 @@ class ScriptManagerUpdateE2ETest : E2ETestBase() {
         val deadline = SystemClock.uptimeMillis() + TIMEOUT_MS
         val storage = ScriptStorageFixture.storage()
         while (SystemClock.uptimeMillis() < deadline) {
-            val version = storage.getAll()
-                .find { it.header.name == "SBG Vanilla+" }
-                ?.header?.version
+            val version =
+                storage
+                    .getAll()
+                    .find { it.header.name == "SBG Vanilla+" }
+                    ?.header
+                    ?.version
             if (version == expected) return
             Thread.sleep(POLL_INTERVAL_MS)
         }
@@ -111,12 +123,13 @@ class ScriptManagerUpdateE2ETest : E2ETestBase() {
         ScriptStorageFixture.storage().save(
             UserScript(
                 identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
-                header = ScriptHeader(
-                    name = "SBG Vanilla+",
-                    version = version,
-                    namespace = "github.com/wrager/sbg-vanilla-plus",
-                    match = listOf("https://sbg-game.ru/app/*"),
-                ),
+                header =
+                    ScriptHeader(
+                        name = "SBG Vanilla+",
+                        version = version,
+                        namespace = "github.com/wrager/sbg-vanilla-plus",
+                        match = listOf("https://sbg-game.ru/app/*"),
+                    ),
                 sourceUrl = PresetScripts.SVP.downloadUrl,
                 updateUrl = PresetScripts.SVP.updateUrl,
                 content = "// sideloaded SVP $version",

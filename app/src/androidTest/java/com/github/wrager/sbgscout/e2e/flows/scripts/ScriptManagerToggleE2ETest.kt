@@ -16,23 +16,26 @@ import org.junit.Test
  * значение `enabled` в ScriptStorage через LauncherViewModel.toggleScript.
  */
 class ScriptManagerToggleE2ETest : E2ETestBase() {
-
     @Test
     fun toggle_enablesDisabledScript() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
 
-        val script = ScriptStorageFixture.minimalScript(
-            name = "Toggle Test",
-            enabled = false,
-            identifierValue = "toggle-test-enable",
-        )
+        val script =
+            ScriptStorageFixture.minimalScript(
+                name = "Toggle Test",
+                enabled = false,
+                identifierValue = "toggle-test-enable",
+            )
         val storage = ScriptStorageFixture.storage()
         storage.save(script)
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
 
         scriptManager.clickCardChildView("Toggle Test", R.id.scriptToggle)
 
@@ -44,17 +47,21 @@ class ScriptManagerToggleE2ETest : E2ETestBase() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
 
-        val script = ScriptStorageFixture.minimalScript(
-            name = "Toggle Test",
-            enabled = true,
-            identifierValue = "toggle-test-disable",
-        )
+        val script =
+            ScriptStorageFixture.minimalScript(
+                name = "Toggle Test",
+                enabled = true,
+                identifierValue = "toggle-test-disable",
+            )
         val storage = ScriptStorageFixture.storage()
         storage.save(script)
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
 
         scriptManager.clickCardChildView("Toggle Test", R.id.scriptToggle)
 

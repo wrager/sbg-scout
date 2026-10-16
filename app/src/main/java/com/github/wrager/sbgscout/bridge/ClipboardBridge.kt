@@ -5,8 +5,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.webkit.JavascriptInterface
 
-class ClipboardBridge(private val context: Context) {
-
+class ClipboardBridge(
+    private val context: Context,
+) {
     @JavascriptInterface
     fun readText(): String {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

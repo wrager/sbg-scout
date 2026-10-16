@@ -10,7 +10,9 @@ sealed class ScriptUpdateResult {
         val latestVersion: ScriptVersion,
     ) : ScriptUpdateResult()
 
-    data class UpToDate(val identifier: ScriptIdentifier) : ScriptUpdateResult()
+    data class UpToDate(
+        val identifier: ScriptIdentifier,
+    ) : ScriptUpdateResult()
 
     data class CheckFailed(
         val identifier: ScriptIdentifier,

@@ -18,7 +18,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class AppSettingsScreenshotE2ETest : E2ETestBase() {
-
     @Before
     fun setUpLocale() {
         ReadmeScreenshotCapture.forceRussianLocale()

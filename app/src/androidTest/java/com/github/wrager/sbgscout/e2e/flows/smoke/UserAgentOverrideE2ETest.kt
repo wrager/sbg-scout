@@ -19,7 +19,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class UserAgentOverrideE2ETest : E2ETestBase() {
-
     @Test
     fun jsUserAgent_hasNoWvToken_butNativeUserAgentStringStillDoes() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")

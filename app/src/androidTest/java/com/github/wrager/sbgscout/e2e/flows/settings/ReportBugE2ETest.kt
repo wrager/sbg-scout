@@ -28,7 +28,6 @@ import org.junit.Test
  * с query-параметрами (apk-version, android-version, device и т.д.).
  */
 class ReportBugE2ETest : E2ETestBase() {
-
     @Test
     fun reportBugPreference_copiesDiagnosticsAndLaunchesGithubIssueIntent() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -40,7 +39,8 @@ class ReportBugE2ETest : E2ETestBase() {
 
         Intents.init()
         try {
-            Intents.intending(anyIntent())
+            Intents
+                .intending(anyIntent())
                 .respondWith(Instrumentation.ActivityResult(Activity.RESULT_OK, null))
 
             overlay.clickPreferenceByKey(SettingsOverlayScreen.KEY_REPORT_BUG)
@@ -69,7 +69,11 @@ class ReportBugE2ETest : E2ETestBase() {
         var text: String? = null
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            text = manager.primaryClip?.getItemAt(0)?.text?.toString()
+            text =
+                manager.primaryClip
+                    ?.getItemAt(0)
+                    ?.text
+                    ?.toString()
         }
         return text
     }
