@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.view.Gravity
 import android.view.WindowManager
 import android.util.Log
 import android.view.inputmethod.InputMethodManager
@@ -113,6 +114,18 @@ class GameActivity : AppCompatActivity() {
      * перекрывала бы контент, а вернуться в игру можно «Назад».
      */
     private var scoutButtonAllowed = true
+
+    /**
+     * true на странице входа: блок кнопок прижат к верхнему краю, по центру
+     * он закрывал бы кнопку входа через Telegram посередине страницы.
+     */
+    private var topButtonsAtTop = false
+
+    /**
+     * Высота зоны сверху окна, которую закрывают статус-бар (в том числе скрытый:
+     * в полноэкранном режиме он выезжает по свайпу поверх контента) и вырез экрана.
+     */
+    private var safeTopInset = 0
 
     /**
      * Deep-link URL, отложенный до окончания provisioning'а. Когда Activity
@@ -338,6 +351,10 @@ class GameActivity : AppCompatActivity() {
                     maxOf(barInsets.bottom, imeInsets.bottom),
                 )
             }
+            safeTopInset = windowInsets.getInsetsIgnoringVisibility(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+            ).top
+            updateTopButtonsPosition()
             windowInsets
         }
     }
@@ -468,6 +485,8 @@ class GameActivity : AppCompatActivity() {
         gameReady = false
         scoutButtonReplaced = false
         scoutButtonAllowed = true
+        topButtonsAtTop = false
+        updateTopButtonsPosition()
         showLoadingButtons()
         showLoadingOverlay()
     }
@@ -481,9 +500,12 @@ class GameActivity : AppCompatActivity() {
         hideLabelAndReload()
         // HTML-кнопки на этих страницах нет. «Scout» нужна только на странице
         // входа: до входа это единственный путь к настройкам приложения.
+        val loginPage = GameUrls.isGameLoginPage(url)
         scoutButtonReplaced = false
-        scoutButtonAllowed = GameUrls.isGameLoginPage(url)
+        scoutButtonAllowed = loginPage
         updateScoutButtonVisibility()
+        topButtonsAtTop = loginPage
+        updateTopButtonsPosition()
     }
 
     private fun configureCookies() {
@@ -724,6 +746,27 @@ class GameActivity : AppCompatActivity() {
     private fun updateScoutButtonVisibility() {
         findViewById<MaterialButton>(R.id.settingsButton).visibility =
             if (scoutButtonAllowed && !scoutButtonReplaced) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * Блок кнопок стоит по центру экрана, а на странице входа ([topButtonsAtTop]) —
+     * у верхнего края, ниже статус-бара и выреза экрана (см. [topButtonsTopMargin]).
+     */
+    private fun updateTopButtonsPosition() {
+        val container = findViewById<View>(R.id.topButtonsContainer)
+        val params = container.layoutParams as? FrameLayout.LayoutParams ?: return
+        if (topButtonsAtTop) {
+            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            params.topMargin = topButtonsTopMargin(
+                safeTopInset = safeTopInset,
+                rootPaddingTop = rootLayout.paddingTop,
+                gap = (TOP_BUTTONS_EDGE_GAP_DP * resources.displayMetrics.density).toInt(),
+            )
+        } else {
+            params.gravity = Gravity.CENTER
+            params.topMargin = 0
+        }
+        container.layoutParams = params
     }
 
     /** Показать белую подложку 50 % — на старте загрузки страницы игры. */
@@ -1304,6 +1347,9 @@ class GameActivity : AppCompatActivity() {
         private const val RELEASE_NOTES_MAX_HEIGHT_DP = 200
         private const val RELEASE_NOTES_PADDING_DP = 24
 
+        /** Зазор между блоком кнопок у верхнего края и статус-баром или вырезом экрана. */
+        private const val TOP_BUTTONS_EDGE_GAP_DP = 8
+
         /**
          * Флаг отложенной перезагрузки страницы игры. Ставится из
          * [SettingsFragment] (preference `reload_game`) и [ScriptListFragment]
@@ -1335,3 +1381,12 @@ internal fun configureWebViewPerformance(webView: WebView) {
         true, // понижать приоритет когда Activity невидима
     )
 }
+
+/**
+ * Отступ блока кнопок у верхнего края от верха содержимого `rootLayout`:
+ * блок встаёт на [gap] ниже зоны статус-бара и выреза экрана [safeTopInset].
+ * В обычном режиме эту зону уже покрывает отступ `rootLayout` сверху
+ * [rootPaddingTop]; в полноэкранном отступа нет, и зону обходит сам блок.
+ */
+internal fun topButtonsTopMargin(safeTopInset: Int, rootPaddingTop: Int, gap: Int): Int =
+    maxOf(safeTopInset - rootPaddingTop, 0) + gap

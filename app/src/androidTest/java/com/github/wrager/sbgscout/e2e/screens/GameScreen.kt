@@ -5,6 +5,8 @@ import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.webkit.WebView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso
 import androidx.test.espresso.Espresso.onView
@@ -138,6 +140,55 @@ class GameScreen(
             if (SystemClock.uptimeMillis() >= deadline) return this
             Thread.sleep(POLL_INTERVAL_MS)
         }
+    }
+
+    /** Положение блока кнопок поверх WebView в экранных пикселях. */
+    fun topButtonsGeometry(): TopButtonsGeometry {
+        var geometry: TopButtonsGeometry? = null
+        scenario.onActivity { activity ->
+            val root = activity.findViewById<View>(R.id.rootLayout)
+            val container = activity.findViewById<View>(R.id.topButtonsContainer)
+            val rootLocation = IntArray(2).also { root.getLocationOnScreen(it) }
+            val containerLocation = IntArray(2).also { container.getLocationOnScreen(it) }
+            val safeTopInset = ViewCompat.getRootWindowInsets(root)
+                ?.getInsetsIgnoringVisibility(
+                    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+                )
+                ?.top ?: 0
+            val areaHeight = root.height - root.paddingTop - root.paddingBottom
+            geometry = TopButtonsGeometry(
+                top = containerLocation[1],
+                centerY = containerLocation[1] + container.height / 2,
+                safeTop = rootLocation[1] + safeTopInset,
+                areaCenterY = rootLocation[1] + root.paddingTop + areaHeight / 2,
+                screenTop = rootLocation[1],
+                screenHeight = root.height,
+            )
+        }
+        return checkNotNull(geometry) { "GameActivity недоступна" }
+    }
+
+    /** Ждёт, пока блок кнопок встанет у верхнего края (так на странице входа). */
+    fun waitForTopButtonsAtTop(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen =
+        waitForTopButtons("у верхнего края", timeoutMs) { it.isAtTop }
+
+    /** Ждёт, пока блок кнопок встанет по центру экрана (так на всех страницах, кроме входа). */
+    fun waitForTopButtonsCentered(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen =
+        waitForTopButtons("по центру", timeoutMs) { it.isCentered }
+
+    private fun waitForTopButtons(
+        placement: String,
+        timeoutMs: Long,
+        isPlaced: (TopButtonsGeometry) -> Boolean,
+    ): GameScreen {
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
+        var geometry = topButtonsGeometry()
+        while (!isPlaced(geometry) && SystemClock.uptimeMillis() < deadline) {
+            Thread.sleep(POLL_INTERVAL_MS)
+            geometry = topButtonsGeometry()
+        }
+        assertTrue("Блок кнопок не встал $placement за ${timeoutMs}ms: $geometry", isPlaced(geometry))
+        return this
     }
 
     /** Вставил ли bootstrap ScoutBridge HTML-кнопку в `.settings-content` игры. */
