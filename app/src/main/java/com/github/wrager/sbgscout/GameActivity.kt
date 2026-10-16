@@ -102,11 +102,17 @@ class GameActivity : AppCompatActivity() {
     private var lastAppliedTheme: GameSettingsReader.ThemeMode? = null
     private var lastAppliedLanguage: String? = null
 
-    /** true после того как i18next инициализирован — интерфейс игры готов. */
+    /** true после полной загрузки игры (см. ScoutBridge) или на странице вне игры. */
     private var gameReady = false
 
     /** true если HTML-кнопка в `.settings-content` успешно инжектирована (нативную «Scout» можно скрыть). */
     private var scoutButtonReplaced = false
+
+    /**
+     * false на страницах вне игры, кроме входа: там нативная «Scout» только
+     * перекрывала бы контент, а вернуться в игру можно «Назад».
+     */
+    private var scoutButtonAllowed = true
 
     /**
      * Deep-link URL, отложенный до окончания provisioning'а. Когда Activity
@@ -457,6 +463,29 @@ class GameActivity : AppCompatActivity() {
         onOpenSettings = { runOnUiThread { openSettings() } },
     )
 
+    /** Старт загрузки страницы игры (в т.ч. reload): индикатор загрузки до сигнала готовности. */
+    private fun handleGamePageStarted() {
+        gameReady = false
+        scoutButtonReplaced = false
+        scoutButtonAllowed = true
+        showLoadingButtons()
+        showLoadingOverlay()
+    }
+
+    /** Старт загрузки страницы вне игры: входа, правил и т.п. */
+    private fun handleOtherPageStarted(url: String?) {
+        // Сигнала готовности игры от этих страниц не будет, поэтому индикатор
+        // загрузки игры там не показываем.
+        gameReady = true
+        hideLoadingOverlay()
+        hideLabelAndReload()
+        // HTML-кнопки на этих страницах нет. «Scout» нужна только на странице
+        // входа: до входа это единственный путь к настройкам приложения.
+        scoutButtonReplaced = false
+        scoutButtonAllowed = GameUrls.isGameLoginPage(url)
+        updateScoutButtonVisibility()
+    }
+
     private fun configureCookies() {
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
@@ -513,14 +542,8 @@ class GameActivity : AppCompatActivity() {
         )
         sbgWebViewClient = SbgWebViewClient(scriptInjector)
         sbgWebViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
-        sbgWebViewClient.onGamePageStarted = {
-            runOnUiThread {
-                gameReady = false
-                scoutButtonReplaced = false
-                showLoadingButtons()
-                showLoadingOverlay()
-            }
-        }
+        sbgWebViewClient.onGamePageStarted = { runOnUiThread { handleGamePageStarted() } }
+        sbgWebViewClient.onOtherPageStarted = { url -> runOnUiThread { handleOtherPageStarted(url) } }
         webView.webViewClient = sbgWebViewClient
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -686,7 +709,7 @@ class GameActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.reloadButton).visibility = View.VISIBLE
     }
 
-    /** Скрыть label + «Reload» (когда i18next инициализирован). «Scout» остаётся до onHtmlButtonInjected. */
+    /** Скрыть label + «Reload» (когда игра загрузилась). «Scout» остаётся до onHtmlButtonInjected. */
     private fun hideLabelAndReload() {
         findViewById<View>(R.id.gameInitializingLabel).visibility = View.GONE
         findViewById<MaterialButton>(R.id.reloadButton).visibility = View.GONE
@@ -697,12 +720,18 @@ class GameActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.settingsButton).visibility = View.GONE
     }
 
+    /** «Scout» видна, если она разрешена на текущей странице и её не заменила HTML-кнопка. */
+    private fun updateScoutButtonVisibility() {
+        findViewById<MaterialButton>(R.id.settingsButton).visibility =
+            if (scoutButtonAllowed && !scoutButtonReplaced) View.VISIBLE else View.GONE
+    }
+
     /** Показать белую подложку 50 % — на старте загрузки страницы игры. */
     private fun showLoadingOverlay() {
         findViewById<View>(R.id.loadingOverlay).visibility = View.VISIBLE
     }
 
-    /** Скрыть белую подложку — когда интерфейс игры инициализировался. */
+    /** Скрыть белую подложку — когда игра загрузилась или открыта страница вне игры. */
     private fun hideLoadingOverlay() {
         findViewById<View>(R.id.loadingOverlay).visibility = View.GONE
     }
@@ -766,15 +795,15 @@ class GameActivity : AppCompatActivity() {
         findViewById<View>(R.id.topButtonsContainer).visibility = View.VISIBLE
         findViewById<View>(R.id.closeSettingsFooter).visibility = View.GONE
         // Восстановить видимость loading-элементов по текущему состоянию:
-        // — label и «Reload» скрываются, когда игра готова (i18next);
-        // — «Scout» скрывается только если HTML-кнопка успешно инжектирована.
+        // — label и «Reload» скрываются, когда игра загрузилась;
+        // — «Scout» скрывается, если HTML-кнопка успешно инжектирована или
+        //   открыта страница вне игры, кроме входа (scoutButtonAllowed).
         //   При включённом CUI `.settings-content` отсутствует, HTML-кнопка не
         //   инжектируется, и «Scout» остаётся единственным способом открыть настройки.
         val loadingVisibility = if (gameReady) View.GONE else View.VISIBLE
         findViewById<View>(R.id.gameInitializingLabel).visibility = loadingVisibility
         findViewById<MaterialButton>(R.id.reloadButton).visibility = loadingVisibility
-        findViewById<MaterialButton>(R.id.settingsButton).visibility =
-            if (scoutButtonReplaced) View.GONE else View.VISIBLE
+        updateScoutButtonVisibility()
         applySettingsAfterClose()
     }
 

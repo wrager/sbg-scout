@@ -86,7 +86,7 @@ class SbgWebViewClientTest {
     }
 
     @Test
-    fun `onPageStarted with non-game URL does nothing`() {
+    fun `onPageStarted with non-game URL skips game bootstrap`() {
         val webView = mockk<WebView>(relaxed = true)
         var startedCalled = false
         client.onGamePageStarted = { startedCalled = true }
@@ -94,12 +94,13 @@ class SbgWebViewClientTest {
         client.onPageStarted(webView, "http://other.host/app", null)
 
         verify(exactly = 0) { scriptInjector.inject(any(), any()) }
+        verify(exactly = 0) { webView.evaluateJavascript(any<String>(), any()) }
         assertFalse(startedCalled)
     }
 
     @Test
     fun `onPageStarted with null view does nothing`() {
-        // Покрывает ветку `GameUrls.isGameAppPage(url) && view != null` — view=null.
+        // Покрывает ветку `view != null` = false для страницы игры.
         client.onPageStarted(null, "http://test.host/app", null)
 
         verify(exactly = 0) { scriptInjector.inject(any(), any()) }
@@ -114,6 +115,52 @@ class SbgWebViewClientTest {
         client.onPageStarted(webView, "http://test.host/app", null)
 
         verify { scriptInjector.inject(webView, any()) }
+    }
+
+    // --- onOtherPageStarted ---
+
+    @Test
+    fun `onPageStarted with non-game URL calls onOtherPageStarted with that URL`() {
+        val webView = mockk<WebView>(relaxed = true)
+        var otherPageUrl: String? = null
+        client.onOtherPageStarted = { otherPageUrl = it }
+
+        client.onPageStarted(webView, "http://test.host/login/", null)
+
+        assertEquals("http://test.host/login/", otherPageUrl)
+    }
+
+    @Test
+    fun `onPageStarted with game URL does not call onOtherPageStarted`() {
+        val webView = mockk<WebView>(relaxed = true)
+        var otherPageCalled = false
+        client.onOtherPageStarted = { otherPageCalled = true }
+
+        client.onPageStarted(webView, "http://test.host/app", null)
+
+        assertFalse(otherPageCalled)
+    }
+
+    @Test
+    fun `onPageStarted with game URL and null view does not call onOtherPageStarted`() {
+        // Страница игры без WebView — всё равно игра, а не страница вне её.
+        var otherPageCalled = false
+        client.onOtherPageStarted = { otherPageCalled = true }
+
+        client.onPageStarted(null, "http://test.host/app", null)
+
+        assertFalse(otherPageCalled)
+    }
+
+    @Test
+    fun `onPageStarted with non-game URL without onOtherPageStarted does not throw`() {
+        // Покрывает ветку `onOtherPageStarted?.invoke(url)` = null.
+        val webView = mockk<WebView>(relaxed = true)
+        client.onOtherPageStarted = null
+
+        client.onPageStarted(webView, "http://test.host/login/", null)
+
+        verify(exactly = 0) { scriptInjector.inject(any(), any()) }
     }
 
     // --- onPageFinished ---

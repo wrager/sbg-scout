@@ -291,8 +291,8 @@ tasks.register("updateReadmeScreenshots") {
 // Превращает локальный snapshot реальной страницы игры (Save Page As Webpage Complete
 // в refs/game/private/) в одиночную HTML-фикстуру для GameSettingsScreenshotE2ETest.
 // Инлайнит CSS, выкидывает <script>-теги и внешние ссылки, добавляет stub-инициализацию
-// (i18next.isInitialized=true, localStorage.settings.lang='ru'). Результат —
-// app/src/androidTest/assets/fixtures/game-snapshot.html (gitignored).
+// (i18next.isInitialized=true, без экрана загрузки, localStorage.settings.lang='ru').
+// Результат — app/src/androidTest/assets/fixtures/game-snapshot.html (gitignored).
 //
 // Если refs/game/private/ пуст или отсутствует — task удаляет game-snapshot.html (если был).
 // Тест GameSettingsScreenshotE2ETest сам fallback-нет на mock-фикстуру
@@ -391,6 +391,10 @@ fun preprocessGameSnapshot(
     // в DOM остаются английскими). Перевод ключей, которые попадают в README-
     // скриншот секции настроек игры. Также подмена опции "System" в селекторе
     // языка - в snapshot её текст hardcoded без data-i18n.
+    // Экран загрузки .loading-screen игра удаляет своим скриптом, когда загрузилась;
+    // скрипты из snapshot вырезаны, поэтому, если snapshot сохранён с экраном
+    // загрузки, stub удаляет его сам. Иначе ScoutBridge не сочтёт игру загруженной
+    // и не вставит кнопку, которую снимает скриншот.
     val stub =
         """
         <script>
@@ -413,6 +417,9 @@ fun preprocessGameSnapshot(
                     'settings.interface.arabic': 'Арабские цифры'
                 };
                 function apply() {
+                    document.querySelectorAll('.loading-screen').forEach(function(element) {
+                        element.remove();
+                    });
                     document.querySelectorAll('[data-i18n]').forEach(function(el) {
                         var k = el.getAttribute('data-i18n');
                         if (T[k]) el.textContent = T[k];

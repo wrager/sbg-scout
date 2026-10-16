@@ -12,6 +12,8 @@ import okhttp3.mockwebserver.RecordedRequest
  *   иначе — HTML из [FakeGameServer.gamePageBody].
  * - `GET /login`: HTML логина из [FakeGameServer.loginPageBody].
  * - `POST /login/callback`: 302 на `/app` + Set-Cookie для session-токена.
+ * - `GET /rules` и подпути (например, `/rules/game/`): HTML из
+ *   [FakeGameServer.rulesPageBody] — страница игрового хоста вне игры.
  * - `GET /favicon.ico`: пустой 204.
  *
  * GitHub-поведение (через [HttpRewriterRule] / [DefaultHttpFetcher.urlRewriter]):
@@ -37,8 +39,9 @@ class FakeGameDispatcher(
 
         return when {
             method == "GET" && path.startsWith("/app") -> handleAppPage(request)
-            method == "GET" && path.startsWith("/login") -> loginPage()
+            method == "GET" && path.startsWith("/login") -> htmlPage(server.loginPageBody)
             method == "POST" && path.startsWith("/login/callback") -> loginCallback()
+            method == "GET" && path.startsWith("/rules") -> htmlPage(server.rulesPageBody)
             path == "/favicon.ico" -> MockResponse().setResponseCode(204)
             path.startsWith("/gh-web/") -> handleGithubWebDownload(path)
             path.startsWith("/gh-api/") -> handleGithubApi(path)
@@ -62,11 +65,11 @@ class FakeGameDispatcher(
         }
     }
 
-    private fun loginPage(): MockResponse =
+    private fun htmlPage(body: String): MockResponse =
         MockResponse()
             .setResponseCode(200)
             .setHeader("Content-Type", "text/html; charset=utf-8")
-            .setBody(server.loginPageBody)
+            .setBody(body)
 
     private fun loginCallback(): MockResponse =
         MockResponse()

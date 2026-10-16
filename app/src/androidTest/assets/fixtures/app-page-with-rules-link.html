@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>sbg fake app with rules link</title>
+    <style>
+        /* Ссылка крупная и в левом верхнем углу: тест касается её по
+           координатам, а в центре экрана её перекрыла бы нативная «Scout». */
+        #fake-rules-link {
+            display: block;
+            width: 160px;
+            padding: 24px 0;
+        }
+    </style>
+</head>
+<body>
+    <a id="fake-rules-link" href="/rules/game/">fake rules link</a>
+    <script>
+        // Нет .settings-content: HTML-кнопка не вставляется и нативная «Scout»
+        // остаётся в игре, как под CUI.
+        window.i18next = { isInitialized: true };
+        window.__sbgFakeReady = true;
+        window.__sbgFakePage = "app";
+    </script>
+</body>
+</html>

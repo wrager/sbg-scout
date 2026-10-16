@@ -12,6 +12,7 @@ import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.GameActivity
@@ -156,6 +157,12 @@ class SettingsOverlayScreen(
     fun cancelBetaToggle() {
         val label = targetContext.getString(android.R.string.cancel)
         onView(withText(label)).inRoot(isDialog()).perform(click())
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+    }
+
+    /** Закрывает экран настроек плавающей кнопкой [x] снизу по центру. */
+    fun close() {
+        onView(withId(R.id.closeSettingsButton)).perform(click())
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
