@@ -53,7 +53,7 @@ scripts/syncAgentSkills.mjs <- синхронизация и проверка к
 |---|---|---|
 | Сборка, lint, unit-тесты, e2e | `$scout-verify` | `/scout-verify` |
 | Три скриншота README | `$scout-screenshots` | `/scout-screenshots` |
-| Релиз указанной версии без push | `$scout-release 1.3.0` | `/scout-release 1.3.0` |
+| Подготовка release PR без push | `$scout-release` | `/scout-release` |
 | Текст анонса с базовой версии | `$scout-announce 1.2.0` | `/scout-announce 1.2.0` |
 
 Скиллы также могут выбираться по описанию задачи. Аргументы берутся из сообщения пользователя: общие `SKILL.md` не используют специфичные для Claude `$ARGUMENTS` и названия его инструментов. Между сценариями агент переходит чтением общего `SKILL.md`, поэтому наличие slash-команд не требуется.
@@ -73,3 +73,92 @@ node --test scripts/syncAgentSkills.test.mjs
 После добавления скиллов начать новую сессию Codex/Claude, если список не обновился. В уже открытом чате агент может прочитать нужный `.agents/skills/scout-*/SKILL.md` вручную.
 
 Основание для путей и формата: [официальная документация OpenAI о скиллах](https://learn.chatgpt.com/docs/build-skills), [скиллы Claude Code](https://code.claude.com/docs/en/skills), [импорт общих инструкций в Claude Code](https://code.claude.com/docs/en/memory#share-one-file-with-other-coding-tools).
+
+## PR и релизы
+
+Заголовок PR должен быть Conventional Commit: например, `feat: новая настройка`,
+`fix(updater): исправить загрузку APK`, `ci: обновить проверки`.
+Scope необязателен, описание может быть русским. Проверяется заголовок PR;
+внутренние коммиты переписывать не требуется. В `main` используется только
+squash с заголовком PR и пустым телом. Breaking change отмечать `!` в
+заголовке (`feat!: ...`), пояснение оставлять в описании PR.
+
+`feat` увеличивает MINOR, `fix` и `perf` — PATCH, breaking change — MAJOR.
+Обычные `chore`, `ci`, `docs`, `build`, `test`, `refactor`, `style`
+без breaking change сами по себе не создают релиз.
+Renovate использует semantic commit messages.
+
+### Debug APK в PR
+
+После успешного Android job `check` CI обновляет комментарий `debug-apk`
+для PR из ветки этого репозитория. Ссылка ведёт на Actions artifact:
+нужен вход в GitHub; внутри ZIP — `sbg-scout-debug-<run_number>-<run_attempt>.apk`.
+Собирается результат слияния PR с базой; комментарий содержит фактический SHA,
+номер запуска, попытку и ссылку. Статусы e2e и остальных jobs проверяются отдельно.
+Для fork PR и push в `main` комментарий с APK не создаётся.
+
+При неудаче новой сборки остаётся предыдущая ссылка; rerun старого запуска
+может обновить комментарий старым APK. Ориентироваться на run/SHA.
+Артефакты хранятся по политике репозитория. Debug устанавливается рядом
+с release, но общий debug-keystore не используется: при несовпадении
+сертификатов разных CI-сборок потребуется переустановка debug-приложения.
+
+### Подготовка и публикация
+
+1. После push в `main` workflow `Release` запускает release-please.
+   Он поддерживает отдельный release PR с версией в `version.txt`,
+   `.release-please-manifest.json` и трёх числах Gradle, обновляемых по
+   маркерам `x-release-please-major/minor/patch`. Формула Android `versionCode`
+   прежняя: `major * 10000 + minor * 100 + patch`, minor и patch меньше 100.
+   `CHANGELOG.md` не создаётся; автоматический черновик notes находится в теле PR.
+2. Вызвать `scout-release` для этого PR: сверить notes с итоговым кодом,
+   записать русские `RELEASE_NOTES.md`, после bump версии сгенерировать три PNG,
+   проверить изображения и выполнить проверки. Служебную структуру тела PR,
+   заголовок и метки release-please сохранить. Перед merge повторить сверку,
+   если бот изменил PR. Notes, версия и PNG входят в один итоговый squash.
+3. Вручную squash-merge подготовленный release PR. Workflow создаёт тег
+   `vX.Y.Z` и draft GitHub Release, затем job `publish` проверяет наличие
+   трёх signing secrets, делает checkout SHA релиза, собирает и проверяет
+   подпись через `apksigner verify`. APK загружается как `sbg-scout-vX.Y.Z.apk`.
+   Только после загрузки softprops v3 публикует draft с текстом из
+   `RELEASE_NOTES.md` и помечает его latest. Отдельный push тега не запускает выпуск.
+
+Если `publish` упал, выбрать **Re-run failed jobs** либо повторить именно
+`publish` в исходном run. Не запускать весь workflow заново ради восстановления:
+успешный job release-please уже передал SHA и тег, повторный расчёт может не
+вернуть `release_created`. Уже загруженный APK не перезаписывается
+(`overwrite_files: false`); повтор завершает тот же draft. При повреждённом
+asset или другом состоянии, требующем ручного ремонта, сначала проверить
+draft через GitHub UI/CLI; не удалять теги и не публиковать draft без готового APK.
+
+### Настройки GitHub и первое включение
+
+- Разрешить только squash merge, squash title = **PR title**, тело = **Blank**.
+- Защитить `main`: PR обязателен, обход для администраторов отключён,
+  обязательны постоянные checks `check`, `agent-skills`, `pr-title`.
+  Условный e2e с path filters обязательным не назначать.
+- В Actions → General включить **Allow GitHub Actions to create and approve
+  pull requests**, сохранив default token permissions = read. Workflows выдают
+  права записи только нужным jobs.
+- Первый release PR от `GITHUB_TOKEN` может потребовать **Approve workflows
+  to run**. Проверить появление всех required checks перед merge. Отдельный
+  GitHub App/token для этого процесса пока не нужен.
+
+Начальная версия миграции — `1.2.0`, bootstrap — коммит тега `v1.2.0`
+`aa21dc510342d33987250c4aad2147090f29db8b`. Старую историю не переписывать.
+При первом release PR вручную проверить все изменения с этого тега:
+non-conventional сообщения могут отсутствовать в автоматических notes.
+Если требуется иной первый bump, использовать штатный одноразовый
+`Release-As: X.Y.Z` в теле итогового squash-коммита миграционного PR:
+вручную добавить этот footer при merge вместо пустого тела по умолчанию.
+Footer должен попасть в main; один лишь внутренний коммит ветки не подходит.
+Далее вернуться к автоматическому расчёту и пустому squash-телу.
+
+При внедрении без выпуска релиза доступны actionlint, локальная проверка
+release-please и реальный PR с debug APK. Создание первого release PR ботом,
+разрешение его CI, публикацию draft и rerun publish на GitHub проверить
+при отдельно запрошенном выпуске.
+
+Основания: [release-please](https://github.com/googleapis/release-please),
+[release-please action](https://github.com/googleapis/release-please-action),
+[softprops v3](https://github.com/softprops/action-gh-release/tree/v3.0.3).
