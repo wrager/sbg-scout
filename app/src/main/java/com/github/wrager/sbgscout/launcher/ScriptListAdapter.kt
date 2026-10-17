@@ -124,7 +124,7 @@ class ScriptListAdapter(
             when (item.operationState) {
                 is ScriptOperationState.UpdateAvailable -> {
                     val primaryColor = MaterialColors.getColor(
-                        itemView.context, com.google.android.material.R.attr.colorPrimary, 0,
+                        itemView.context, androidx.appcompat.R.attr.colorPrimary, 0,
                     )
                     downloadStatusText.text = itemView.context.getString(R.string.update)
                     downloadStatusText.setTextColor(primaryColor)
