@@ -17,7 +17,7 @@ jacoco {
 
 android {
     namespace = "com.github.wrager.sbgscout"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.github.wrager.sbgscout"
