@@ -1,4 +1,8 @@
+import java.awt.Color
+import java.awt.image.BufferedImage
 import java.util.Base64
+import javax.imageio.ImageIO
+import kotlin.math.abs
 
 plugins {
     alias(libs.plugins.android.application)
@@ -47,6 +51,21 @@ android {
         if (isUpdateScreenshots) {
             testInstrumentationRunnerArguments["annotation"] =
                 "com.github.wrager.sbgscout.e2e.screenshots.ReadmeScreenshot"
+        }
+
+        // Аналогично для visual regression: `./gradlew visualRegressionTest`
+        // и `./gradlew updateVisualRegressionBaselines` фильтруют прогон по
+        // @VisualRegressionTest. Тесты пишут actual.png в test storage; разница
+        // между задачами - в host-side finalizer (compare vs copy), а не в
+        // device-side поведении, поэтому отдельный record-флаг не нужен.
+        val isVisualRegression =
+            gradle.startParameter.taskNames.any {
+                val name = it.substringAfterLast(":")
+                name == "visualRegressionTest" || name == "updateVisualRegressionBaselines"
+            }
+        if (isVisualRegression) {
+            testInstrumentationRunnerArguments["annotation"] =
+                "com.github.wrager.sbgscout.e2e.visualregression.VisualRegressionTest"
         }
 
         buildConfigField("String", "GAME_APP_URL", "\"https://sbg-game.ru/app\"")
@@ -288,6 +307,119 @@ tasks.register("updateReadmeScreenshots") {
     finalizedBy("copyReadmeScreenshots")
 }
 
+// Visual regression: тесты с @VisualRegressionTest пишут actual.png в test
+// storage через VisualRegressionCapture. После прогона host-side задачи либо
+// сравнивают actual с baseline в .github/images/visual-regression/ (в режиме
+// проверки), либо перезаписывают baseline (в режиме обновления).
+//
+// Параметры diff'а - см. vrMaxChannelDiff и vrMaxDifferentFraction ниже.
+
+val vrBaselineDirRel = ".github/images/visual-regression"
+val vrMaxChannelDiff = 8
+val vrMaxDifferentFraction = 0.001
+
+tasks.register("compareVisualRegressionBaselines") {
+    group = "verification"
+    description = "Сравнить actual.png из VR-тестов с baseline в .github/images/visual-regression/"
+    doLast {
+        val outputsDir =
+            layout.buildDirectory.dir("outputs/connected_android_test_additional_output").get().asFile
+        if (!outputsDir.exists()) {
+            error(
+                "Директория $outputsDir не существует. " +
+                    "Сначала прогоните connectedInstrAndroidTest с @VisualRegressionTest.",
+            )
+        }
+        val baselineDir = rootProject.file(vrBaselineDirRel)
+        val reportsDir = layout.buildDirectory.dir("reports/visual-regression").get().asFile
+        reportsDir.mkdirs()
+
+        val actuals =
+            outputsDir.walkTopDown()
+                .filter { it.isFile && it.name.endsWith(".actual.png") }
+                .toList()
+        if (actuals.isEmpty()) {
+            error("Не найдено ни одного *.actual.png в $outputsDir.")
+        }
+
+        val mismatches = mutableListOf<String>()
+        val missing = mutableListOf<String>()
+        for (actual in actuals) {
+            val name = actual.name.removeSuffix(".actual.png")
+            val baseline = File(baselineDir, "$name.png")
+            if (!baseline.exists()) {
+                missing += name
+                continue
+            }
+            val diff = compareVisualRegressionImages(baseline, actual, File(reportsDir, "$name.diff.png"))
+            if (diff.differentFraction > vrMaxDifferentFraction) {
+                mismatches +=
+                    "$name: ${"%.3f".format(diff.differentFraction * 100)}% pixels differ " +
+                    "(threshold ${"%.3f".format(vrMaxDifferentFraction * 100)}%)"
+                logger.lifecycle("Visual regression: $name → diff at ${File(reportsDir, "$name.diff.png").absolutePath}")
+            }
+        }
+        if (missing.isNotEmpty()) {
+            error(
+                "Не найдены baseline'ы: ${missing.sorted().joinToString()}. " +
+                    "Запустите ./gradlew updateVisualRegressionBaselines.",
+            )
+        }
+        if (mismatches.isNotEmpty()) {
+            error(
+                "Visual regression обнаружена в ${mismatches.size} тесте(ах):\n" +
+                    mismatches.joinToString("\n") +
+                    "\n\nDiff-картинки в $reportsDir.",
+            )
+        }
+        logger.lifecycle("Все ${actuals.size} VR-baseline'а совпали (threshold ${vrMaxDifferentFraction * 100}%).")
+    }
+}
+
+tasks.register("copyVisualRegressionBaselines") {
+    group = "verification"
+    description = "Скопировать actual.png в .github/images/visual-regression/<name>.png (overwrite)"
+    doLast {
+        val outputsDir =
+            layout.buildDirectory.dir("outputs/connected_android_test_additional_output").get().asFile
+        if (!outputsDir.exists()) {
+            error(
+                "Директория $outputsDir не существует. " +
+                    "Сначала прогоните connectedInstrAndroidTest с @VisualRegressionTest.",
+            )
+        }
+        val targetDir = rootProject.file(vrBaselineDirRel)
+        targetDir.mkdirs()
+        val copied = mutableListOf<String>()
+        outputsDir.walkTopDown()
+            .filter { it.isFile && it.name.endsWith(".actual.png") }
+            .forEach { source ->
+                val name = source.name.removeSuffix(".actual.png")
+                val target = File(targetDir, "$name.png")
+                source.copyTo(target, overwrite = true)
+                copied += "$name.png"
+            }
+        if (copied.isEmpty()) {
+            error("Не найдено ни одного *.actual.png в $outputsDir.")
+        }
+        logger.lifecycle("Обновлено в $vrBaselineDirRel/: ${copied.sorted().joinToString()}")
+    }
+}
+
+tasks.register("visualRegressionTest") {
+    group = "verification"
+    description = "Прогнать @VisualRegressionTest тесты и сравнить с baseline в .github/images/visual-regression/"
+    dependsOn("connectedInstrAndroidTest")
+    finalizedBy("compareVisualRegressionBaselines")
+}
+
+tasks.register("updateVisualRegressionBaselines") {
+    group = "verification"
+    description = "Перегенерировать baseline'ы visual regression в .github/images/visual-regression/"
+    dependsOn("connectedInstrAndroidTest")
+    finalizedBy("copyVisualRegressionBaselines")
+}
+
 // Превращает локальный snapshot реальной страницы игры (Save Page As Webpage Complete
 // в refs/game/private/) в одиночную HTML-фикстуру для GameSettingsScreenshotE2ETest.
 // Инлайнит CSS, выкидывает <script>-теги и внешние ссылки, добавляет stub-инициализацию
@@ -338,10 +470,16 @@ tasks.register("inlineGameSnapshot") {
     }
 }
 
-// Форсим зависимость сборки androidTest assets от inlineGameSnapshot, чтобы изменения
-// в refs/game/private/ автоматически прокатывались в фикстуры перед каждым тестовым прогоном.
-afterEvaluate {
-    tasks.findByName("mergeInstrAndroidTestAssets")?.dependsOn("inlineGameSnapshot")
+// Assets и lint читают одну сгенерированную фикстуру. Все потребители должны
+// дождаться snapshot, в том числе при совместном запуске lint и e2e.
+val gameSnapshotConsumerTasks =
+    setOf(
+        "mergeInstrAndroidTestAssets",
+        "generateInstrAndroidTestLintModel",
+        "lintAnalyzeInstrAndroidTest",
+    )
+tasks.matching { it.name in gameSnapshotConsumerTasks }.configureEach {
+    dependsOn("inlineGameSnapshot")
 }
 
 fun preprocessGameSnapshot(
@@ -435,4 +573,109 @@ fun preprocessGameSnapshot(
         """.trimIndent()
     html = html.replace(Regex("(?i)</head>"), "$stub\n</head>")
     return html
+}
+
+/**
+ * Результат сравнения actual.png с baseline.png в visual regression.
+ *
+ * [differentFraction] - доля пикселей, где per-channel diff превышает
+ * [vrMaxChannelDiff]. Превышение [vrMaxDifferentFraction] = регрессия.
+ */
+data class VisualRegressionDiff(val differentFraction: Double, val totalPixels: Int)
+
+/**
+ * Сравнивает [baseline] и [actual] PNG-файлы попиксельно с per-channel
+ * tolerance ([vrMaxChannelDiff]) и записывает triplet diff-image
+ * `[baseline | actual | highlight]` в [diffOutput] для review в CI-артефакте.
+ *
+ * Highlight-канал: пиксели, где diff превышает tolerance, окрашиваются в
+ * solid magenta (#FF00FF) - быстро находить в triplet'е местоположение
+ * регрессии. Идентичные пиксели остаются как в actual (для ориентации).
+ *
+ * Если размеры baseline и actual не совпадают - 100% diff, triplet строится
+ * по max(width, height); это сразу очевидно ревьюеру.
+ */
+fun compareVisualRegressionImages(
+    baseline: File,
+    actual: File,
+    diffOutput: File,
+): VisualRegressionDiff {
+    val baselineImage = ImageIO.read(baseline) ?: error("Не читается baseline: $baseline")
+    val actualImage = ImageIO.read(actual) ?: error("Не читается actual: $actual")
+
+    val baselineWidth = baselineImage.width
+    val baselineHeight = baselineImage.height
+    val actualWidth = actualImage.width
+    val actualHeight = actualImage.height
+
+    if (baselineWidth != actualWidth || baselineHeight != actualHeight) {
+        // Размеры не совпадают - регрессия 100%. Triplet строится по max
+        // размеру: ImageIO замостит недостающие области прозрачным фоном,
+        // ревьюер сразу видит расхождение размеров.
+        val tripletWidth = maxOf(baselineWidth, actualWidth)
+        val tripletHeight = maxOf(baselineHeight, actualHeight)
+        val triplet = BufferedImage(tripletWidth * 3, tripletHeight, BufferedImage.TYPE_INT_ARGB)
+        val g = triplet.createGraphics()
+        g.drawImage(baselineImage, 0, 0, null)
+        g.drawImage(actualImage, tripletWidth, 0, null)
+        // Highlight area при mismatch размеров - solid magenta на всю площадь
+        // actual'а: визуально показывает, что весь PNG отличается.
+        g.color = Color(0xFF, 0x00, 0xFF)
+        g.fillRect(tripletWidth * 2, 0, actualWidth, actualHeight)
+        g.dispose()
+        ImageIO.write(triplet, "PNG", diffOutput)
+        return VisualRegressionDiff(
+            differentFraction = 1.0,
+            totalPixels = tripletWidth * tripletHeight,
+        )
+    }
+
+    val width = baselineWidth
+    val height = baselineHeight
+    val highlight = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+    var differentPixels = 0
+    val magenta = 0xFFFF00FF.toInt()
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            val b = baselineImage.getRGB(x, y)
+            val a = actualImage.getRGB(x, y)
+            if (vrPixelDiffers(b, a, vrMaxChannelDiff)) {
+                differentPixels++
+                highlight.setRGB(x, y, magenta)
+            } else {
+                highlight.setRGB(x, y, a)
+            }
+        }
+    }
+
+    val triplet = BufferedImage(width * 3, height, BufferedImage.TYPE_INT_ARGB)
+    val g = triplet.createGraphics()
+    g.drawImage(baselineImage, 0, 0, null)
+    g.drawImage(actualImage, width, 0, null)
+    g.drawImage(highlight, width * 2, 0, null)
+    g.dispose()
+    ImageIO.write(triplet, "PNG", diffOutput)
+
+    return VisualRegressionDiff(
+        differentFraction = differentPixels.toDouble() / (width * height),
+        totalPixels = width * height,
+    )
+}
+
+private fun vrPixelDiffers(
+    p1: Int,
+    p2: Int,
+    maxChannelDiff: Int,
+): Boolean {
+    if (p1 == p2) return false
+    val r1 = (p1 ushr 16) and 0xFF
+    val r2 = (p2 ushr 16) and 0xFF
+    if (abs(r1 - r2) > maxChannelDiff) return true
+    val g1 = (p1 ushr 8) and 0xFF
+    val g2 = (p2 ushr 8) and 0xFF
+    if (abs(g1 - g2) > maxChannelDiff) return true
+    val b1 = p1 and 0xFF
+    val b2 = p2 and 0xFF
+    if (abs(b1 - b2) > maxChannelDiff) return true
+    return false
 }
