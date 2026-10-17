@@ -374,7 +374,7 @@ WebView-экраны (`game-settings`, `login`) только в light: фикс�
 ### Детерминизация
 
 - [`ThemeOverride`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/ThemeOverride.kt) — записывает `KEY_APPLIED_GAME_THEME` в SharedPreferences до `launchGameActivity()` и вызывает `AppCompatDelegate.setDefaultNightMode`. Без этого тема осталась бы AUTO и тесты были бы недетерминированы по системной теме эмулятора.
-- [`StatusBarDemoMode`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/StatusBarDemoMode.kt) — через SystemUI demo mode broadcast'ы фиксирует часы (12:00), батарею (100%), иконки сети и скрывает notifications. Без этого время в часах HH:MM меняется между прогонами и pixel-diff фейлит на любом тесте, где status bar попадает в captureFullNative или верхний frame scroll-stitch'а.
+- [`StatusBarDemoMode`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/StatusBarDemoMode.kt) — через SystemUI demo mode broadcast'ы фиксирует часы (12:00), батарею (100%), иконки сети и скрывает notifications. Демо-режим стабилизирует исходные кадры; финальные полноэкранные и прокручиваемые PNG исключают системные панели по WindowInsets.
 - Локаль приложения — русская, через `LocaleManager.setApplicationLocales`.
 - Фиксированные stub'ы FakeGameServer для динамических данных (версии релизов, body release notes).
 
@@ -391,3 +391,5 @@ WebView-экраны (`game-settings`, `login`) только в light: фикс�
 `connectedInstrAndroidTest` и `visualRegressionTest` запускаются в `e2e.yml` отдельными командами Gradle в одном emulator-runner step (переиспользуют AVD). Так VR-фильтр configuration phase не ограничивает полный e2e-прогон. Ключ AVD-кэша включает профиль Pixel 4, чтобы baseline всегда сравнивались при разрешении 1080x2280 и density 440 dpi. Diff-картинки и actual.png попадают в `e2e-reports` artifact при падении.
 
 Генерация локального game snapshot предшествует сборке androidTest assets и моделям lint: совместный запуск полного CI и VR не зависит от порядка выполнения этих задач.
+
+Полноэкранные и прокручиваемые VR-снимки исключают системные status/navigation bar по WindowInsets текущей Activity. Сравнивается интерфейс приложения; значки сети и контраст системных кнопок AVD не создают ложные регрессии. Региональные снимки сохраняют заданные границы.

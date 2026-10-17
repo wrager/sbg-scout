@@ -1,9 +1,14 @@
 package com.github.wrager.sbgscout.e2e.visualregression
 
 import android.graphics.Bitmap
+import android.graphics.Insets
 import android.graphics.Rect
+import android.view.WindowInsets
 import androidx.recyclerview.widget.RecyclerView
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import com.github.wrager.sbgscout.e2e.screenshots.ScrollStitchCapture
 
 /**
@@ -26,12 +31,12 @@ object VisualRegressionCapture {
     /**
      * Снимает экран целиком (без scroll-stitching) - подходит для одного
      * viewport'а Activity/Fragment, диалогов, login-страницы. Ширина и высота
-     * actual.png равны разрешению эмулятора.
+     * actual.png равны области экрана без status/navigation bar.
      */
     fun captureFullNative(name: String) {
         val bitmap = ScrollStitchCapture.takeScreenshot()
         try {
-            writeActualPng(name, bitmap)
+            writeScreenContentPng(name, bitmap)
         } finally {
             bitmap.recycle()
         }
@@ -71,9 +76,33 @@ object VisualRegressionCapture {
     fun captureScrollableNative(name: String, scrollable: RecyclerView) {
         val stitched = ScrollStitchCapture.captureScrollableStitched(scrollable)
         try {
-            writeActualPng(name, stitched)
+            writeScreenContentPng(name, stitched)
         } finally {
             stitched.recycle()
+        }
+    }
+
+    /** Исключает системные панели: их иконки и контраст зависят от AVD. */
+    private fun writeScreenContentPng(name: String, bitmap: Bitmap) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        var insets = Insets.NONE
+        instrumentation.runOnMainSync {
+            val activity = ActivityLifecycleMonitorRegistry.getInstance()
+                .getActivitiesInStage(Stage.RESUMED).first()
+            insets = requireNotNull(activity.window.decorView.rootWindowInsets)
+                .getInsets(WindowInsets.Type.systemBars())
+        }
+        val content = Bitmap.createBitmap(
+            bitmap,
+            insets.left,
+            insets.top,
+            bitmap.width - insets.left - insets.right,
+            bitmap.height - insets.top - insets.bottom,
+        )
+        try {
+            writeActualPng(name, content)
+        } finally {
+            if (content !== bitmap) content.recycle()
         }
     }
 
