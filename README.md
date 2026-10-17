@@ -63,7 +63,7 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 |---|---|---|
 | Проверка проекта | `$scout-verify` | `/scout-verify` |
 | Скриншоты README | `$scout-screenshots` | `/scout-screenshots` |
-| Подготовка релиза | `$scout-release 1.3.0` | `/scout-release 1.3.0` |
+| Подготовка release PR | `$scout-release` | `/scout-release` |
 | Анонс изменений | `$scout-announce 1.2.0` | `/scout-announce 1.2.0` |
 
 Подробности: [окружение и общие скиллы](docs/agent-setup.md).
