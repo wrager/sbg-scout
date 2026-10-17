@@ -19,9 +19,9 @@ android {
         applicationId = "com.github.wrager.sbgscout"
         minSdk = 26
         targetSdk = 35
-        val versionMajor = 1
-        val versionMinor = 2
-        val versionPatch = 0
+        val versionMajor = 1 // x-release-please-major
+        val versionMinor = 2 // x-release-please-minor
+        val versionPatch = 0 // x-release-please-patch
         versionCode = versionMajor * 10000 + versionMinor * 100 + versionPatch
         versionName = "$versionMajor.$versionMinor.$versionPatch"
 

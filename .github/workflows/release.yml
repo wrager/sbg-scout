@@ -2,16 +2,56 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
-  release:
+  release-please:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      sha: ${{ steps.release.outputs.sha }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+    steps:
+      - name: Require signing secrets
+        env:
+          RELEASE_STORE: ${{ secrets.RELEASE_STORE }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          test -n "$RELEASE_STORE" || { echo '::error::RELEASE_STORE is required'; exit 1; }
+          test -n "$RELEASE_STORE_PASSWORD" || { echo '::error::RELEASE_STORE_PASSWORD is required'; exit 1; }
+          test -n "$RELEASE_KEY_PASSWORD" || { echo '::error::RELEASE_KEY_PASSWORD is required'; exit 1; }
+
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
 
       - uses: actions/setup-java@v4
         with:
@@ -27,11 +67,19 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
-      - name: Rename APK
-        run: mv app/build/outputs/apk/release/*.apk app/build/outputs/apk/release/sbg-scout-${{ github.ref_name }}.apk
+      - name: Verify signature and rename APK
+        run: |
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/sbg-scout-$RELEASE_TAG.apk"
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Publish GitHub Release after uploading APK
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          target_commitish: ${{ needs.release-please.outputs.sha }}
           body_path: RELEASE_NOTES.md
-          files: app/build/outputs/apk/release/sbg-scout-${{ github.ref_name }}.apk
+          files: app/build/outputs/apk/release/sbg-scout-${{ needs.release-please.outputs.tag_name }}.apk
+          fail_on_unmatched_files: true
+          overwrite_files: false
+          draft: false
+          make_latest: true
