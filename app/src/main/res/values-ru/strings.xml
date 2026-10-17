@@ -2,6 +2,7 @@
 <resources>
     <string name="location_permission_denied">Геолокация отключена. Разрешите доступ в настройках.</string>
     <string name="script_execution_error">Ошибка выполнения скрипта: %s</string>
+    <string name="external_app_not_found">Не найдено приложение для открытия ссылки</string>
 
     <string name="loading_scripts">Загрузка скриптов…</string>
     <string name="loading_default_scripts">Загрузка стандартных скриптов…</string>

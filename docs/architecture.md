@@ -64,6 +64,14 @@ Android-приложение с WebView, загружающее игру SBG (`s
 ## WebView
 
 - `SbgWebViewClient` — перехват `window.close` (закрывает Activity), инжекция скриптов в `onPageStarted`, чтение настроек игры в `onPageFinished`
+- Внешние ссылки (`SbgWebViewClient.shouldOverrideUrlLoading`). Игра открывает их через `location.href` в том же окне (`confirmOuter`: главная, правила, магазин, каналы Telegram), `window.open` не использует:
+  - `about:`, `data:`, `blob:`, `javascript:`, `file:` остаются в WebView
+  - Не-веб схемы (`bankXXX://` для оплаты через СБП, `intent:`, `tel:`, `mailto:`) WebView не открывает (`ERR_UNKNOWN_URL_SCHEME`), поэтому в любом фрейме они передаются системе
+  - `http(s)` во вложенном фрейме остаются в WebView. В основном фрейме наружу (`Intent.ACTION_VIEW`) уходят магазин игры (`/store` и подпути на хосте игры, включая текущий хост из `GameUrls.appUrl`, например бета-сервер; `GameUrls.isGameStorePage`), Робокасса (`robokassa.ru`) и Telegram (`t.me`, `telegram.me`) — вместе с поддоменами; остальное остаётся в WebView. Вход через `oauth.telegram.org` остаётся в WebView: после него игра возвращается на `/login/`
+  - Магазин уходит в браузер, потому что после оплаты приложение банка само открывает адрес возврата Робокассы в браузере по умолчанию; перехватить этот переход Scout не может. Так вся покупка проходит в одном браузере, а Scout остаётся на игре. Для заказа в браузере нужен вход в аккаунт игры. Ссылки `sbg-game.ru` Scout принимает сам (deep link), поэтому у intent магазина задаётся selector `ACTION_VIEW` + `BROWSABLE` со ссылкой без хоста (`https://`): под него подходят только браузеры, и магазин не возвращается в Scout. Робокасса в списке — страховка на случай, если магазин всё же открыт в WebView (например, по ссылке из другого приложения)
+  - `intent:` разбирается через `Intent.parseUri` и ограничивается, как в браузерах: добавляется `CATEGORY_BROWSABLE`, сбрасываются component и selector, а также флаги `FLAG_GRANT_*_URI_PERMISSION` — у приложения есть `FileProvider` с `grantUriPermissions`, и ссылка со страницы не должна выдавать к нему доступ. Некорректная `intent:`-ссылка игнорируется
+  - Если запустить приложение не удалось (`ActivityNotFoundException`, `SecurityException`), для `intent:` открывается его `browser_fallback_url` (только `http(s)`), иначе показывается Toast «Не найдено приложение для открытия ссылки». Для контекста, который не Activity, добавляется `FLAG_ACTIVITY_NEW_TASK`
+  - Запасной путь для переходов мимо `shouldOverrideUrlLoading` (например, перенаправления на `bankXXX://` в ответ на POST): `onReceivedError` с `ERROR_UNSUPPORTED_SCHEME` в основном фрейме тоже передаёт URL системе и возвращает WebView на предыдущую страницу, если она есть
 - JS-бриджи:
   - `ClipboardBridge` — полифил `navigator.clipboard` (`Android.*`)
   - `ShareBridge` — открытие URL (`__sbg_share.*`)
@@ -259,7 +267,7 @@ app/src/main/java/com/github/wrager/sbgscout/
 │   ├── AppUpdateInstaller.kt   Скачивание и установка APK с прогрессом
 │   └── AppUpdateResult.kt      UpdateAvailable | UpToDate | CheckFailed
 └── webview/
-    └── SbgWebViewClient.kt  Загрузка страниц, инжекция, чтение настроек, close()
+    └── SbgWebViewClient.kt  Загрузка страниц, инжекция, чтение настроек, close(), внешние ссылки
 ```
 
 ## e2e-инфраструктура
