@@ -7,6 +7,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 ## Окружение и скиллы
 
 - Подготовка окружения, команды для PowerShell и Bash: [docs/agent-setup.md](docs/agent-setup.md).
+- В Windows окружение устанавливает `scripts/setupAndroid.ps1`; общие команды человека и агентов — `scripts/android.ps1` (`doctor`, `build`, `run`, `test`, `verify`, `logs`, `stop`). Для автоматической проверки debug-запуска использовать `run -Offline`, для UI-flow — `test` с `FakeGameServer`. Запуск PowerShell и доступ из Codex/Claude описаны в `docs/agent-setup.md`.
 - Исходники приложения: `app/src/main/`; JVM-тесты: `app/src/test/`; e2e: `app/src/androidTest/`; тестовая конфигурация: `app/src/instr/`.
 - Общий источник скиллов — `.agents/skills/scout-*/SKILL.md`. Codex обнаруживает их напрямую; `.claude/skills/` содержит генерируемые копии для Claude Code. Менять только исходники, затем запускать `node scripts/syncAgentSkills.mjs`. Копии коммитятся вместе с исходниками; CI проверяет их актуальность через `node scripts/syncAgentSkills.mjs --check`.
 - При проверке приложения использовать `scout-verify`; для скриншотов — `scout-screenshots`; для подготовки release PR от release-please — `scout-release`; для текста анонса — `scout-announce`. В Codex: `$scout-release`, в Claude: `/scout-release`.
