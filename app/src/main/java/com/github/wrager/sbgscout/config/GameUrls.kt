@@ -63,4 +63,22 @@ object GameUrls {
         val host = hostMatchOverride ?: BuildConfig.GAME_HOST_MATCH
         return uri.host == host
     }
+
+    /** Страница входа (`/login/`); до входа только с неё доступны настройки Scout. */
+    fun isGameLoginPage(url: String?): Boolean = isGamePageUnder(url, "/login")
+
+    /**
+     * Страница игрового хоста (основного или текущего из [appUrl], например
+     * бета-сервера) с путём [pathPrefix] или вложенным в него.
+     */
+    private fun isGamePageUnder(url: String?, pathPrefix: String): Boolean {
+        if (url.isNullOrEmpty()) return false
+        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+        val scheme = uri.scheme?.lowercase()
+        val gameHosts = setOfNotNull(hostMatchOverride ?: BuildConfig.GAME_HOST_MATCH, Uri.parse(appUrl)?.host)
+        val path = uri.path.orEmpty()
+        return (scheme == "http" || scheme == "https") &&
+            uri.host in gameHosts &&
+            (path == pathPrefix || path.startsWith("$pathPrefix/"))
+    }
 }

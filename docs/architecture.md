@@ -16,17 +16,19 @@ Android-приложение с WebView, загружающее игру SBG (`s
 ### GameActivity
 
 - WebView заполняет экран в immersive-режиме
-- Белая подложка 50 % opacity над WebView, пока интерфейс игры не инициализировался (сигнал — i18next применил переводы, `#settings` получил локализованный текст)
-- Сверху по центру — текст «Инициализация игры…» и компактные кнопки «⚙ Scout» (настройки SBG Scout), «⟳ Reload» (перезагрузка WebView); цвета кнопок зависят от темы (в светлой — светло-серый фон с тонким чёрным бордером, в тёмной — тёмно-серый без бордера)
+- Белая подложка 50 % opacity над WebView, пока игра не загрузилась (сигнал готовности — ниже)
+- Блок кнопок `topButtonsContainer` — текст «Инициализация игры…» и компактные кнопки «⚙ Scout» (настройки SBG Scout), «⟳ Reload» (перезагрузка WebView); цвета кнопок зависят от темы (в светлой — светло-серый фон с тонким чёрным бордером, в тёмной — тёмно-серый без бордера)
+- По умолчанию блок кнопок стоит по центру экрана, на странице входа — у верхнего края по центру: посередине экрана «Scout» закрывала бы кнопку входа через Telegram. У верхнего края блок встаёт на 8dp ниже зоны статус-бара и выреза экрана (`topButtonsTopMargin`), в том числе в полноэкранном режиме: там у `rootLayout` нет отступа сверху, а статус-бар выезжает по свайпу поверх контента. Положение меняется при старте загрузки страницы (`handleGamePageStarted` — центр, `handleOtherPageStarted` — верх только для входа) и пересчитывается при изменении отступов окна
 - Двухрежимная кнопка настроек:
   - **Режим загрузки** — нативная «⚙ Scout» видна
   - **Режим игры** — нативная скрывается; в игровую панель настроек (`.settings-content`) инжектируется HTML-кнопка «Настройки приложения», открывающая тот же экран
-- Кнопка «⟳ Reload» видна в режиме загрузки (вместе с «⚙ Scout»), скрывается когда игра готова (i18next инициализирован); вызывает `webView.loadUrl(GAME_URL)`
-- Сигнал готовности игры — `window.i18next.isInitialized`; polling каждые 100мс в bootstrap-скрипте, инжектируемом в `onPageStarted` (старт отложен до DOMContentLoaded). Сигнал универсален и не зависит от DOM-разметки — работает и под скриптами, переделывающими UI (CUI, EUI)
+- Кнопка «⟳ Reload» видна в режиме загрузки (вместе с «⚙ Scout»), скрывается, когда игра загрузилась; вызывает `webView.loadUrl(GAME_URL)`
+- Сигнал готовности игры — одновременно `window.i18next.isInitialized`, отсутствие игрового экрана загрузки `.loading-screen` и отсутствие `.fatal-error`; polling каждые 100мс в bootstrap-скрипте, инжектируемом в `onPageStarted` (старт отложен до DOMContentLoaded). Игра удаляет `.loading-screen`, только когда все этапы загрузки (тексты, данные, вход в аккаунт, инвентарь, интерфейс, геолокация) прошли успешно или игрок нажал «Хочу», не дожидаясь геолокации; при ошибке этапа экран остаётся — остаются и подложка с «Reload». i18next готов уже на втором этапе, поэтому одного его недостаточно. `.fatal-error` — сообщение, которым игра заменяет страницу при фатальной ошибке (например, при отказе в геолокации). Сигнал не зависит от игрового интерфейса и работает под скриптами, переделывающими UI (CUI, EUI): экран загрузки они не удаляют
 - Два независимых сигнала от bootstrap'а:
-  - `onGameReady` (i18next готов) → снять подложку, скрыть label/«Reload»
+  - `onGameReady` (игра загрузилась) → снять подложку, скрыть label/«Reload»
   - `onHtmlButtonInjected` (HTML-кнопка успешно вставлена в `.settings-content`) → скрыть нативную «Scout». Под CUI `.settings-content` может отсутствовать — тогда инжекция пропускается и нативная «Scout» остаётся единственным способом открыть настройки
-- При reload игры (`onPageStarted`) все loading-элементы показываются снова и включается белая подложка; флаги `gameReady` и `scoutButtonReplaced` сбрасываются
+- При reload игры (`onPageStarted`) все loading-элементы показываются снова и включается белая подложка; флаги `gameReady` и `scoutButtonReplaced` сбрасываются, `scoutButtonAllowed` выставляется в true
+- На страницах вне игры (`/login/`, правила и т.п.) сигнала готовности не будет, поэтому при их загрузке (`SbgWebViewClient.onOtherPageStarted`) подложка, label и «Reload» скрываются; нативная «Scout» остаётся только на странице входа (`GameUrls.isGameLoginPage`, флаг `scoutButtonAllowed`) — до входа это единственный путь к настройкам приложения. То же при восстановлении Activity, если WebView восстановил не игру
 - `settingsContainer` — `FrameLayout` на весь экран поверх WebView, изначально `GONE`; содержит `SettingsFragment` по умолчанию, при переходе в «Управление скриптами» заменяется на `ScriptListFragment` (embedded) через back stack
 - Закрытие — через плавающую квадратную кнопку `[x]` снизу по центру; над кнопкой — 1dp разделитель, визуально отделяющий резерв от скроллируемого контента. Если открыт `ScriptListFragment` — клик по `[x]` делает `popBackStack` (возврат к `SettingsFragment`), иначе закрывает экран настроек. Системная «Назад» всегда идёт в WebView (навигация в истории или выход), настройки она не закрывает
 - При закрытии back stack сбрасывается, применяются отложенные настройки (например, reload игры)
@@ -186,7 +188,7 @@ Android-приложение с WebView, загружающее игру SBG (`s
 6. После provisioning: `webView.loadUrl(sbg-game.ru/app)`
 7. `SbgWebViewClient` инжектирует localStorage-обёртку + включённые скрипты
 8. JS-бриджи доступны скриптам через `Android.*`, `__sbg_share.*`, `__sbg_settings.*`
-9. Пока игра грузится, пользователь видит большую нативную кнопку «Настройки SBG Scout»; после готовности (i18next применён) она скрывается, а внутрь игровой панели настроек инжектируется HTML-кнопка «Настройки приложения» — обе открывают экран `SettingsFragment`, откуда доступны управление скриптами, проверка обновлений и баг-репорт
+9. Пока игра грузится, пользователь видит большую нативную кнопку «Настройки SBG Scout»; после полной загрузки игры она скрывается, а внутрь игровой панели настроек инжектируется HTML-кнопка «Настройки приложения» — обе открывают экран `SettingsFragment`, откуда доступны управление скриптами, проверка обновлений и баг-репорт
 
 ## Структура проекта
 
@@ -290,9 +292,10 @@ app/src/main/java/com/github/wrager/sbgscout/
 - `GET /app[*]` — при отсутствии cookie `hittoken=<fake>` отвечает `302 Location: /login`; иначе — HTML игровой страницы из `server.gamePageBody`.
 - `GET /login[*]` — HTML логина из `server.loginPageBody`.
 - `POST /login/callback` — `302 Location: /app` + `Set-Cookie` fake-сессии.
+- `GET /rules[*]` — HTML из `server.rulesPageBody`: страница игрового хоста вне игры и вне входа (например, `/rules/game/`).
 - Остальные пути — `404`, `favicon.ico` — `204`.
 
-Тесты задают `gamePageBody` / `loginPageBody` перед стартом сценария. Фикстуры HTML лежат в `app/src/androidTest/assets/fixtures/` и читаются через `AssetLoader` (из `instrumentation.context`, не `targetContext`).
+Тесты задают `gamePageBody` / `loginPageBody` / `rulesPageBody` перед стартом сценария. Фикстуры HTML лежат в `app/src/androidTest/assets/fixtures/` и читаются через `AssetLoader` (из `instrumentation.context`, не `targetContext`).
 
 ### Синхронизация WebView
 
@@ -306,17 +309,20 @@ app/src/main/java/com/github/wrager/sbgscout/
 app/src/androidTest/java/com/github/wrager/sbgscout/e2e/
 ├── E2ETestBase.kt                    Жизненный цикл сервера/idling, grant location permission, launchGameActivity
 ├── infra/
-│   ├── FakeGameServer.kt             Обёртка над MockWebServer, gamePageBody/loginPageBody
-│   ├── FakeGameDispatcher.kt         Маршрутизация /app, /login, /login/callback
+│   ├── FakeGameServer.kt             Обёртка над MockWebServer, gamePageBody/loginPageBody/rulesPageBody
+│   ├── FakeGameDispatcher.kt         Маршрутизация /app, /login, /login/callback, /rules
 │   ├── WebViewIdlingResource.kt      IdlingResource, становится idle по markLoaded
 │   ├── GameUrlsOverrideRule.kt       TestRule для runtime-override GameUrls
 │   ├── CookieFixtures.kt             Инъекция fake session-cookie через CookieManager
 │   └── AssetLoader.kt                Чтение фикстур из androidTest/assets
 ├── screens/
 │   ├── Screen.kt, GameScreen.kt, SettingsScreen.kt, LoginScreen.kt
+│   ├── LoadingUiState.kt             Видимость подложки, label, «Reload» и «Scout» для проверок
+│   └── TopButtonsGeometry.kt         Положение блока кнопок: у верхнего края или по центру
 └── flows/
     ├── smoke/GameLoadsSmokeTest.kt, ClipboardBridgeE2ETest.kt
     ├── settings/SettingsScreenE2ETest.kt
+    ├── loading/GameLoadingE2ETest.kt, OtherPagesE2ETest.kt  Индикатор загрузки игры и страницы вне игры
     └── auth/LoginFlowE2ETest.kt
 app/src/androidTest/assets/fixtures/  Минимальные HTML/JSON фикстуры
 app/src/instr/

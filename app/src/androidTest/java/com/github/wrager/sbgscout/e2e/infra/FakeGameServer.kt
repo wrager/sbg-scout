@@ -14,7 +14,7 @@ import okhttp3.mockwebserver.RecordedRequest
  * и HttpFetcher обращаются на этот же loopback без нужды в `10.0.2.2`.
  *
  * Настройка ответов:
- * - HTML игры и логина — поля [gamePageBody] / [loginPageBody].
+ * - HTML игры, логина и правил — поля [gamePageBody] / [loginPageBody] / [rulesPageBody].
  * - Скачивание юзерскриптов с GitHub — [stubScriptAsset] по комбинации
  *   owner/repo/tag/filename. Dispatcher перенаправляет запросы GitHub
  *   (переписанные через [DefaultHttpFetcher.urlRewriter] на префикс `/gh-web/`)
@@ -29,6 +29,9 @@ class FakeGameServer {
     @Volatile var gamePageBody: String = "<html><body>fake app page (no body set)</body></html>"
 
     @Volatile var loginPageBody: String = "<html><body>fake login (no body set)</body></html>"
+
+    /** HTML страницы правил — пример страницы игрового хоста вне игры и вне входа. */
+    @Volatile var rulesPageBody: String = "<html><body>fake rules (no body set)</body></html>"
 
     /** Содержимое юзерскриптов: ключ = "<owner>/<repo>/<tag>/<filename>". */
     internal val scriptAssets = ConcurrentHashMap<String, String>()
