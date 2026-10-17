@@ -45,8 +45,8 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          # Ключ включает emulator target: пересобирать snapshot при смене.
-          key: avd-api33-default-x86_64-v2
+          # Ключ включает профиль и target: не переиспользовать AVD с другим разрешением.
+          key: avd-pixel4-api33-default-x86_64-v3
 
       - name: Create AVD snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -75,10 +75,11 @@ jobs:
           heap-size: 1024M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          # visualRegressionTest зависит от connectedInstrAndroidTest и
-          # фильтрует прогон по @VisualRegressionTest на configuration phase.
-          # Один emulator-runner step переиспользует AVD для обоих gradle-task'ов.
-          script: ./gradlew connectedInstrAndroidTest visualRegressionTest --stacktrace --no-daemon
+          # Отдельные Gradle invocations сохраняют полный e2e-прогон:
+          # VR-фильтр применяется только ко второй команде, AVD общий.
+          script: |
+            ./gradlew connectedInstrAndroidTest --stacktrace --no-daemon
+            ./gradlew visualRegressionTest --stacktrace --no-daemon
 
       - name: Upload reports
         if: always()

@@ -2,7 +2,7 @@
 
 ## Процесс
 
-1. Проверить, что эмулятор подключён: `adb devices`. В списке должен быть `emulator-NNNN device`. Параметры эмулятора (см. memory): API 33, Pixel 4, WebView 101, без Google Play.
+1. Проверить, что эмулятор подключён: `adb devices`. В списке должен быть `emulator-NNNN device`. Параметры эмулятора (см. docs/agent-setup.md): API 33, Pixel 4, WebView 101, без Google Play.
 
    Локаль эмулятора не имеет значения - тесты сами форсят русскую локаль приложения через `LocaleManager.setApplicationLocales` в `@Before`. Тема и SystemUI status bar тоже принудительно фиксируются через `ThemeOverride` и `StatusBarDemoMode` в `@Before`.
 

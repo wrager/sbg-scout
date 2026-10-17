@@ -8,7 +8,7 @@ import com.github.wrager.sbgscout.e2e.screenshots.ScrollStitchCapture
 
 /**
  * Снимает actual.png для visual regression в native-разрешении эмулятора
- * (1080x2400 для Pixel 4 portrait), без масштабирования.
+ * (1080x2280 для Pixel 4 portrait), без масштабирования.
  *
  * AGP при `useTestStorageService=true` автоматически копирует файлы из
  * `PlatformTestStorageRegistry` после прогона `connectedInstrAndroidTest` в

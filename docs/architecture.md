@@ -270,7 +270,7 @@ app/src/main/java/com/github/wrager/sbgscout/
 
 - Наследуется от `debug` (`initWith(debug)`) c `applicationIdSuffix = ".instr"` — тестовый APK ставится параллельно debug-сборке на эмуляторе, не затирая её.
 - Свой `BuildConfig.GAME_APP_URL / GAME_LOGIN_URL / GAME_HOST_MATCH` указывает на `http://127.0.0.1` — вместо `sbg-game.ru`.
-- `testBuildType = "instr"` делает `connectedAndroidTest` запускающим именно instr-вариант APK (задача `connectedInstrAndroidTest`). Побочный эффект: AGP генерирует unit-тесты только как `testInstrUnitTest` (см. команду CI в корневом CLAUDE.md). Это обычные JVM unit-тесты из `app/src/test/`, не инструментированные — имя складывается по шаблону `test<BuildType>UnitTest`.
+- `testBuildType = "instr"` делает `connectedAndroidTest` запускающим именно instr-вариант APK (задача `connectedInstrAndroidTest`). Побочный эффект: AGP генерирует unit-тесты только как `testInstrUnitTest` (см. команду CI в корневом AGENTS.md). Это обычные JVM unit-тесты из `app/src/test/`, не инструментированные — имя складывается по шаблону `test<BuildType>UnitTest`.
 - `testOptions.execution = "ANDROIDX_TEST_ORCHESTRATOR"` + `clearPackageData` — каждый e2e-тест стартует в своём процессе с чистым состоянием (SharedPreferences, WebView cookies, files).
 - Source set `app/src/instr/` содержит свой `network_security_config.xml` (cleartext разрешён только для `127.0.0.1` и `localhost`) и `AndroidManifest.xml` с `tools:replace` — прод-сборки остаются без послаблений network security.
 
@@ -332,6 +332,22 @@ app/src/instr/
 
 e2e-тесты **никогда** не обращаются к реальному `sbg-game.ru`. Причина — правила игры квалифицируют автоматизированные обращения как нарушение, что приводит к блокировке аккаунта разработчика. Все HTTP-запросы WebView идут на `127.0.0.1:<port>` fake-сервера; централизация URL через `GameUrls` + `BuildConfig` делает это структурным инвариантом, а не договорённостью.
 
+
+## CI и выпуск приложения
+
+`ci.yml` проверяет и собирает debug/instr/release. Для PR из ветки репозитория
+job `check` прикрепляет debug APK с номером запуска и попытки; SHA в комментарии
+обозначает собранный merge commit. `pr-title.yml` проверяет Conventional Commit
+в заголовке PR, который становится сообщением squash-коммита в `main`.
+
+`release.yml` реагирует на push в `main`: release-please поддерживает release PR
+и после его ручного merge создаёт тег и draft. Зависимый `publish` собирает
+точный SHA релиза, проверяет подпись APK и публикует draft только после загрузки.
+Версия синхронизируется в `version.txt`, manifest и числах Gradle штатным updater.
+Пользовательские notes и README PNG готовятся вручную в release PR через
+`scout-release`. Подготовка и восстановление описаны в
+[инструкции PR и релизов](agent-setup.md#pr-и-релизы).
+
 ## Visual regression
 
 Pixel-by-pixel сравнение скриншотов UI с зафиксированными baseline в `.github/images/visual-regression/`. На каждом PR прогон `visualRegressionTest` сравнивает фактический рендер с baseline; различие выше threshold (per-channel diff > 8 + > 0.1% пикселей) фейлит CI и публикует triplet `[baseline | actual | highlight]` в артефактах.
@@ -372,5 +388,4 @@ WebView-экраны (`game-settings`, `login`) только в light: фикс�
 
 ### CI
 
-`visualRegressionTest` запускается в `e2e.yml` подряд с `connectedInstrAndroidTest` в одном emulator-runner step (переиспользует AVD). Diff-картинки и actual.png попадают в `e2e-reports` artifact при падении.
-
+`connectedInstrAndroidTest` и `visualRegressionTest` запускаются в `e2e.yml` отдельными командами Gradle в одном emulator-runner step (переиспользуют AVD). Так VR-фильтр configuration phase не ограничивает полный e2e-прогон. Ключ AVD-кэша включает профиль Pixel 4, чтобы baseline всегда сравнивались при разрешении 1080x2280 и density 440 dpi. Diff-картинки и actual.png попадают в `e2e-reports` artifact при падении.

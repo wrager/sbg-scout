@@ -10,8 +10,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  agent-skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check shared agent skills
+        run: node scripts/syncAgentSkills.mjs --check
+
+      - name: Test skill synchronization
+        run: node --test scripts/syncAgentSkills.test.mjs
+
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -42,3 +60,20 @@ jobs:
 
       - name: Build release APK
         run: ./gradlew assembleRelease
+
+      - name: Rename PR debug APK
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/sbg-scout-debug-${{ github.run_number }}-${{ github.run_attempt }}.apk"
+
+      - name: Attach debug APK to PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: mshick/add-pr-comment@ec328af66588ab8f77cdeb2c264f14aba45bbf59 # v3.12.0
+        with:
+          message-id: debug-apk
+          message: |
+            Android-сборка CI #${{ github.run_number }}, попытка ${{ github.run_attempt }} готова.
+            Собран результат слияния PR с базовой веткой: `${{ github.sha }}`.
+            [Запуск CI](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}) — статусы e2e и других jobs смотрите отдельно.
+          attach-path: app/build/outputs/apk/debug/sbg-scout-debug-${{ github.run_number }}-${{ github.run_attempt }}.apk
+          attach-name: sbg-scout-debug-${{ github.run_number }}-${{ github.run_attempt }}
+          attach-text: '[Скачать debug APK (ZIP; нужен вход в GitHub)](%ARTIFACT_URL%)'

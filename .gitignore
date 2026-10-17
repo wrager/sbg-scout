@@ -22,7 +22,6 @@ local.properties
 
 # Claude Code
 .claude/*
-!.claude/commands/
 !.claude/skills/
 !.claude/subagents/
 !.claude/settings.json

@@ -28,3 +28,5 @@ PNG-файлы в этой папке - эталоны для visual regression 
 - `VR_MAX_DIFFERENT_FRACTION = 0.001` - 0.1% пикселей могут отличаться сверх tolerance, regression сверх этого.
 
 См. `app/build.gradle.kts` (compareVisualRegressionImages).
+
+Baseline сняты на Pixel 4: native-разрешение 1080x2280, density 440 dpi. Высота снимков прокручиваемого содержимого может быть больше высоты экрана.

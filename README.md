@@ -25,7 +25,7 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 ## Требования
 
 - Android 8.0+ (API 26)
-- Для сборки: JDK 17, Android SDK 35
+- Для сборки: JDK 17 (компиляция), JDK 21 (Gradle daemon), Android SDK 35. Gradle может загрузить toolchain автоматически; см. [подготовку окружения](docs/agent-setup.md).
 
 ## Скриншоты
 
@@ -48,8 +48,25 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 ## Проверка
 
 ```bash
-./gradlew ktlintCheck detekt testDebugUnitTest assembleDebug
+./gradlew ktlintCheck detekt lintInstr testInstrUnitTest assembleDebug assembleInstr assembleRelease
 ```
+
+В PowerShell использовать `./gradlew.bat` с теми же аргументами. E2e запускаются отдельно через `connectedInstrAndroidTest` на эмуляторе.
+
+## Работа с Codex и Claude Code
+
+Общие правила — в [AGENTS.md](AGENTS.md); Claude Code загружает их через [CLAUDE.md](CLAUDE.md).
+Скиллы хранятся в `.agents/skills/`, копии для Claude Code обновляются командой `node scripts/syncAgentSkills.mjs`.
+Они уже включены в репозиторий, установка и симлинки не нужны. После первого открытия или добавления скиллов начать новую сессию, если список ещё не обновился.
+
+| Сценарий | Codex | Claude Code |
+|---|---|---|
+| Проверка проекта | `$scout-verify` | `/scout-verify` |
+| Скриншоты README | `$scout-screenshots` | `/scout-screenshots` |
+| Подготовка release PR | `$scout-release` | `/scout-release` |
+| Анонс изменений | `$scout-announce 1.2.0` | `/scout-announce 1.2.0` |
+
+Подробности: [окружение и общие скиллы](docs/agent-setup.md).
 
 ## Документация
 

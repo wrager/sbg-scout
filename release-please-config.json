@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "aa21dc510342d33987250c4aad2147090f29db8b",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "include-component-in-tag": false,
+      "include-v-in-tag": true,
+      "skip-changelog": true,
+      "draft": true,
+      "force-tag-creation": true,
+      "extra-files": [
+        "app/build.gradle.kts"
+      ]
+    }
+  }
+}

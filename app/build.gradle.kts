@@ -12,7 +12,7 @@ plugins {
 }
 
 jacoco {
-    toolVersion = "0.8.12"
+    toolVersion = "0.8.15"
 }
 
 android {
@@ -23,9 +23,9 @@ android {
         applicationId = "com.github.wrager.sbgscout"
         minSdk = 26
         targetSdk = 35
-        val versionMajor = 1
-        val versionMinor = 2
-        val versionPatch = 0
+        val versionMajor = 1 // x-release-please-major
+        val versionMinor = 2 // x-release-please-minor
+        val versionPatch = 0 // x-release-please-patch
         versionCode = versionMajor * 10000 + versionMinor * 100 + versionPatch
         versionName = "$versionMajor.$versionMinor.$versionPatch"
 
@@ -252,7 +252,7 @@ tasks.register<JacocoReport>("jacocoCombinedReport") {
 
 // Копирует PNG-скриншоты из test storage в .github/images/screenshots/ для
 // README. Запускается после connectedInstrAndroidTest с фильтром по аннотации
-// @ReadmeScreenshot — см. .claude/commands/screenshots.md. AGP при
+// @ReadmeScreenshot — см. .agents/skills/scout-screenshots/SKILL.md. AGP при
 // useTestStorageService=true вытаскивает файлы, записанные через
 // PlatformTestStorageRegistry, в build/outputs/connected_android_test_additional_output/
 // (точная структура подкаталогов зависит от версии AGP, поэтому ищем walkTopDown).
@@ -265,7 +265,7 @@ tasks.register("copyReadmeScreenshots") {
             error(
                 "Директория $outputsDir не существует. " +
                     "Сначала прогоните connectedInstrAndroidTest со скриншот-тестами " +
-                    "(см. .claude/commands/screenshots.md).",
+                    "(см. .agents/skills/scout-screenshots/SKILL.md).",
             )
         }
         val targetDir = rootProject.file(".github/images/screenshots")
