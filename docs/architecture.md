@@ -389,3 +389,5 @@ WebView-экраны (`game-settings`, `login`) только в light: фикс�
 ### CI
 
 `connectedInstrAndroidTest` и `visualRegressionTest` запускаются в `e2e.yml` отдельными командами Gradle в одном emulator-runner step (переиспользуют AVD). Так VR-фильтр configuration phase не ограничивает полный e2e-прогон. Ключ AVD-кэша включает профиль Pixel 4, чтобы baseline всегда сравнивались при разрешении 1080x2280 и density 440 dpi. Diff-картинки и actual.png попадают в `e2e-reports` artifact при падении.
+
+Генерация локального game snapshot предшествует сборке androidTest assets и моделям lint: совместный запуск полного CI и VR не зависит от порядка выполнения этих задач.

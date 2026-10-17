@@ -470,10 +470,16 @@ tasks.register("inlineGameSnapshot") {
     }
 }
 
-// Форсим зависимость сборки androidTest assets от inlineGameSnapshot, чтобы изменения
-// в refs/game/private/ автоматически прокатывались в фикстуры перед каждым тестовым прогоном.
-afterEvaluate {
-    tasks.findByName("mergeInstrAndroidTestAssets")?.dependsOn("inlineGameSnapshot")
+// Assets и lint читают одну сгенерированную фикстуру. Все потребители должны
+// дождаться snapshot, в том числе при совместном запуске lint и e2e.
+val gameSnapshotConsumerTasks =
+    setOf(
+        "mergeInstrAndroidTestAssets",
+        "generateInstrAndroidTestLintModel",
+        "lintAnalyzeInstrAndroidTest",
+    )
+tasks.matching { it.name in gameSnapshotConsumerTasks }.configureEach {
+    dependsOn("inlineGameSnapshot")
 }
 
 fun preprocessGameSnapshot(
