@@ -1,8 +1,9 @@
 package com.github.wrager.sbgscout.script.model
 
 @JvmInline
-value class ScriptVersion(val value: String) : Comparable<ScriptVersion> {
-
+value class ScriptVersion(
+    val value: String,
+) : Comparable<ScriptVersion> {
     override fun compareTo(other: ScriptVersion): Int {
         val thisSegments = value.split(".").map(::leadingDigitsAsInt)
         val otherSegments = other.value.split(".").map(::leadingDigitsAsInt)

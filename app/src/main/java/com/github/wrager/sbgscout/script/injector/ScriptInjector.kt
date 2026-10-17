@@ -2,7 +2,6 @@ package com.github.wrager.sbgscout.script.injector
 
 import android.util.Log
 import android.webkit.WebView
-import com.github.wrager.sbgscout.script.model.ScriptIdentifier
 import com.github.wrager.sbgscout.script.model.UserScript
 import com.github.wrager.sbgscout.script.storage.ScriptStorage
 import org.json.JSONArray
@@ -14,8 +13,10 @@ class ScriptInjector(
     private val versionName: String,
     private val injectionStateStorage: InjectionStateStorage? = null,
 ) {
-
-    fun inject(webView: WebView, callback: (List<InjectionResult>) -> Unit = {}) {
+    fun inject(
+        webView: WebView,
+        callback: (List<InjectionResult>) -> Unit = {},
+    ) {
         val enabledScripts = sortByInjectionPriority(scriptStorage.getEnabled())
         injectionStateStorage?.saveSnapshot(enabledScripts)
 
@@ -31,18 +32,13 @@ class ScriptInjector(
 
     /**
      * Собирает ВСЮ инжекцию в одну строку для единственного
-     * `evaluateJavascript`-вызова. Это критично для корректности:
-     * каждый `evaluateJavascript` — отдельная задача в очереди WebView
-     * renderer thread, и DOMContentLoaded может вклиниться между задачами.
-     * Один вызов = одна атомарная задача = детерминированный тайминг.
-     */
-    /**
-     * Собирает ВСЮ инжекцию в одну строку для единственного
      * `evaluateJavascript`-вызова: preamble (event fix, globals, polyfill)
      * + скрипты, сгруппированные по @run-at.
      *
-     * Один вызов = одна задача в очереди WebView renderer = атомарная
-     * обработка. DOMContentLoaded не может вклиниться между скриптами.
+     * Это критично для корректности: каждый `evaluateJavascript` — отдельная
+     * задача в очереди WebView renderer thread, и DOMContentLoaded может
+     * вклиниться между задачами. Один вызов = одна атомарная задача =
+     * детерминированный тайминг.
      */
     internal fun buildInjectionPayload(enabledScripts: List<UserScript>): String {
         val parts = mutableListOf<String>()
@@ -53,9 +49,10 @@ class ScriptInjector(
         parts.add(CLIPBOARD_POLYFILL)
 
         if (enabledScripts.isNotEmpty()) {
-            val (startScripts, deferredScripts) = enabledScripts.partition {
-                it.header.runAt == "document-start"
-            }
+            val (startScripts, deferredScripts) =
+                enabledScripts.partition {
+                    it.header.runAt == "document-start"
+                }
             if (startScripts.isNotEmpty()) {
                 parts.add(buildImmediateBatch(startScripts))
             }
@@ -79,7 +76,6 @@ class ScriptInjector(
     }
 
     companion object {
-
         private const val TAG = "ScriptInjector"
 
         private const val READ_ERRORS_SCRIPT =
@@ -90,8 +86,7 @@ class ScriptInjector(
         // работают с DOM, который будет уничтожен.
         private val DOCUMENT_OPEN_PATTERN = Regex("""document\s*\.\s*open\s*\(""")
 
-        internal fun rewritesDocument(content: String): Boolean =
-            DOCUMENT_OPEN_PATTERN.containsMatchIn(content)
+        internal fun rewritesDocument(content: String): Boolean = DOCUMENT_OPEN_PATTERN.containsMatchIn(content)
 
         internal fun sortByInjectionPriority(scripts: List<UserScript>): List<UserScript> =
             scripts.sortedByDescending { rewritesDocument(it.content) }
@@ -101,7 +96,10 @@ class ScriptInjector(
          * `(function() { 'use strict'; ... })()`. Скрипты изолированы
          * друг от друга, ошибка одного не блокирует остальные.
          */
-        internal fun wrapScript(scriptName: String, content: String): String {
+        internal fun wrapScript(
+            scriptName: String,
+            content: String,
+        ): String {
             val escapedName = scriptName.replace("\\", "\\\\").replace("'", "\\'")
             return """
                 (function() {
@@ -113,7 +111,7 @@ class ScriptInjector(
                         window.__sbg_injection_errors.push({script: '$escapedName', error: String(error)});
                     }
                 })();
-            """.trimIndent()
+                """.trimIndent()
         }
 
         /**
@@ -123,7 +121,8 @@ class ScriptInjector(
             scripts.joinToString("\n") { wrapScript(it.header.name, it.content) }
 
         /** Оборачивает JS-код в DOMContentLoaded handler (аналог Tampermonkey document-idle). */
-        private fun wrapInDomContentLoaded(code: String): String = """
+        private fun wrapInDomContentLoaded(code: String): String =
+            """
             (function() {
                 function run() {
                     $code
@@ -134,7 +133,7 @@ class ScriptInjector(
                     run();
                 }
             })();
-        """.trimIndent()
+            """.trimIndent()
 
         /**
          * Собирает deferred-скрипты (document-end, document-idle, без @run-at).
@@ -151,9 +150,10 @@ class ScriptInjector(
             val parts = mutableListOf<String>()
 
             if (rewriters.isNotEmpty()) {
-                val wrappedRewriters = rewriters.joinToString("\n") {
-                    wrapScript(it.header.name, it.content)
-                }
+                val wrappedRewriters =
+                    rewriters.joinToString("\n") {
+                        wrapScript(it.header.name, it.content)
+                    }
                 // cuiStatus='initializing': guard для EUI polling (без него
                 // polling ловит readyState='interactive' до запуска CUI).
                 parts.add("window.cuiStatus = 'initializing';")
@@ -161,9 +161,10 @@ class ScriptInjector(
             }
 
             if (regular.isNotEmpty()) {
-                val wrappedRegular = regular.joinToString("\n") {
-                    wrapScript(it.header.name, it.content)
-                }
+                val wrappedRegular =
+                    regular.joinToString("\n") {
+                        wrapScript(it.header.name, it.content)
+                    }
                 if (rewriters.isNotEmpty()) {
                     // WebView уничтожает DOMContentLoaded listener'ы при
                     // document.open() (подтверждено диагностикой). Polling
@@ -200,7 +201,7 @@ class ScriptInjector(
                 window.__sbg_preset = '';
                 window.__sbg_package = '$escapedApplicationId';
                 window.__sbg_package_version = '$escapedVersionName';
-            """.trimIndent()
+                """.trimIndent()
         }
 
         internal fun buildResults(
@@ -253,7 +254,8 @@ class ScriptInjector(
         // в buildDeferredBatch, что не зависит от event listeners.
         internal const val EVENT_PRESERVE_PATTERN = "Ready"
 
-        private val DOCUMENT_WRITE_EVENT_FIX = """
+        private val DOCUMENT_WRITE_EVENT_FIX =
+            """
             (function() {
                 var insideDocWrite = false;
                 var lostEvents = [];
@@ -336,9 +338,10 @@ class ScriptInjector(
                     return result;
                 };
             })();
-        """.trimIndent()
+            """.trimIndent()
 
-        private val CLIPBOARD_POLYFILL = """
+        private val CLIPBOARD_POLYFILL =
+            """
             (function() {
                 if (navigator.clipboard) return;
                 navigator.clipboard = {
@@ -355,6 +358,6 @@ class ScriptInjector(
                     }
                 };
             })();
-        """.trimIndent()
+            """.trimIndent()
     }
 }

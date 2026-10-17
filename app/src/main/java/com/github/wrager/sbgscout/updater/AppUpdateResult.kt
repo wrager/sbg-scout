@@ -9,5 +9,7 @@ sealed class AppUpdateResult {
 
     data object UpToDate : AppUpdateResult()
 
-    data class CheckFailed(val error: Throwable) : AppUpdateResult()
+    data class CheckFailed(
+        val error: Throwable,
+    ) : AppUpdateResult()
 }

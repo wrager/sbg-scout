@@ -2,7 +2,6 @@ package com.github.wrager.sbgscout.e2e.flows.settings
 
 import android.app.Activity
 import android.app.Instrumentation
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -36,7 +35,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class OpenLinksInAppE2ETest : E2ETestBase() {
-
     @Test
     fun openLinksInAppPreference_launchesSystemDefaultAppSettingsIntent() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -48,17 +46,19 @@ class OpenLinksInAppE2ETest : E2ETestBase() {
 
         val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
         val expectedUri = Uri.parse("package:${targetContext.packageName}")
-        val expectedAction = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS
-        } else {
-            Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-        }
+        val expectedAction =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS
+            } else {
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+            }
 
         Intents.init()
         try {
             // Заглушаем все исходящие intent'ы, чтобы эмулятор не запустил
             // реальный системный экран (и тест не завис на его диалоге).
-            Intents.intending(anyIntent())
+            Intents
+                .intending(anyIntent())
                 .respondWith(Instrumentation.ActivityResult(Activity.RESULT_OK, null))
 
             overlay.clickPreferenceByKey(SettingsOverlayScreen.KEY_OPEN_LINKS_IN_APP)

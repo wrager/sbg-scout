@@ -21,7 +21,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ClipboardBridgeE2ETest : E2ETestBase() {
-
     @Test
     fun writeText_placesTextOnSystemClipboard() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -44,7 +43,11 @@ class ClipboardBridgeE2ETest : E2ETestBase() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             val context = InstrumentationRegistry.getInstrumentation().targetContext
             val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboardText = manager.primaryClip?.getItemAt(0)?.text?.toString()
+            clipboardText =
+                manager.primaryClip
+                    ?.getItemAt(0)
+                    ?.text
+                    ?.toString()
         }
         return clipboardText
     }

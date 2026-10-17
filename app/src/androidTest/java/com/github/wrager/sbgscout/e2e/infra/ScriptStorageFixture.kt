@@ -20,7 +20,6 @@ import java.io.File
  * скрипты как обычно.
  */
 object ScriptStorageFixture {
-
     fun storage(): ScriptStorage {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val preferences = context.getSharedPreferences("scripts", Context.MODE_PRIVATE)
@@ -40,26 +39,29 @@ object ScriptStorageFixture {
         identifierValue: String = "test-$name".replace(" ", "-").lowercase(),
         sourceUrl: String = "https://example.com/$identifierValue.user.js",
         isPreset: Boolean = false,
-    ): UserScript = UserScript(
-        identifier = ScriptIdentifier(identifierValue),
-        header = ScriptHeader(
-            name = name,
-            version = version,
-            namespace = "e2e-tests",
-            match = listOf("https://sbg-game.ru/app/*"),
-        ),
-        sourceUrl = sourceUrl,
-        updateUrl = null,
-        content = """
-            // ==UserScript==
-            // @name $name
-            // @namespace e2e-tests
-            // @version $version
-            // @match https://sbg-game.ru/app/*
-            // ==/UserScript==
-            console.log('e2e fixture script: $name');
-        """.trimIndent(),
-        enabled = enabled,
-        isPreset = isPreset,
-    )
+    ): UserScript =
+        UserScript(
+            identifier = ScriptIdentifier(identifierValue),
+            header =
+                ScriptHeader(
+                    name = name,
+                    version = version,
+                    namespace = "e2e-tests",
+                    match = listOf("https://sbg-game.ru/app/*"),
+                ),
+            sourceUrl = sourceUrl,
+            updateUrl = null,
+            content =
+                """
+                // ==UserScript==
+                // @name $name
+                // @namespace e2e-tests
+                // @version $version
+                // @match https://sbg-game.ru/app/*
+                // ==/UserScript==
+                console.log('e2e fixture script: $name');
+                """.trimIndent(),
+            enabled = enabled,
+            isPreset = isPreset,
+        )
 }

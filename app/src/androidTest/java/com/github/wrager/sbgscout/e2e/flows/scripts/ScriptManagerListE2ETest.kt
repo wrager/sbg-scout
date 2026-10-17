@@ -13,7 +13,6 @@ import org.junit.Test
  * overlay GameActivity) отображаются все три пресета + sideloaded custom скрипт.
  */
 class ScriptManagerListE2ETest : E2ETestBase() {
-
     @Test
     fun emptyStorage_showsAllThreePresetsInList() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")

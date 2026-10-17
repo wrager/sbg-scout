@@ -12,8 +12,9 @@ import com.github.wrager.sbgscout.script.storage.ScriptStorage
  * может дополнить результат (sourceUrl, updateUrl, isPreset) через
  * [UserScript.copy], а затем вызвать [save].
  */
-class ScriptInstaller(private val scriptStorage: ScriptStorage) {
-
+class ScriptInstaller(
+    private val scriptStorage: ScriptStorage,
+) {
     /**
      * Парсит заголовок UserScript и строит [UserScript] без сохранения.
      *
@@ -22,18 +23,20 @@ class ScriptInstaller(private val scriptStorage: ScriptStorage) {
      * Вызывающий код при необходимости подставляет fallback через `.copy()`.
      */
     fun parse(content: String): ScriptInstallResult {
-        val header = HeaderParser.parse(content)
-            ?: return ScriptInstallResult.InvalidHeader
+        val header =
+            HeaderParser.parse(content)
+                ?: return ScriptInstallResult.InvalidHeader
 
         val identifier = buildIdentifier(header.namespace, header.name)
 
-        val script = UserScript(
-            identifier = identifier,
-            header = header,
-            sourceUrl = header.downloadUrl,
-            updateUrl = header.updateUrl ?: header.downloadUrl,
-            content = content,
-        )
+        val script =
+            UserScript(
+                identifier = identifier,
+                header = header,
+                sourceUrl = header.downloadUrl,
+                updateUrl = header.updateUrl ?: header.downloadUrl,
+                content = content,
+            )
 
         return ScriptInstallResult.Parsed(script)
     }
@@ -43,7 +46,10 @@ class ScriptInstaller(private val scriptStorage: ScriptStorage) {
         scriptStorage.save(script)
     }
 
-    private fun buildIdentifier(namespace: String?, name: String): ScriptIdentifier {
+    private fun buildIdentifier(
+        namespace: String?,
+        name: String,
+    ): ScriptIdentifier {
         // `removePrefix` возвращает non-null String, поэтому цепочка `?.` →
         // `let { ... }` с одним null-check на namespace устраняет мёртвую
         // ветку второго `?.`, которую JaCoCo считает непокрытой.

@@ -12,7 +12,6 @@ import java.time.format.DateTimeFormatter
  * Используется для включения лога в баг-репорт.
  */
 class ConsoleLogBuffer {
-
     data class Entry(
         val timestamp: Instant,
         val level: Level,
@@ -21,7 +20,9 @@ class ConsoleLogBuffer {
         val lineNumber: Int,
     )
 
-    enum class Level(val label: String) {
+    enum class Level(
+        val label: String,
+    ) {
         ERROR("error"),
         WARNING("warn"),
     }
@@ -35,20 +36,22 @@ class ConsoleLogBuffer {
         // отдельной веткой (5 branches для 5 MessageLevel значений) —
         // прямое if сокращает число branches и делает coverage честным.
         val messageLevel = consoleMessage.messageLevel()
-        val level = if (messageLevel == ConsoleMessage.MessageLevel.ERROR) {
-            Level.ERROR
-        } else if (messageLevel == ConsoleMessage.MessageLevel.WARNING) {
-            Level.WARNING
-        } else {
-            return
-        }
-        val entry = Entry(
-            timestamp = Instant.now(),
-            level = level,
-            message = consoleMessage.message(),
-            source = consoleMessage.sourceId(),
-            lineNumber = consoleMessage.lineNumber(),
-        )
+        val level =
+            if (messageLevel == ConsoleMessage.MessageLevel.ERROR) {
+                Level.ERROR
+            } else if (messageLevel == ConsoleMessage.MessageLevel.WARNING) {
+                Level.WARNING
+            } else {
+                return
+            }
+        val entry =
+            Entry(
+                timestamp = Instant.now(),
+                level = level,
+                message = consoleMessage.message(),
+                source = consoleMessage.sourceId(),
+                lineNumber = consoleMessage.lineNumber(),
+            )
         entries.addLast(entry)
         if (entries.size > MAX_ENTRIES) {
             entries.removeFirst()

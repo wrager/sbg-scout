@@ -33,15 +33,15 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class AppUpdateCheckE2ETest : E2ETestBase() {
-
     @Test
     fun scheduleAutoUpdateCheck_withNewerReleaseOnFakeGithub_showsUpdateDialog() {
         // Фиктивно гигантская версия — заведомо больше BuildConfig.VERSION_NAME.
         val newVersion = "999.0.0"
-        val releaseJson = GithubReleaseFixtures.appUpdateReleasesJson(
-            version = newVersion,
-            body = "Huge release with many features",
-        )
+        val releaseJson =
+            GithubReleaseFixtures.appUpdateReleasesJson(
+                version = newVersion,
+                body = "Huge release with many features",
+            )
         server.stubGithubReleasesList("wrager", "sbg-scout", releaseJson)
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
@@ -49,7 +49,8 @@ class AppUpdateCheckE2ETest : E2ETestBase() {
         val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = PreferenceManager.getDefaultSharedPreferences(targetContext)
         // Переопределяем disableAutoUpdateCheck из E2ETestBase.
-        prefs.edit()
+        prefs
+            .edit()
             .putBoolean("auto_check_updates", true)
             .putLong("last_update_check", 0L)
             .commit()
@@ -71,7 +72,9 @@ class AppUpdateCheckE2ETest : E2ETestBase() {
             try {
                 onView(withText(text)).check(matches(isDisplayed()))
                 return
-            } catch (@Suppress("TooGenericExceptionCaught") _: Throwable) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") _: Throwable,
+            ) {
                 Thread.sleep(POLL_INTERVAL_MS)
             }
         }

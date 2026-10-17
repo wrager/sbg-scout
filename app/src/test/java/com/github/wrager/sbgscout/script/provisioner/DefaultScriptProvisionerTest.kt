@@ -22,7 +22,6 @@ import org.junit.Before
 import org.junit.Test
 
 class DefaultScriptProvisionerTest {
-
     private lateinit var scriptStorage: ScriptStorage
     private lateinit var downloader: ScriptDownloader
     private lateinit var preferences: SharedPreferences
@@ -47,86 +46,97 @@ class DefaultScriptProvisionerTest {
     }
 
     @Test
-    fun `downloads and enables scripts with enabledByDefault`() = runTest {
-        val script = testScript(identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus"))
-        coEvery { downloader.download(any(), isPreset = true) } returns
-            ScriptDownloadResult.Success(script)
+    fun `downloads and enables scripts with enabledByDefault`() =
+        runTest {
+            val script = testScript(identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus"))
+            coEvery { downloader.download(any(), isPreset = true) } returns
+                ScriptDownloadResult.Success(script)
 
-        val result = provisioner.provision()
+            val result = provisioner.provision()
 
-        assertTrue(result)
-        coVerify { downloader.download(any(), isPreset = true) }
-        verify { scriptStorage.setEnabled(script.identifier, true) }
-        verify { editor.putStringSet("provisioned_defaults", setOf("github.com/wrager/sbg-vanilla-plus")) }
-    }
-
-    @Test
-    fun `skips already provisioned scripts`() = runTest {
-        every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns
-            setOf("github.com/wrager/sbg-vanilla-plus")
-
-        provisioner.provision()
-
-        coVerify(exactly = 0) { downloader.download(any(), any()) }
-    }
+            assertTrue(result)
+            coVerify { downloader.download(any(), isPreset = true) }
+            verify { scriptStorage.setEnabled(script.identifier, true) }
+            verify { editor.putStringSet("provisioned_defaults", setOf("github.com/wrager/sbg-vanilla-plus")) }
+        }
 
     @Test
-    fun `retries on next launch when download fails`() = runTest {
-        coEvery { downloader.download(any(), isPreset = true) } returns
-            ScriptDownloadResult.Failure("url", RuntimeException("network error"))
+    fun `skips already provisioned scripts`() =
+        runTest {
+            every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns
+                setOf("github.com/wrager/sbg-vanilla-plus")
 
-        val result = provisioner.provision()
+            provisioner.provision()
 
-        assertFalse(result)
-        // Не добавлять в provisioned_defaults при ошибке
-        verify(exactly = 0) { editor.putStringSet(any(), any()) }
-        verify(exactly = 0) { scriptStorage.setEnabled(any(), any()) }
-    }
+            coVerify(exactly = 0) { downloader.download(any(), any()) }
+        }
 
     @Test
-    fun `does not download presets without enabledByDefault`() = runTest {
-        // CUI и EUI не имеют enabledByDefault=true
-        // provision() вызывается, но downloader не вызывается для них
-        every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns
-            setOf("github.com/wrager/sbg-vanilla-plus")
+    fun `retries on next launch when download fails`() =
+        runTest {
+            coEvery { downloader.download(any(), isPreset = true) } returns
+                ScriptDownloadResult.Failure("url", RuntimeException("network error"))
 
-        provisioner.provision()
+            val result = provisioner.provision()
 
-        coVerify(exactly = 0) { downloader.download(any(), any()) }
-    }
-
-    @Test
-    fun `skips scripts already present in storage`() = runTest {
-        val installedScript = testScript(
-            identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
-            sourceUrl = "https://github.com/wrager/sbg-vanilla-plus/releases/latest/download/sbg-vanilla-plus.user.js",
-        )
-        every { scriptStorage.getAll() } returns listOf(installedScript)
-
-        val result = provisioner.provision()
-
-        assertTrue(result)
-        coVerify(exactly = 0) { downloader.download(any(), any()) }
-        verify(exactly = 0) { scriptStorage.setEnabled(any(), any()) }
-    }
+            assertFalse(result)
+            // Не добавлять в provisioned_defaults при ошибке
+            verify(exactly = 0) { editor.putStringSet(any(), any()) }
+            verify(exactly = 0) { scriptStorage.setEnabled(any(), any()) }
+        }
 
     @Test
-    fun `calls onScriptLoading with display name before each download`() = runTest {
-        val script = testScript(identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus"))
-        coEvery { downloader.download(any(), isPreset = true) } returns
-            ScriptDownloadResult.Success(script)
+    fun `does not download presets without enabledByDefault`() =
+        runTest {
+            // CUI и EUI не имеют enabledByDefault=true
+            // provision() вызывается, но downloader не вызывается для них
+            every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns
+                setOf("github.com/wrager/sbg-vanilla-plus")
 
-        val reportedNames = mutableListOf<String>()
-        provisioner.provision(onScriptLoading = { name -> reportedNames.add(name) })
+            provisioner.provision()
 
-        assertEquals(1, reportedNames.size)
-        assertTrue(reportedNames.first().isNotEmpty())
-    }
+            coVerify(exactly = 0) { downloader.download(any(), any()) }
+        }
+
+    @Test
+    fun `skips scripts already present in storage`() =
+        runTest {
+            val installedScript =
+                testScript(
+                    identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
+                    sourceUrl =
+                        "https://github.com/wrager/sbg-vanilla-plus/releases/latest/download/" +
+                            "sbg-vanilla-plus.user.js",
+                )
+            every { scriptStorage.getAll() } returns listOf(installedScript)
+
+            val result = provisioner.provision()
+
+            assertTrue(result)
+            coVerify(exactly = 0) { downloader.download(any(), any()) }
+            verify(exactly = 0) { scriptStorage.setEnabled(any(), any()) }
+        }
+
+    @Test
+    fun `calls onScriptLoading with display name before each download`() =
+        runTest {
+            val script = testScript(identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus"))
+            coEvery { downloader.download(any(), isPreset = true) } returns
+                ScriptDownloadResult.Success(script)
+
+            val reportedNames = mutableListOf<String>()
+            provisioner.provision(onScriptLoading = { name -> reportedNames.add(name) })
+
+            assertEquals(1, reportedNames.size)
+            assertTrue(reportedNames.first().isNotEmpty())
+        }
 
     @Test
     fun `markProvisioned prevents re-provisioning after script deletion`() {
         provisioner.markProvisioned(
-            com.github.wrager.sbgscout.script.preset.PresetScripts.ALL.first { it.enabledByDefault }.identifier,
+            com.github.wrager.sbgscout.script.preset.PresetScripts.ALL
+                .first { it.enabledByDefault }
+                .identifier,
         )
 
         verify { editor.putStringSet("provisioned_defaults", setOf("github.com/wrager/sbg-vanilla-plus")) }
@@ -167,19 +177,20 @@ class DefaultScriptProvisionerTest {
     }
 
     @Test
-    fun `provision treats null getStringSet as empty set`() = runTest {
-        // SharedPreferences API допускает null из getStringSet, `?: emptySet()`
-        // защитный elvis — тесты должны покрыть null-ветку.
-        every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns null
-        val script = testScript(identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus"))
-        coEvery { downloader.download(any(), isPreset = true) } returns
-            ScriptDownloadResult.Success(script)
+    fun `provision treats null getStringSet as empty set`() =
+        runTest {
+            // SharedPreferences API допускает null из getStringSet, `?: emptySet()`
+            // защитный elvis — тесты должны покрыть null-ветку.
+            every { preferences.getStringSet("provisioned_defaults", emptySet()) } returns null
+            val script = testScript(identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus"))
+            coEvery { downloader.download(any(), isPreset = true) } returns
+                ScriptDownloadResult.Success(script)
 
-        val result = provisioner.provision()
+            val result = provisioner.provision()
 
-        assertTrue(result)
-        coVerify { downloader.download(any(), isPreset = true) }
-    }
+            assertTrue(result)
+            coVerify { downloader.download(any(), isPreset = true) }
+        }
 
     @Test
     fun `isProvisioned treats null getStringSet as empty set`() {

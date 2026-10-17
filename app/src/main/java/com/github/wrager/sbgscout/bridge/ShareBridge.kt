@@ -5,8 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.webkit.JavascriptInterface
 
-class ShareBridge(private val context: Context) {
-
+class ShareBridge(
+    private val context: Context,
+) {
     @JavascriptInterface
     fun open(url: String) {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))

@@ -20,7 +20,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class GameLoadsSmokeTest : E2ETestBase() {
-
     @Test
     fun gameActivity_loadsFakeApp_andBridgesAreRegistered() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
