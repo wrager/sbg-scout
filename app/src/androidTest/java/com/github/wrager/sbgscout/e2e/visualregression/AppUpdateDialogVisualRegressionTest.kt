@@ -36,7 +36,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class AppUpdateDialogVisualRegressionTest : E2ETestBase() {
-
     private val targetContext get() =
         InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -109,7 +108,9 @@ class AppUpdateDialogVisualRegressionTest : E2ETestBase() {
             try {
                 onView(withText(text)).inRoot(isDialog()).check(matches(isDisplayed()))
                 return
-            } catch (@Suppress("TooGenericExceptionCaught") _: Throwable) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") _: Throwable,
+            ) {
                 Thread.sleep(POLL_INTERVAL_MS)
             }
         }

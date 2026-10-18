@@ -31,7 +31,6 @@ import org.junit.Test
  * упадёт в этих тестах и заставит осознанно решить — хотим ли такое изменение UX.
  */
 class SettingsOverlayNavigationE2ETest : E2ETestBase() {
-
     @Test
     fun closeButton_click_hidesOverlayAndShowsTopButtons() {
         val scenario = setupFakeGameAndLaunch()
@@ -60,7 +59,8 @@ class SettingsOverlayNavigationE2ETest : E2ETestBase() {
     @Test
     fun systemBack_onEmbeddedScriptListFragment_isNoOp_fragmentStaysOpen() {
         val scenario = setupFakeGameAndLaunch()
-        GameScreen(scenario, idling).waitForLoaded()
+        GameScreen(scenario, idling)
+            .waitForLoaded()
             .openSettings()
             .openManageScripts()
         assertOverlayVisible(scenario)
@@ -84,8 +84,9 @@ class SettingsOverlayNavigationE2ETest : E2ETestBase() {
 
     private fun clickCloseButton(scenario: ActivityScenario<GameActivity>) {
         scenario.onActivity { activity ->
-            val closeButton = activity.findViewById<View>(R.id.closeSettingsButton)
-                ?: error("closeSettingsButton не найден в GameActivity")
+            val closeButton =
+                activity.findViewById<View>(R.id.closeSettingsButton)
+                    ?: error("closeSettingsButton не найден в GameActivity")
             closeButton.performClick()
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
@@ -128,8 +129,9 @@ class SettingsOverlayNavigationE2ETest : E2ETestBase() {
 
     private fun assertSettingsFragmentShown(scenario: ActivityScenario<GameActivity>) {
         scenario.onActivity { activity ->
-            val fragment = activity.supportFragmentManager
-                .findFragmentById(R.id.settingsContainer)
+            val fragment =
+                activity.supportFragmentManager
+                    .findFragmentById(R.id.settingsContainer)
             assertTrue(
                 "В settingsContainer должен быть SettingsFragment, а не ${fragment?.javaClass?.simpleName}",
                 fragment is SettingsFragment,
@@ -139,8 +141,9 @@ class SettingsOverlayNavigationE2ETest : E2ETestBase() {
 
     private fun assertScriptListFragmentShown(scenario: ActivityScenario<GameActivity>) {
         scenario.onActivity { activity ->
-            val fragment = activity.supportFragmentManager
-                .findFragmentById(R.id.settingsContainer)
+            val fragment =
+                activity.supportFragmentManager
+                    .findFragmentById(R.id.settingsContainer)
             assertTrue(
                 "В settingsContainer должен быть ScriptListFragment, а не ${fragment?.javaClass?.simpleName}",
                 fragment is ScriptListFragment,

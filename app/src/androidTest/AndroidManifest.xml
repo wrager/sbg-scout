@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <!-- OkHttp добавляет Startup provider в тестовый APK, но сам Startup уже
+             находится в APK приложения и исключается из тестового dex. При запуске
+             служебной Activity тестового APK provider не может загрузить свой класс.
+             OkHttp инициализируется в E2ETestBase до запуска FakeGameServer. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            tools:node="remove" />
+    </application>
+</manifest>

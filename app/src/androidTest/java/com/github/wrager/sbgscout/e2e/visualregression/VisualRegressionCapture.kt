@@ -27,7 +27,6 @@ import com.github.wrager.sbgscout.e2e.screenshots.ScrollStitchCapture
  * [ScrollStitchCapture].
  */
 object VisualRegressionCapture {
-
     /**
      * Снимает экран целиком (без scroll-stitching) - подходит для одного
      * viewport'а Activity/Fragment, диалогов, login-страницы. Ширина и высота
@@ -47,17 +46,21 @@ object VisualRegressionCapture {
      * captures, ограниченных областью WebView popup или Dialog'а. [region]
      * клампится размерами экрана.
      */
-    fun captureRegionNative(name: String, region: Rect) {
+    fun captureRegionNative(
+        name: String,
+        region: Rect,
+    ) {
         val full = ScrollStitchCapture.takeScreenshot()
         try {
             val safe = clamp(region, full.width, full.height)
-            val cropped = Bitmap.createBitmap(
-                full,
-                safe.left,
-                safe.top,
-                safe.width(),
-                safe.height(),
-            )
+            val cropped =
+                Bitmap.createBitmap(
+                    full,
+                    safe.left,
+                    safe.top,
+                    safe.width(),
+                    safe.height(),
+                )
             try {
                 writeActualPng(name, cropped)
             } finally {
@@ -73,7 +76,10 @@ object VisualRegressionCapture {
      * bitmap - для PreferenceFragmentCompat (settings overlay), ScriptManager.
      * Stitching-логика - в [ScrollStitchCapture.captureScrollableStitched].
      */
-    fun captureScrollableNative(name: String, scrollable: RecyclerView) {
+    fun captureScrollableNative(
+        name: String,
+        scrollable: RecyclerView,
+    ) {
         val stitched = ScrollStitchCapture.captureScrollableStitched(scrollable)
         try {
             writeScreenContentPng(name, stitched)
@@ -83,22 +89,30 @@ object VisualRegressionCapture {
     }
 
     /** Исключает системные панели: их иконки и контраст зависят от AVD. */
-    private fun writeScreenContentPng(name: String, bitmap: Bitmap) {
+    private fun writeScreenContentPng(
+        name: String,
+        bitmap: Bitmap,
+    ) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         var insets = Insets.NONE
         instrumentation.runOnMainSync {
-            val activity = ActivityLifecycleMonitorRegistry.getInstance()
-                .getActivitiesInStage(Stage.RESUMED).first()
-            insets = requireNotNull(activity.window.decorView.rootWindowInsets)
-                .getInsets(WindowInsets.Type.systemBars())
+            val activity =
+                ActivityLifecycleMonitorRegistry
+                    .getInstance()
+                    .getActivitiesInStage(Stage.RESUMED)
+                    .first()
+            insets =
+                requireNotNull(activity.window.decorView.rootWindowInsets)
+                    .getInsets(WindowInsets.Type.systemBars())
         }
-        val content = Bitmap.createBitmap(
-            bitmap,
-            insets.left,
-            insets.top,
-            bitmap.width - insets.left - insets.right,
-            bitmap.height - insets.top - insets.bottom,
-        )
+        val content =
+            Bitmap.createBitmap(
+                bitmap,
+                insets.left,
+                insets.top,
+                bitmap.width - insets.left - insets.right,
+                bitmap.height - insets.top - insets.bottom,
+            )
         try {
             writeActualPng(name, content)
         } finally {
@@ -106,14 +120,21 @@ object VisualRegressionCapture {
         }
     }
 
-    private fun writeActualPng(name: String, bitmap: Bitmap) {
+    private fun writeActualPng(
+        name: String,
+        bitmap: Bitmap,
+    ) {
         val storage = PlatformTestStorageRegistry.getInstance()
         storage.openOutputFile("visual-regression/$name.actual.png").use { stream ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
         }
     }
 
-    private fun clamp(region: Rect, maxWidth: Int, maxHeight: Int): Rect {
+    private fun clamp(
+        region: Rect,
+        maxWidth: Int,
+        maxHeight: Int,
+    ): Rect {
         val left = region.left.coerceIn(0, maxWidth - 1)
         val top = region.top.coerceIn(0, maxHeight - 1)
         val right = region.right.coerceIn(left + 1, maxWidth)

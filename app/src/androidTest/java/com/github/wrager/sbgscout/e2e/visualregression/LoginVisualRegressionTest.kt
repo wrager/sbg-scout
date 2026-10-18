@@ -1,8 +1,8 @@
 package com.github.wrager.sbgscout.e2e.visualregression
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import android.os.SystemClock
 import android.view.View
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
@@ -32,7 +32,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class LoginVisualRegressionTest : E2ETestBase() {
-
     @Before
     fun setUpVisualRegression() {
         ReadmeScreenshotCapture.forceRussianLocale()

@@ -34,7 +34,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class GameSettingsVisualRegressionTest : E2ETestBase() {
-
     @Before
     fun setUpVisualRegression() {
         ReadmeScreenshotCapture.forceRussianLocale()
@@ -75,11 +74,12 @@ class GameSettingsVisualRegressionTest : E2ETestBase() {
     private fun waitForButtonInjected(game: GameScreen) {
         val deadline = SystemClock.uptimeMillis() + INJECT_TIMEOUT_MS
         while (SystemClock.uptimeMillis() < deadline) {
-            val raw = game.evaluateJs(
-                "(function(){var b=document.getElementById('sbg-scout-settings-btn');" +
-                    "if(!b)return null;var r=b.getBoundingClientRect();" +
-                    "return r.width>0&&r.height>0?'ok':null;})()",
-            )
+            val raw =
+                game.evaluateJs(
+                    "(function(){var b=document.getElementById('sbg-scout-settings-btn');" +
+                        "if(!b)return null;var r=b.getBoundingClientRect();" +
+                        "return r.width>0&&r.height>0?'ok':null;})()",
+                )
             if (raw != "null") return
             Thread.sleep(POLL_INTERVAL_MS)
         }

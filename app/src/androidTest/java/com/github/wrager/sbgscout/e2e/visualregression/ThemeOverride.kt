@@ -29,7 +29,6 @@ import com.github.wrager.sbgscout.game.GameSettingsReader
  * тесты не наследовали зафиксированную VR-тему.
  */
 object ThemeOverride {
-
     fun forceLightTheme() {
         applyTheme(GameSettingsReader.ThemeMode.LIGHT, AppCompatDelegate.MODE_NIGHT_NO)
     }
@@ -40,7 +39,8 @@ object ThemeOverride {
 
     fun resetTheme() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        PreferenceManager.getDefaultSharedPreferences(context)
+        PreferenceManager
+            .getDefaultSharedPreferences(context)
             .edit()
             .remove(SbgScoutApplication.KEY_APPLIED_GAME_THEME)
             .apply()
@@ -49,9 +49,13 @@ object ThemeOverride {
         }
     }
 
-    private fun applyTheme(theme: GameSettingsReader.ThemeMode, nightMode: Int) {
+    private fun applyTheme(
+        theme: GameSettingsReader.ThemeMode,
+        nightMode: Int,
+    ) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        PreferenceManager.getDefaultSharedPreferences(context)
+        PreferenceManager
+            .getDefaultSharedPreferences(context)
             .edit()
             .putString(SbgScoutApplication.KEY_APPLIED_GAME_THEME, theme.name)
             .apply()

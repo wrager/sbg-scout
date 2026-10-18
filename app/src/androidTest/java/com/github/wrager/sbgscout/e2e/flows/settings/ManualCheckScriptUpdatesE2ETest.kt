@@ -12,6 +12,7 @@ import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.infra.GithubReleaseFixtures
+import com.github.wrager.sbgscout.e2e.infra.ScriptStorageFixture
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import com.github.wrager.sbgscout.e2e.screens.ScriptManagerScreen
 import com.github.wrager.sbgscout.e2e.screens.SettingsOverlayScreen
@@ -19,7 +20,6 @@ import com.github.wrager.sbgscout.script.model.ScriptHeader
 import com.github.wrager.sbgscout.script.model.ScriptIdentifier
 import com.github.wrager.sbgscout.script.model.UserScript
 import com.github.wrager.sbgscout.script.preset.PresetScripts
-import com.github.wrager.sbgscout.e2e.infra.ScriptStorageFixture
 import org.junit.Test
 
 /**
@@ -46,7 +46,6 @@ import org.junit.Test
  * без ручного клика на кнопке внутри фрагмента.
  */
 class ManualCheckScriptUpdatesE2ETest : E2ETestBase() {
-
     @Test
     fun checkScriptUpdates_triggersAutoCheckAndShowsReleaseNotesDialog() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -86,12 +85,13 @@ class ManualCheckScriptUpdatesE2ETest : E2ETestBase() {
         ScriptStorageFixture.storage().save(
             UserScript(
                 identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
-                header = ScriptHeader(
-                    name = "SBG Vanilla+",
-                    version = version,
-                    namespace = "github.com/wrager/sbg-vanilla-plus",
-                    match = listOf("https://sbg-game.ru/app/*"),
-                ),
+                header =
+                    ScriptHeader(
+                        name = "SBG Vanilla+",
+                        version = version,
+                        namespace = "github.com/wrager/sbg-vanilla-plus",
+                        match = listOf("https://sbg-game.ru/app/*"),
+                    ),
                 sourceUrl = PresetScripts.SVP.downloadUrl,
                 updateUrl = PresetScripts.SVP.updateUrl,
                 content = "// sideloaded SVP $version",
@@ -107,7 +107,9 @@ class ManualCheckScriptUpdatesE2ETest : E2ETestBase() {
             try {
                 onView(withText(text)).inRoot(isDialog()).check(matches(isDisplayed()))
                 return
-            } catch (@Suppress("TooGenericExceptionCaught") _: Throwable) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") _: Throwable,
+            ) {
                 Thread.sleep(POLL_INTERVAL_MS)
             }
         }

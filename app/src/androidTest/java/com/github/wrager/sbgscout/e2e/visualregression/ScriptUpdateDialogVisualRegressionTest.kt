@@ -42,7 +42,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ScriptUpdateDialogVisualRegressionTest : E2ETestBase() {
-
     private val targetContext get() =
         InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -89,7 +88,8 @@ class ScriptUpdateDialogVisualRegressionTest : E2ETestBase() {
         )
 
         val scenario = launchGameActivity()
-        GameScreen(scenario, idling).waitForLoaded()
+        GameScreen(scenario, idling)
+            .waitForLoaded()
             .openSettings()
             .clickPreferenceByKey(SettingsOverlayScreen.KEY_CHECK_SCRIPT_UPDATES)
         ScriptManagerScreen(scenario).waitDisplayed()
@@ -105,12 +105,13 @@ class ScriptUpdateDialogVisualRegressionTest : E2ETestBase() {
         ScriptStorageFixture.storage().save(
             UserScript(
                 identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
-                header = ScriptHeader(
-                    name = "SBG Vanilla+",
-                    version = version,
-                    namespace = "github.com/wrager/sbg-vanilla-plus",
-                    match = listOf("https://sbg-game.ru/app/*"),
-                ),
+                header =
+                    ScriptHeader(
+                        name = "SBG Vanilla+",
+                        version = version,
+                        namespace = "github.com/wrager/sbg-vanilla-plus",
+                        match = listOf("https://sbg-game.ru/app/*"),
+                    ),
                 sourceUrl = PresetScripts.SVP.downloadUrl,
                 updateUrl = PresetScripts.SVP.updateUrl,
                 content = "// sideloaded SVP $version",
@@ -126,7 +127,9 @@ class ScriptUpdateDialogVisualRegressionTest : E2ETestBase() {
             try {
                 onView(withText(text)).inRoot(isDialog()).check(matches(isDisplayed()))
                 return
-            } catch (@Suppress("TooGenericExceptionCaught") _: Throwable) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") _: Throwable,
+            ) {
                 Thread.sleep(POLL_INTERVAL_MS)
             }
         }

@@ -6,7 +6,7 @@
 
 ## Окружение Android
 
-- Android SDK Platform 36, Build Tools, Platform Tools (`adb`). Путь к SDK задаётся через `ANDROID_HOME` или локальный `local.properties` с `sdk.dir`; этот файл не коммитится. В Windows для `sdk.dir` удобно использовать прямые слеши.
+- Android SDK Platform 37, Build Tools, Platform Tools (`adb`). Путь к SDK задаётся через `ANDROID_HOME` или локальный `local.properties` с `sdk.dir`; этот файл не коммитится. В Windows для `sdk.dir` удобно использовать прямые слеши.
 - JDK 17 — Kotlin toolchain (`app/build.gradle.kts`); JDK 21 — Gradle daemon (`gradle/gradle-daemon-jvm.properties`). Нужен рабочий `java` в PATH или `JAVA_HOME` для старта wrapper. Gradle настроен на автозагрузку toolchain через Foojay; для первого запуска требуется сеть. В офлайн-окружении toolchain и зависимости должны быть подготовлены заранее.
 - Node.js 22+ — синхронизация скиллов и загрузчик референсов. Синхронизация использует только стандартную библиотеку, без `npm install`.
 - Для e2e и скриншотов — Android Emulator с образом API 33 `default` (без Google Play), Pixel 4, WebView 101. Такой профиль используется в `.github/workflows/e2e.yml`. Проверить `adb devices` и `adb shell dumpsys webviewupdate`; при нескольких устройствах задать `ANDROID_SERIAL`.
@@ -53,6 +53,7 @@ scripts/syncAgentSkills.mjs <- синхронизация и проверка к
 |---|---|---|
 | Сборка, lint, unit-тесты, e2e | `$scout-verify` | `/scout-verify` |
 | Три скриншота README | `$scout-screenshots` | `/scout-screenshots` |
+| Проверка UI по baseline | `$scout-visual-regression` | `/scout-visual-regression` |
 | Подготовка release PR без push | `$scout-release` | `/scout-release` |
 | Текст анонса с базовой версии | `$scout-announce 1.2.0` | `/scout-announce 1.2.0` |
 
@@ -112,7 +113,8 @@ Renovate использует semantic commit messages.
    прежняя: `major * 10000 + minor * 100 + patch`, minor и patch меньше 100.
    `CHANGELOG.md` не создаётся; автоматический черновик notes находится в теле PR.
 2. Вызвать `scout-release` для этого PR: сверить notes с итоговым кодом,
-   записать русские `RELEASE_NOTES.md`, после bump версии сгенерировать три PNG,
+   записать русские `RELEASE_NOTES.md`, после bump версии сгенерировать три README-PNG
+   и обновить visual regression baseline через `scout-visual-regression`,
    проверить изображения и выполнить проверки. Служебную структуру тела PR,
    заголовок и метки release-please сохранить. Перед merge повторить сверку,
    если бот изменил PR. Notes, версия и PNG входят в один итоговый squash.

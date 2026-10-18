@@ -18,15 +18,13 @@ import androidx.test.platform.app.InstrumentationRegistry
  * ([pixelsTolerantMatch]) и переиспользуется в обеих ветках.
  */
 object ScrollStitchCapture {
-
     /**
      * Снимает экран целиком через `UiAutomation.takeScreenshot()` (физические
      * пиксели, включает status bar, system insets, тени Activity).
      */
-    fun takeScreenshot(): Bitmap {
-        return InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+    fun takeScreenshot(): Bitmap =
+        InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
             ?: error("UiAutomation.takeScreenshot() вернул null")
-    }
 
     /**
      * Снимает экран целиком, включая прокручиваемый за viewport контент
@@ -137,18 +135,20 @@ object ScrollStitchCapture {
             val advances = IntArray(frames.size)
             advances[0] = viewportHeight
             for (i in 1 until frames.size) {
-                val overlap = findVerticalOverlap(
-                    frames[i - 1],
-                    frames[i],
-                    topY,
-                    bottomY,
-                    maxOverlap = viewportHeight - 1,
-                )
-                advances[i] = if (overlap > 0) {
-                    (viewportHeight - overlap).coerceAtLeast(0)
-                } else {
-                    scrollDiffs[i].coerceIn(0, viewportHeight)
-                }
+                val overlap =
+                    findVerticalOverlap(
+                        frames[i - 1],
+                        frames[i],
+                        topY,
+                        bottomY,
+                        maxOverlap = viewportHeight - 1,
+                    )
+                advances[i] =
+                    if (overlap > 0) {
+                        (viewportHeight - overlap).coerceAtLeast(0)
+                    } else {
+                        scrollDiffs[i].coerceIn(0, viewportHeight)
+                    }
             }
 
             val first = frames[0]
@@ -156,11 +156,12 @@ object ScrollStitchCapture {
             val srcWidth = first.width
             val viewportsHeight = advances.sum()
             val totalHeight = topY + viewportsHeight + (last.height - bottomY)
-            val stitched = Bitmap.createBitmap(
-                srcWidth,
-                totalHeight.coerceAtLeast(1),
-                Bitmap.Config.ARGB_8888,
-            )
+            val stitched =
+                Bitmap.createBitmap(
+                    srcWidth,
+                    totalHeight.coerceAtLeast(1),
+                    Bitmap.Config.ARGB_8888,
+                )
             val canvas = Canvas(stitched)
             if (topY > 0) {
                 canvas.drawBitmap(
@@ -239,7 +240,10 @@ object ScrollStitchCapture {
 
     private const val PIXEL_TOLERANCE_PER_CHANNEL = 8
 
-    private fun pixelsTolerantMatch(a: IntArray, b: IntArray): Boolean {
+    private fun pixelsTolerantMatch(
+        a: IntArray,
+        b: IntArray,
+    ): Boolean {
         if (a.size != b.size) return false
         for (i in a.indices) {
             val p1 = a[i]

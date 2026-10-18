@@ -16,7 +16,6 @@ import org.junit.Before
 import org.junit.Test
 
 class ScriptInjectorTest {
-
     private lateinit var scriptStorage: ScriptStorage
     private lateinit var webView: WebView
     private lateinit var injector: ScriptInjector
@@ -25,11 +24,12 @@ class ScriptInjectorTest {
     fun setUp() {
         scriptStorage = mockk()
         webView = mockk(relaxed = true)
-        injector = ScriptInjector(
-            scriptStorage = scriptStorage,
-            applicationId = "com.github.wrager.sbgscout",
-            versionName = "1.0",
-        )
+        injector =
+            ScriptInjector(
+                scriptStorage = scriptStorage,
+                applicationId = "com.github.wrager.sbgscout",
+                versionName = "1.0",
+            )
     }
 
     // --- wrapScript ---
@@ -153,10 +153,11 @@ class ScriptInjectorTest {
 
     @Test
     fun `buildDeferredBatch isolates errors per script`() {
-        val scripts = listOf(
-            createTestScript("a", "A", "code_a"),
-            createTestScript("b", "B", "code_b"),
-        )
+        val scripts =
+            listOf(
+                createTestScript("a", "A", "code_a"),
+                createTestScript("b", "B", "code_b"),
+            )
 
         val result = ScriptInjector.buildDeferredBatch(scripts)
 
@@ -196,10 +197,11 @@ class ScriptInjectorTest {
 
     @Test
     fun `inject uses single evaluateJavascript plus collectErrors with scripts`() {
-        every { scriptStorage.getEnabled() } returns listOf(
-            createTestScript("a", "A", "code_a"),
-            createTestScript("b", "B", "code_b"),
-        )
+        every { scriptStorage.getEnabled() } returns
+            listOf(
+                createTestScript("a", "A", "code_a"),
+                createTestScript("b", "B", "code_b"),
+            )
 
         injector.inject(webView)
 
@@ -212,10 +214,11 @@ class ScriptInjectorTest {
 
     @Test
     fun `buildInjectionPayload contains preamble and deferred batch`() {
-        val scripts = listOf(
-            createTestScript("a", "A", "code_a"),
-            createTestScript("b", "B", "code_b"),
-        )
+        val scripts =
+            listOf(
+                createTestScript("a", "A", "code_a"),
+                createTestScript("b", "B", "code_b"),
+            )
 
         val payload = injector.buildInjectionPayload(scripts)
 
@@ -247,10 +250,11 @@ class ScriptInjectorTest {
 
     @Test
     fun `buildInjectionPayload separates document-start and deferred scripts`() {
-        val scripts = listOf(
-            createTestScript("early", "Early", "early_code", runAt = "document-start"),
-            createTestScript("deferred", "Deferred", "deferred_code"),
-        )
+        val scripts =
+            listOf(
+                createTestScript("early", "Early", "early_code", runAt = "document-start"),
+                createTestScript("deferred", "Deferred", "deferred_code"),
+            )
 
         val payload = injector.buildInjectionPayload(scripts)
 
@@ -332,10 +336,11 @@ class ScriptInjectorTest {
 
     @Test
     fun `buildResults returns Success for all scripts when no errors`() {
-        val scripts = listOf(
-            createTestScript("id-a", "Script A", "code"),
-            createTestScript("id-b", "Script B", "code"),
-        )
+        val scripts =
+            listOf(
+                createTestScript("id-a", "Script A", "code"),
+                createTestScript("id-b", "Script B", "code"),
+            )
 
         val results = ScriptInjector.buildResults(scripts, "\"[]\"")
 
@@ -345,10 +350,11 @@ class ScriptInjectorTest {
 
     @Test
     fun `buildResults returns ScriptError when error array contains entries`() {
-        val scripts = listOf(
-            createTestScript("id-a", "Script A", "code"),
-            createTestScript("id-b", "Script B", "code"),
-        )
+        val scripts =
+            listOf(
+                createTestScript("id-a", "Script A", "code"),
+                createTestScript("id-b", "Script B", "code"),
+            )
         val errorsJson =
             "\"[{\\\"script\\\":\\\"Script A\\\"," +
                 "\\\"error\\\":\\\"ReferenceError: x is not defined\\\"}]\""
@@ -423,15 +429,18 @@ class ScriptInjectorTest {
     @Test
     fun `sortByInjectionPriority puts document-open scripts first`() {
         val regular = createTestScript("regular", "Regular", "console.log('hi');")
-        val rewriter = createTestScript(
-            "rewriter", "Rewriter",
-            "document.open(); document.write('<html></html>');",
-        )
+        val rewriter =
+            createTestScript(
+                "rewriter",
+                "Rewriter",
+                "document.open(); document.write('<html></html>');",
+            )
         val another = createTestScript("another", "Another", "alert(1);")
 
-        val sorted = ScriptInjector.sortByInjectionPriority(
-            listOf(regular, rewriter, another),
-        )
+        val sorted =
+            ScriptInjector.sortByInjectionPriority(
+                listOf(regular, rewriter, another),
+            )
 
         assertEquals("rewriter", sorted[0].identifier.value)
         assertEquals("regular", sorted[1].identifier.value)
@@ -444,9 +453,10 @@ class ScriptInjectorTest {
         val scriptB = createTestScript("b", "B", "code_b")
         val scriptC = createTestScript("c", "C", "code_c")
 
-        val sorted = ScriptInjector.sortByInjectionPriority(
-            listOf(scriptA, scriptB, scriptC),
-        )
+        val sorted =
+            ScriptInjector.sortByInjectionPriority(
+                listOf(scriptA, scriptB, scriptC),
+            )
 
         assertEquals("a", sorted[0].identifier.value)
         assertEquals("b", sorted[1].identifier.value)
@@ -480,12 +490,13 @@ class ScriptInjectorTest {
         name: String,
         content: String,
         runAt: String? = null,
-    ): UserScript = UserScript(
-        identifier = ScriptIdentifier(identifier),
-        header = ScriptHeader(name = name, runAt = runAt),
-        sourceUrl = null,
-        updateUrl = null,
-        content = content,
-        enabled = true,
-    )
+    ): UserScript =
+        UserScript(
+            identifier = ScriptIdentifier(identifier),
+            header = ScriptHeader(name = name, runAt = runAt),
+            sourceUrl = null,
+            updateUrl = null,
+            content = content,
+            enabled = true,
+        )
 }

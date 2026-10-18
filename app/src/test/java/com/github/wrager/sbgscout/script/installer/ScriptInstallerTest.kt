@@ -16,7 +16,6 @@ import org.junit.Before
 import org.junit.Test
 
 class ScriptInstallerTest {
-
     private lateinit var scriptStorage: ScriptStorage
     private lateinit var installer: ScriptInstaller
 
@@ -69,13 +68,14 @@ class ScriptInstallerTest {
     @Test
     fun `parse keeps namespace as-is when it has no http or https prefix`() {
         // Покрывает ветку `removePrefix("http://")` = не удалил (prefix отсутствует).
-        val content = """
+        val content =
+            """
             // ==UserScript==
             // @name Test Script
             // @namespace e2e-custom-namespace
             // @version 1.0.0
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         val result = installer.parse(content) as ScriptInstallResult.Parsed
         assertEquals("e2e-custom-namespace/Test Script", result.script.identifier.value)
@@ -83,13 +83,14 @@ class ScriptInstallerTest {
 
     @Test
     fun `parse strips http prefix from namespace`() {
-        val content = """
+        val content =
+            """
             // ==UserScript==
             // @name Test Script
             // @namespace http://example.com/scripts
             // @version 1.0.0
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         val result = installer.parse(content) as ScriptInstallResult.Parsed
         assertEquals("example.com/scripts/Test Script", result.script.identifier.value)
@@ -111,14 +112,15 @@ class ScriptInstallerTest {
 
     @Test
     fun `parse sets updateUrl from header updateUrl`() {
-        val content = """
+        val content =
+            """
             // ==UserScript==
             // @name Test Script
             // @version 1.0.0
             // @updateURL https://example.com/update.meta.js
             // @downloadURL https://example.com/download.user.js
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         val result = installer.parse(content) as ScriptInstallResult.Parsed
         assertEquals("https://example.com/update.meta.js", result.script.updateUrl)
@@ -159,28 +161,31 @@ class ScriptInstallerTest {
     }
 
     companion object {
-        private val SCRIPT_WITH_HEADER = """
+        private val SCRIPT_WITH_HEADER =
+            """
             // ==UserScript==
             // @name Test Script
             // @version 1.0.0
             // ==/UserScript==
             console.log('test');
-        """.trimIndent()
+            """.trimIndent()
 
-        private val SCRIPT_WITH_NAMESPACE = """
+        private val SCRIPT_WITH_NAMESPACE =
+            """
             // ==UserScript==
             // @name Test Script
             // @namespace https://github.com/test/repo
             // @version 1.0.0
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
-        private val SCRIPT_WITH_DOWNLOAD_URL = """
+        private val SCRIPT_WITH_DOWNLOAD_URL =
+            """
             // ==UserScript==
             // @name Test Script
             // @version 1.0.0
             // @downloadURL https://example.com/download.user.js
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
     }
 }

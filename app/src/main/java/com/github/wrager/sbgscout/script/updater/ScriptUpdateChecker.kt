@@ -11,11 +11,12 @@ class ScriptUpdateChecker(
     private val githubReleaseProvider: GithubReleaseProvider,
 ) {
     suspend fun checkForUpdate(script: UserScript): ScriptUpdateResult {
-        val updateUrl = script.updateUrl
-            ?: return ScriptUpdateResult.CheckFailed(
-                script.identifier,
-                IllegalStateException("No update URL configured"),
-            )
+        val updateUrl =
+            script.updateUrl
+                ?: return ScriptUpdateResult.CheckFailed(
+                    script.identifier,
+                    IllegalStateException("No update URL configured"),
+                )
 
         return try {
             val githubMatch = GITHUB_RELEASE_ASSET_PATTERN.find(updateUrl)
@@ -28,7 +29,9 @@ class ScriptUpdateChecker(
             } else {
                 compareVersionsViaHttpFetcher(script, updateUrl)
             }
-        } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
+        } catch (
+            @Suppress("TooGenericExceptionCaught") exception: Exception,
+        ) {
             ScriptUpdateResult.CheckFailed(script.identifier, exception)
         }
     }
@@ -38,18 +41,20 @@ class ScriptUpdateChecker(
         owner: String,
         repository: String,
     ): ScriptUpdateResult {
-        val currentVersionString = script.header.version
-            ?: return ScriptUpdateResult.CheckFailed(
-                script.identifier,
-                IllegalStateException("Current script has no version"),
-            )
+        val currentVersionString =
+            script.header.version
+                ?: return ScriptUpdateResult.CheckFailed(
+                    script.identifier,
+                    IllegalStateException("Current script has no version"),
+                )
 
         val releases = githubReleaseProvider.fetchReleases(owner, repository)
-        val latest = releases.firstOrNull()
-            ?: return ScriptUpdateResult.CheckFailed(
-                script.identifier,
-                IllegalStateException("No releases in $owner/$repository"),
-            )
+        val latest =
+            releases.firstOrNull()
+                ?: return ScriptUpdateResult.CheckFailed(
+                    script.identifier,
+                    IllegalStateException("No releases in $owner/$repository"),
+                )
 
         val current = ScriptVersion(currentVersionString)
         val latestVersion = ScriptVersion(latest.tagName.removePrefix("v"))
@@ -79,23 +84,26 @@ class ScriptUpdateChecker(
         updateUrl: String,
     ): ScriptUpdateResult {
         val metaContent = httpFetcher.fetch(updateUrl)
-        val remoteHeader = HeaderParser.parse(metaContent)
-            ?: return ScriptUpdateResult.CheckFailed(
-                script.identifier,
-                IllegalStateException("Failed to parse remote header"),
-            )
+        val remoteHeader =
+            HeaderParser.parse(metaContent)
+                ?: return ScriptUpdateResult.CheckFailed(
+                    script.identifier,
+                    IllegalStateException("Failed to parse remote header"),
+                )
 
-        val currentVersionString = script.header.version
-            ?: return ScriptUpdateResult.CheckFailed(
-                script.identifier,
-                IllegalStateException("Current script has no version"),
-            )
+        val currentVersionString =
+            script.header.version
+                ?: return ScriptUpdateResult.CheckFailed(
+                    script.identifier,
+                    IllegalStateException("Current script has no version"),
+                )
 
-        val remoteVersionString = remoteHeader.version
-            ?: return ScriptUpdateResult.CheckFailed(
-                script.identifier,
-                IllegalStateException("Remote script has no version"),
-            )
+        val remoteVersionString =
+            remoteHeader.version
+                ?: return ScriptUpdateResult.CheckFailed(
+                    script.identifier,
+                    IllegalStateException("Remote script has no version"),
+                )
 
         val current = ScriptVersion(currentVersionString)
         val latest = ScriptVersion(remoteVersionString)
@@ -111,11 +119,11 @@ class ScriptUpdateChecker(
         }
     }
 
-    suspend fun checkAllForUpdates(): List<ScriptUpdateResult> {
-        return scriptStorage.getAll()
+    suspend fun checkAllForUpdates(): List<ScriptUpdateResult> =
+        scriptStorage
+            .getAll()
             .filter { it.updateUrl != null }
             .map { checkForUpdate(it) }
-    }
 
     private companion object {
         // Матчит https://github.com/{owner}/{repo}/releases/latest/download/<path>

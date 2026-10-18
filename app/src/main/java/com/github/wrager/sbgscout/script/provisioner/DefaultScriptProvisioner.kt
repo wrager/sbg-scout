@@ -42,11 +42,12 @@ class DefaultScriptProvisioner(
         var allSucceeded = true
         for (preset in pending) {
             onScriptLoading(preset.displayName)
-            val result = downloader.download(
-                preset.downloadUrl,
-                isPreset = true,
-                onProgress = onDownloadProgress,
-            )
+            val result =
+                downloader.download(
+                    preset.downloadUrl,
+                    isPreset = true,
+                    onProgress = onDownloadProgress,
+                )
             // sealed class ScriptDownloadResult → when exhaustive, без `else if`
             // с недостижимой false-веткой, которую JaCoCo считал непокрытой.
             when (result) {
@@ -78,11 +79,14 @@ class DefaultScriptProvisioner(
      * (namespace + "/" + @name), который формирует [ScriptDownloader].
      */
     private fun pendingPresets(): List<PresetScript> {
-        val provisioned = preferences.getStringSet(KEY_PROVISIONED_DEFAULTS, emptySet())
-            ?: emptySet()
-        val installedSourceUrls = scriptStorage.getAll()
-            .mapNotNull { it.sourceUrl }
-            .toSet()
+        val provisioned =
+            preferences.getStringSet(KEY_PROVISIONED_DEFAULTS, emptySet())
+                ?: emptySet()
+        val installedSourceUrls =
+            scriptStorage
+                .getAll()
+                .mapNotNull { it.sourceUrl }
+                .toSet()
         return PresetScripts.ALL.filter { preset ->
             preset.enabledByDefault &&
                 preset.identifier.value !in provisioned &&
@@ -92,8 +96,9 @@ class DefaultScriptProvisioner(
 
     /** Был ли пресет уже обработан (установлен или пропущен пользователем). */
     fun isProvisioned(identifier: ScriptIdentifier): Boolean {
-        val provisioned = preferences.getStringSet(KEY_PROVISIONED_DEFAULTS, emptySet())
-            ?: emptySet()
+        val provisioned =
+            preferences.getStringSet(KEY_PROVISIONED_DEFAULTS, emptySet())
+                ?: emptySet()
         return identifier.value in provisioned
     }
 
@@ -102,9 +107,11 @@ class DefaultScriptProvisioner(
      * даже если пользователь удалит скрипт из хранилища.
      */
     fun markProvisioned(identifier: ScriptIdentifier) {
-        val current = preferences.getStringSet(KEY_PROVISIONED_DEFAULTS, emptySet())
-            ?: emptySet()
-        preferences.edit()
+        val current =
+            preferences.getStringSet(KEY_PROVISIONED_DEFAULTS, emptySet())
+                ?: emptySet()
+        preferences
+            .edit()
             .putStringSet(KEY_PROVISIONED_DEFAULTS, current + identifier.value)
             .apply()
     }

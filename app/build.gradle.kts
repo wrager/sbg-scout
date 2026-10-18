@@ -17,7 +17,7 @@ jacoco {
 
 android {
     namespace = "com.github.wrager.sbgscout"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.github.wrager.sbgscout"
@@ -260,7 +260,11 @@ tasks.register("copyReadmeScreenshots") {
     group = "verification"
     description = "Скопировать README-скриншоты из test outputs в .github/images/screenshots/"
     doLast {
-        val outputsDir = layout.buildDirectory.dir("outputs/connected_android_test_additional_output").get().asFile
+        val outputsDir =
+            layout.buildDirectory
+                .dir("outputs/connected_android_test_additional_output")
+                .get()
+                .asFile
         if (!outputsDir.exists()) {
             error(
                 "Директория $outputsDir не существует. " +
@@ -272,7 +276,8 @@ tasks.register("copyReadmeScreenshots") {
         targetDir.mkdirs()
         val expectedNames = setOf("game_settings.png", "settings.png", "script-manager.png")
         val copied = mutableListOf<String>()
-        outputsDir.walkTopDown()
+        outputsDir
+            .walkTopDown()
             .filter { it.isFile && it.name in expectedNames }
             .forEach { source ->
                 val target = File(targetDir, source.name)
@@ -323,7 +328,10 @@ tasks.register("compareVisualRegressionBaselines") {
     description = "Сравнить actual.png из VR-тестов с baseline в .github/images/visual-regression/"
     doLast {
         val outputsDir =
-            layout.buildDirectory.dir("outputs/connected_android_test_additional_output").get().asFile
+            layout.buildDirectory
+                .dir("outputs/connected_android_test_additional_output")
+                .get()
+                .asFile
         if (!outputsDir.exists()) {
             error(
                 "Директория $outputsDir не существует. " +
@@ -331,11 +339,16 @@ tasks.register("compareVisualRegressionBaselines") {
             )
         }
         val baselineDir = rootProject.file(vrBaselineDirRel)
-        val reportsDir = layout.buildDirectory.dir("reports/visual-regression").get().asFile
+        val reportsDir =
+            layout.buildDirectory
+                .dir("reports/visual-regression")
+                .get()
+                .asFile
         reportsDir.mkdirs()
 
         val actuals =
-            outputsDir.walkTopDown()
+            outputsDir
+                .walkTopDown()
                 .filter { it.isFile && it.name.endsWith(".actual.png") }
                 .toList()
         if (actuals.isEmpty()) {
@@ -356,7 +369,9 @@ tasks.register("compareVisualRegressionBaselines") {
                 mismatches +=
                     "$name: ${"%.3f".format(diff.differentFraction * 100)}% pixels differ " +
                     "(threshold ${"%.3f".format(vrMaxDifferentFraction * 100)}%)"
-                logger.lifecycle("Visual regression: $name → diff at ${File(reportsDir, "$name.diff.png").absolutePath}")
+                logger.lifecycle(
+                    "Visual regression: $name → diff at ${File(reportsDir, "$name.diff.png").absolutePath}",
+                )
             }
         }
         if (missing.isNotEmpty()) {
@@ -381,7 +396,10 @@ tasks.register("copyVisualRegressionBaselines") {
     description = "Скопировать actual.png в .github/images/visual-regression/<name>.png (overwrite)"
     doLast {
         val outputsDir =
-            layout.buildDirectory.dir("outputs/connected_android_test_additional_output").get().asFile
+            layout.buildDirectory
+                .dir("outputs/connected_android_test_additional_output")
+                .get()
+                .asFile
         if (!outputsDir.exists()) {
             error(
                 "Директория $outputsDir не существует. " +
@@ -391,7 +409,8 @@ tasks.register("copyVisualRegressionBaselines") {
         val targetDir = rootProject.file(vrBaselineDirRel)
         targetDir.mkdirs()
         val copied = mutableListOf<String>()
-        outputsDir.walkTopDown()
+        outputsDir
+            .walkTopDown()
             .filter { it.isFile && it.name.endsWith(".actual.png") }
             .forEach { source ->
                 val name = source.name.removeSuffix(".actual.png")
@@ -451,10 +470,12 @@ tasks.register("inlineGameSnapshot") {
             return@doLast
         }
         val htmlFile =
-            snapshotsDir.listFiles { f -> f.isFile && f.name.endsWith(".html") }
+            snapshotsDir
+                .listFiles { f -> f.isFile && f.name.endsWith(".html") }
                 ?.firstOrNull()
         val filesDir =
-            snapshotsDir.listFiles { f -> f.isDirectory && f.name.endsWith("_files") }
+            snapshotsDir
+                .listFiles { f -> f.isDirectory && f.name.endsWith("_files") }
                 ?.firstOrNull()
         if (htmlFile == null || filesDir == null) {
             if (outputFile.exists()) outputFile.delete()
@@ -581,7 +602,10 @@ fun preprocessGameSnapshot(
  * [differentFraction] - доля пикселей, где per-channel diff превышает
  * [vrMaxChannelDiff]. Превышение [vrMaxDifferentFraction] = регрессия.
  */
-data class VisualRegressionDiff(val differentFraction: Double, val totalPixels: Int)
+data class VisualRegressionDiff(
+    val differentFraction: Double,
+    val totalPixels: Int,
+)
 
 /**
  * Сравнивает [baseline] и [actual] PNG-файлы попиксельно с per-channel

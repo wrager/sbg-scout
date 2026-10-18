@@ -9,18 +9,18 @@ import android.webkit.WebView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
+import org.json.JSONObject
+import org.json.JSONTokener
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
-import org.json.JSONObject
-import org.json.JSONTokener
 
 /**
  * Маркер тестов, генерирующих README-скриншоты.
  *
- * Gradle task [generateReadmeScreenshots][README.md] фильтрует прогон по
+ * Gradle task [updateReadmeScreenshots][README.md] фильтрует прогон по
  * этой аннотации (`-e annotation`), чтобы при ручной перегенерации не гонять
- * 30+ остальных e2e-сценариев.
+ * остальные e2e-сценарии.
  */
 @Retention(AnnotationRetention.RUNTIME)
 @Target(AnnotationTarget.FUNCTION)
@@ -32,7 +32,7 @@ annotation class ReadmeScreenshot
  * AGP при `useTestStorageService=true` автоматически копирует файлы из
  * `PlatformTestStorageRegistry` после прогона `connectedInstrAndroidTest` в
  * `app/build/outputs/connected_android_test_additional_output/<device>/test_runfiles/`.
- * Gradle task `generateReadmeScreenshots` далее переносит их в
+ * Gradle task `updateReadmeScreenshots` далее переносит их в
  * `.github/images/screenshots/`.
  *
  * Низкоуровневые операции (snapshot экрана, scroll-stitch) живут в
@@ -40,7 +40,6 @@ annotation class ReadmeScreenshot
  * масштабирования.
  */
 object ReadmeScreenshotCapture {
-
     /**
      * Целевая ширина PNG — 360 px (mdpi-эквивалент).
      * Текущие ручные скриншоты в README сделаны под эту ширину
@@ -62,7 +61,7 @@ object ReadmeScreenshotCapture {
      * [resetLocale], иначе следующие e2e-тесты получат русскую локаль и
      * могут быть проблемы с асертами на английские строки.
      *
-     * Эмулятор для нашего CI — API 33 (см. project memory), `LocaleManager`
+     * Эмулятор для нашего CI — API 33 (см. docs/agent-setup.md), `LocaleManager`
      * есть. Для локального запуска на API < 33 этот вызов будет no-op,
      * скриншоты получатся на системной локали эмулятора.
      */
@@ -84,17 +83,21 @@ object ReadmeScreenshotCapture {
         return context.getSystemService(Context.LOCALE_SERVICE) as? LocaleManager
     }
 
-    fun captureRegion(name: String, region: Rect) {
+    fun captureRegion(
+        name: String,
+        region: Rect,
+    ) {
         val full = ScrollStitchCapture.takeScreenshot()
         try {
             val safeRegion = clamp(region, full.width, full.height)
-            val cropped = Bitmap.createBitmap(
-                full,
-                safeRegion.left,
-                safeRegion.top,
-                safeRegion.width(),
-                safeRegion.height(),
-            )
+            val cropped =
+                Bitmap.createBitmap(
+                    full,
+                    safeRegion.left,
+                    safeRegion.top,
+                    safeRegion.width(),
+                    safeRegion.height(),
+                )
             try {
                 writePng(name, scaleToTargetWidth(cropped))
             } finally {
@@ -117,7 +120,10 @@ object ReadmeScreenshotCapture {
      * она уже в физических пикселях (то же координатное пространство, что
      * у `UiAutomation.takeScreenshot()`).
      */
-    fun webBoundsInScreen(webView: WebView, scriptReturningRectJson: String): Rect {
+    fun webBoundsInScreen(
+        webView: WebView,
+        scriptReturningRectJson: String,
+    ): Rect {
         val raw = evaluateJavascript(webView, scriptReturningRectJson)
         // evaluateJavascript возвращает результат как JSON-литерал (если скрипт
         // вернул строку - это `"\"{...}\""`, т.е. экранированный JSON внутри
@@ -125,11 +131,12 @@ object ReadmeScreenshotCapture {
         // (string, object, number, boolean) и обрабатывает все escape-
         // последовательности, в т.ч. \n, \t, \uXXXX.
         val tokenized = JSONTokener(raw).nextValue()
-        val obj = when (tokenized) {
-            is String -> JSONObject(tokenized)
-            is JSONObject -> tokenized
-            else -> error("webBoundsInScreen: unexpected JSON type ${tokenized::class.simpleName}: $raw")
-        }
+        val obj =
+            when (tokenized) {
+                is String -> JSONObject(tokenized)
+                is JSONObject -> tokenized
+                else -> error("webBoundsInScreen: unexpected JSON type ${tokenized::class.simpleName}: $raw")
+            }
         if (obj.has("error")) {
             error("webBoundsInScreen: ${obj.getString("error")}")
         }
@@ -156,7 +163,10 @@ object ReadmeScreenshotCapture {
      * [scrollable], и пишет PNG масштабированный до [TARGET_WIDTH_PX].
      * Stitching-логика — в [ScrollStitchCapture.captureScrollableStitched].
      */
-    fun captureFullScreenWithScroll(name: String, scrollable: RecyclerView) {
+    fun captureFullScreenWithScroll(
+        name: String,
+        scrollable: RecyclerView,
+    ) {
         val stitched = ScrollStitchCapture.captureScrollableStitched(scrollable)
         try {
             writePng(name, scaleToTargetWidth(stitched))
@@ -165,7 +175,10 @@ object ReadmeScreenshotCapture {
         }
     }
 
-    private fun writePng(name: String, bitmap: Bitmap) {
+    private fun writePng(
+        name: String,
+        bitmap: Bitmap,
+    ) {
         val storage = PlatformTestStorageRegistry.getInstance()
         storage.openOutputFile("readme/$name.png").use { stream ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
@@ -179,7 +192,11 @@ object ReadmeScreenshotCapture {
         return Bitmap.createScaledBitmap(bitmap, TARGET_WIDTH_PX, targetHeight, true)
     }
 
-    private fun clamp(region: Rect, maxWidth: Int, maxHeight: Int): Rect {
+    private fun clamp(
+        region: Rect,
+        maxWidth: Int,
+        maxHeight: Int,
+    ): Rect {
         val left = region.left.coerceIn(0, maxWidth - 1)
         val top = region.top.coerceIn(0, maxHeight - 1)
         val right = region.right.coerceIn(left + 1, maxWidth)
@@ -187,7 +204,10 @@ object ReadmeScreenshotCapture {
         return Rect(left, top, right, bottom)
     }
 
-    private fun evaluateJavascript(webView: WebView, script: String): String {
+    private fun evaluateJavascript(
+        webView: WebView,
+        script: String,
+    ): String {
         val latch = CountDownLatch(1)
         val result = AtomicReference<String?>(null)
         runOnUi {

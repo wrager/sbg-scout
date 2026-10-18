@@ -27,7 +27,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ScriptManagerVisualRegressionTest : E2ETestBase() {
-
     @Before
     fun setUpVisualRegression() {
         ReadmeScreenshotCapture.forceRussianLocale()
@@ -67,10 +66,11 @@ class ScriptManagerVisualRegressionTest : E2ETestBase() {
         )
 
         val scenario = launchGameActivity()
-        val scripts = GameScreen(scenario, idling)
-            .waitForLoaded()
-            .openSettings()
-            .openManageScripts()
+        val scripts =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
         scripts.waitForCard("SBG Vanilla+")
         scripts.clickCardChildView("SBG Enhanced UI", R.id.actionButton)
         waitForScriptInstalled("github.com/egorantonov/sbg-enhanced")

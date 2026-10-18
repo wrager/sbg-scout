@@ -22,7 +22,6 @@ import androidx.test.uiautomator.UiDevice
  * страшно для assertion-логики, но шумит в визуальной отладке.
  */
 object StatusBarDemoMode {
-
     fun enable() {
         executeShellCommands(
             "settings put global sysui_demo_allowed 1",

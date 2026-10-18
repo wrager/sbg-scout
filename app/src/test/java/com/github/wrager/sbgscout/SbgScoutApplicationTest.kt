@@ -20,7 +20,6 @@ import org.junit.Test
  * Это устраняет зависимость от `PreferenceManager` и Android runtime.
  */
 class SbgScoutApplicationTest {
-
     @Before
     fun setUp() {
         mockkStatic(AppCompatDelegate::class)

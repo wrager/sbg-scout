@@ -7,7 +7,6 @@ import io.mockk.verify
 import org.junit.Test
 
 class WebViewPerformanceTest {
-
     private val webView: WebView = mockk(relaxed = true)
 
     @Test

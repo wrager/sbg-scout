@@ -11,7 +11,6 @@ import com.github.wrager.sbgscout.script.model.ScriptVersion
 class ScriptReleaseNotesProvider(
     private val githubReleaseProvider: GithubReleaseProvider,
 ) {
-
     /**
      * Загружает агрегированные release notes для скрипта.
      *
@@ -23,8 +22,9 @@ class ScriptReleaseNotesProvider(
         sourceUrl: String,
         currentVersion: ScriptVersion,
     ): String? {
-        val (owner, repository) = GithubReleaseProvider.extractOwnerAndRepository(sourceUrl)
-            ?: return null
+        val (owner, repository) =
+            GithubReleaseProvider.extractOwnerAndRepository(sourceUrl)
+                ?: return null
         val releases = githubReleaseProvider.fetchReleases(owner, repository)
         return aggregateNotes(releases, currentVersion)
     }
@@ -40,17 +40,17 @@ class ScriptReleaseNotesProvider(
             releases: List<GithubRelease>,
             currentVersion: ScriptVersion,
         ): String? {
-            val notes = releases
-                .filter {
-                    val tagVersion = it.tagName.removePrefix("v")
-                    // Пропускаем теги, не являющиеся семантическими версиями
-                    tagVersion.firstOrNull()?.isDigit() == true &&
-                        ScriptVersion(tagVersion) > currentVersion
-                }
-                .mapNotNull { release ->
-                    val body = release.body?.trim()
-                    if (body.isNullOrEmpty()) null else "${release.tagName}\n$body"
-                }
+            val notes =
+                releases
+                    .filter {
+                        val tagVersion = it.tagName.removePrefix("v")
+                        // Пропускаем теги, не являющиеся семантическими версиями
+                        tagVersion.firstOrNull()?.isDigit() == true &&
+                            ScriptVersion(tagVersion) > currentVersion
+                    }.mapNotNull { release ->
+                        val body = release.body?.trim()
+                        if (body.isNullOrEmpty()) null else "${release.tagName}\n$body"
+                    }
             return notes.joinToString("\n\n").ifEmpty { null }
         }
     }

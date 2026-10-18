@@ -15,7 +15,6 @@ import com.github.wrager.sbgscout.BuildConfig
  * Значение инициализируется из SharedPreferences в `SbgScoutApplication.onCreate`.
  */
 object GameUrls {
-
     @VisibleForTesting
     @Volatile
     internal var appUrlOverride: String? = null
