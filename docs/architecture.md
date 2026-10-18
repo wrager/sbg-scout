@@ -341,7 +341,7 @@ AVD запускается с 2 ядрами, 2 ГБ RAM и SwiftShader без V
 Для остановки зависшего AVD сохраняются PID и время запуска его host-процесса:
 при отсутствии доступного AVD завершается только подтверждённое дерево этого процесса.
 
-`.github/workflows/e2e.yml` — отдельный workflow на `reactivecircus/android-emulator-runner` (API 33, x86_64, pixel_4), запускается по `pull_request` с path-filter (`app/src/main/**`, `app/src/androidTest/**`, `app/src/instr/**`, `app/build.gradle.kts`, `gradle/libs.versions.toml`) и `workflow_dispatch`. AVD snapshot кэшируется между запусками. Не добавлен в `push: main`, чтобы не блокировать мердж долгим прогоном эмулятора. Основной `ci.yml` собирает instr-APK (`assembleInstr`) для быстрого ловли поломок сборки до запуска emulator runner.
+`.github/workflows/e2e.yml` — отдельный workflow на `reactivecircus/android-emulator-runner` (API 33, x86_64, pixel_4), запускается по `pull_request` с path-filter (`app/src/main/**`, `app/src/androidTest/**`, `app/src/instr/**`, `app/build.gradle.kts`, `gradle/libs.versions.toml`) и `workflow_dispatch`. CI использует 2 ядра, 2 ГБ RAM, heap 256 МБ и SwiftShader без Vulkan. Данные AVD кешируются, каждый прогон выполняет холодную загрузку без восстановления snapshot. Не добавлен в `push: main`, чтобы не блокировать мердж долгим прогоном эмулятора. Основной `ci.yml` собирает instr-APK (`assembleInstr`) для быстрого ловли поломок сборки до запуска emulator runner.
 
 ### Запрет обращений к прод-серверу
 
