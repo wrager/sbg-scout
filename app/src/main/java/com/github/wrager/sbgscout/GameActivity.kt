@@ -72,6 +72,7 @@ import com.github.wrager.sbgscout.updater.AppUpdateResult
 import com.github.wrager.sbgscout.webview.SbgWebViewClient
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -294,6 +295,10 @@ class GameActivity : AppCompatActivity() {
             button.strokeColor = strokeTint
         }
         findViewById<android.widget.TextView>(R.id.gameInitializingLabel).setTextColor(content)
+        findViewById<CircularProgressIndicator>(R.id.pageLoadingIndicator).apply {
+            setIndicatorColor(content)
+            backgroundTintList = backgroundTint
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -548,6 +553,7 @@ class GameActivity : AppCompatActivity() {
                 injectionStateStorage = injectionStateStorage,
             )
         sbgWebViewClient = SbgWebViewClient(scriptInjector)
+        sbgWebViewClient.onPageLoadingChanged = ::updatePageLoadingIndicator
         sbgWebViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
         sbgWebViewClient.onGamePageStarted = {
             runOnUiThread {
@@ -561,6 +567,13 @@ class GameActivity : AppCompatActivity() {
 
         webView.webChromeClient =
             object : WebChromeClient() {
+                override fun onProgressChanged(
+                    view: WebView,
+                    newProgress: Int,
+                ) {
+                    sbgWebViewClient.onLoadingProgressChanged(newProgress)
+                }
+
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
                     consoleLogBuffer.add(consoleMessage)
                     val logLevel =
@@ -617,6 +630,11 @@ class GameActivity : AppCompatActivity() {
                     }
                 }
             }
+    }
+
+    private fun updatePageLoadingIndicator(loading: Boolean) {
+        findViewById<View>(R.id.pageLoadingIndicator).visibility =
+            if (loading) View.VISIBLE else View.GONE
     }
 
     private fun createDownloadBridge(): DownloadBridge =

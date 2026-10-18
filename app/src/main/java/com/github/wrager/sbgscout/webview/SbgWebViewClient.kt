@@ -25,6 +25,26 @@ import java.net.URISyntaxException
 class SbgWebViewClient(
     private val scriptInjector: ScriptInjector,
 ) : WebViewClient() {
+    /** Загрузка любого основного документа, включая его load-blocking ресурсы и фреймы. */
+    var onPageLoadingChanged: ((Boolean) -> Unit)? = null
+
+    private var loadingUrl: String? = null
+    private var lastLoadingProgress = 100
+
+    /** Прогресс начинает индикацию ещё до получения ответа основного документа. */
+    fun onLoadingProgressChanged(progress: Int) {
+        if (progress < 100) {
+            // Снижение прогресса — новая навигация; старый документ ещё может
+            // прислать onPageFinished, пока новый ждёт ответа сервера.
+            if (progress < lastLoadingProgress) loadingUrl = null
+            onPageLoadingChanged?.invoke(true)
+        } else if (loadingUrl == null) {
+            // Отмена/ошибка до onPageStarted: документа с ресурсами ещё нет.
+            onPageLoadingChanged?.invoke(false)
+        }
+        lastLoadingProgress = progress
+    }
+
     /** Вызывается после загрузки страницы игры с текущим значением настроек. */
     var onGameSettingsRead: ((String?) -> Unit)? = null
 
@@ -57,6 +77,9 @@ class SbgWebViewClient(
         favicon: Bitmap?,
     ) {
         super.onPageStarted(view, url, favicon)
+        loadingUrl = url
+        lastLoadingProgress = 0
+        onPageLoadingChanged?.invoke(true)
         if (GameUrls.isGameAppPage(url) && view != null) {
             view.evaluateJavascript(UserAgentOverride.BOOTSTRAP_SCRIPT) {}
             view.evaluateJavascript(DownloadBridge.BOOTSTRAP_SCRIPT) {}
@@ -74,6 +97,13 @@ class SbgWebViewClient(
         url: String?,
     ) {
         super.onPageFinished(view, url)
+        // После редиректа/нового перехода может прийти завершение предыдущего URL.
+        // Процент прогресса здесь не подходит: Chromium достигает 100 до загрузки
+        // низкоприоритетных изображений и iframe, ещё до настоящего onPageFinished.
+        if (url != null && isCurrentNavigation(view, url)) {
+            loadingUrl = null
+            onPageLoadingChanged?.invoke(false)
+        }
         if (GameUrls.isGameAppPage(url) && view != null) {
             onGameSettingsRead?.let { callback ->
                 view.evaluateJavascript("localStorage.getItem('settings')") { result ->
@@ -83,6 +113,15 @@ class SbgWebViewClient(
             gamePageFinishedAtLeastOnce = true
             onGamePageFinished?.invoke()
         }
+    }
+
+    private fun isCurrentNavigation(
+        view: WebView?,
+        url: String,
+    ): Boolean {
+        if (url == loadingUrl) return true
+        // URL мог измениться в цепочке HTTP-редиректов без нового onPageStarted.
+        return view?.url == url && view.originalUrl == loadingUrl
     }
 
     private fun handleInjectionResults(
