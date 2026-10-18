@@ -12,7 +12,6 @@ import org.junit.Before
 import org.junit.Test
 
 class DownloadBridgeTest {
-
     @Before
     fun setUp() {
         mockkStatic(Base64::class)
@@ -28,13 +27,14 @@ class DownloadBridgeTest {
         val expectedBytes = byteArrayOf(1, 2, 3, 4)
         every { Base64.decode("AQIDBA==", Base64.DEFAULT) } returns expectedBytes
         var captured: Triple<String, String, ByteArray>? = null
-        val bridge = DownloadBridge(
-            save = { filename, mimeType, bytes ->
-                captured = Triple(filename, mimeType, bytes)
-                filename
-            },
-            onResult = {},
-        )
+        val bridge =
+            DownloadBridge(
+                save = { filename, mimeType, bytes ->
+                    captured = Triple(filename, mimeType, bytes)
+                    filename
+                },
+                onResult = {},
+            )
 
         bridge.saveBlob("AQIDBA==", "svp-favorites-2026-04-05.json", "application/json")
 
@@ -47,10 +47,11 @@ class DownloadBridgeTest {
     fun `saveBlob reports saved name from save callback`() {
         every { Base64.decode(any<String>(), any()) } returns byteArrayOf(0)
         var reported: String? = "initial"
-        val bridge = DownloadBridge(
-            save = { _, _, _ -> "Downloads/file.json" },
-            onResult = { reported = it },
-        )
+        val bridge =
+            DownloadBridge(
+                save = { _, _, _ -> "Downloads/file.json" },
+                onResult = { reported = it },
+            )
 
         bridge.saveBlob("AA==", "file.json", "application/json")
 
@@ -61,10 +62,11 @@ class DownloadBridgeTest {
     fun `saveBlob reports null when save returns null`() {
         every { Base64.decode(any<String>(), any()) } returns byteArrayOf(0)
         var reported: String? = "initial"
-        val bridge = DownloadBridge(
-            save = { _, _, _ -> null },
-            onResult = { reported = it },
-        )
+        val bridge =
+            DownloadBridge(
+                save = { _, _, _ -> null },
+                onResult = { reported = it },
+            )
 
         bridge.saveBlob("AA==", "file.json", "application/json")
 
@@ -76,13 +78,14 @@ class DownloadBridgeTest {
         every { Base64.decode("!!!", Base64.DEFAULT) } throws IllegalArgumentException("bad base64")
         var saveCalled = false
         var reported: String? = "initial"
-        val bridge = DownloadBridge(
-            save = { _, _, _ ->
-                saveCalled = true
-                "ok"
-            },
-            onResult = { reported = it },
-        )
+        val bridge =
+            DownloadBridge(
+                save = { _, _, _ ->
+                    saveCalled = true
+                    "ok"
+                },
+                onResult = { reported = it },
+            )
 
         bridge.saveBlob("!!!", "file.json", "application/json")
 

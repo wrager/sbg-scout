@@ -19,7 +19,6 @@ import com.github.wrager.sbgscout.game.GameSettingsReader
  * раз, когда применяет тему/язык из настроек игры.
  */
 class SbgScoutApplication : Application() {
-
     override fun onCreate() {
         super.onCreate()
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
@@ -35,26 +34,31 @@ class SbgScoutApplication : Application() {
 
         internal fun applyStoredTheme(themeName: String?) {
             if (themeName == null) return
-            val theme = try {
-                GameSettingsReader.ThemeMode.valueOf(themeName)
-            } catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
-                return
-            }
-            val nightMode = when (theme) {
-                GameSettingsReader.ThemeMode.AUTO -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-                GameSettingsReader.ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
-                GameSettingsReader.ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
-            }
+            val theme =
+                try {
+                    GameSettingsReader.ThemeMode.valueOf(themeName)
+                } catch (
+                    @Suppress("SwallowedException") _: IllegalArgumentException,
+                ) {
+                    return
+                }
+            val nightMode =
+                when (theme) {
+                    GameSettingsReader.ThemeMode.AUTO -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                    GameSettingsReader.ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+                    GameSettingsReader.ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+                }
             AppCompatDelegate.setDefaultNightMode(nightMode)
         }
 
         internal fun applyStoredLanguage(language: String?) {
             if (language == null) return
-            val locales = if (language == "sys") {
-                LocaleListCompat.getEmptyLocaleList()
-            } else {
-                LocaleListCompat.forLanguageTags(language)
-            }
+            val locales =
+                if (language == "sys") {
+                    LocaleListCompat.getEmptyLocaleList()
+                } else {
+                    LocaleListCompat.forLanguageTags(language)
+                }
             AppCompatDelegate.setApplicationLocales(locales)
         }
     }

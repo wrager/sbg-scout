@@ -16,7 +16,6 @@ import java.io.File
  * init-блок, создающий директорию, если её ещё нет.
  */
 class ScriptFileStorageImplTest {
-
     private lateinit var tempDir: File
     private lateinit var storage: ScriptFileStorageImpl
 

@@ -10,8 +10,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
-import android.view.WindowManager
 import android.util.Log
+import android.view.View
+import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
@@ -20,29 +21,26 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
-import android.widget.Toast
-import androidx.activity.OnBackPressedCallback
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.VisibleForTesting
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.activity.enableEdgeToEdge
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
-import androidx.preference.PreferenceManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.progressindicator.LinearProgressIndicator
 import android.widget.TextView
-import android.view.View
-import androidx.fragment.app.FragmentManager
-import com.github.wrager.sbgscout.settings.SettingsFragment
+import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.VisibleForTesting
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import com.github.wrager.sbgscout.bridge.ClipboardBridge
 import com.github.wrager.sbgscout.bridge.DownloadBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
@@ -54,36 +52,37 @@ import com.github.wrager.sbgscout.game.GameSettingsReader
 import com.github.wrager.sbgscout.launcher.ScriptListFragment
 import com.github.wrager.sbgscout.script.injector.InjectionStateStorage
 import com.github.wrager.sbgscout.script.injector.ScriptInjector
+import com.github.wrager.sbgscout.script.installer.BundledScriptBeacon
+import com.github.wrager.sbgscout.script.installer.BundledScriptInstaller
+import com.github.wrager.sbgscout.script.installer.ScriptInstaller
 import com.github.wrager.sbgscout.script.provisioner.DefaultScriptProvisioner
 import com.github.wrager.sbgscout.script.storage.ScriptFileStorageImpl
 import com.github.wrager.sbgscout.script.storage.ScriptStorage
 import com.github.wrager.sbgscout.script.storage.ScriptStorageImpl
 import com.github.wrager.sbgscout.script.updater.DefaultHttpFetcher
 import com.github.wrager.sbgscout.script.updater.GithubReleaseProvider
+import com.github.wrager.sbgscout.script.updater.ScriptDownloader
 import com.github.wrager.sbgscout.script.updater.ScriptReleaseNotesProvider
 import com.github.wrager.sbgscout.script.updater.ScriptUpdateChecker
 import com.github.wrager.sbgscout.script.updater.ScriptUpdateResult
-import com.github.wrager.sbgscout.script.installer.BundledScriptBeacon
-import com.github.wrager.sbgscout.script.installer.BundledScriptInstaller
-import com.github.wrager.sbgscout.script.installer.ScriptInstaller
-import com.github.wrager.sbgscout.script.updater.ScriptDownloader
+import com.github.wrager.sbgscout.settings.SettingsFragment
 import com.github.wrager.sbgscout.updater.AppUpdateChecker
 import com.github.wrager.sbgscout.updater.AppUpdateInstaller
 import com.github.wrager.sbgscout.updater.AppUpdateResult
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.github.wrager.sbgscout.webview.SbgWebViewClient
-import java.io.File
-import androidx.appcompat.app.AlertDialog
-import kotlin.coroutines.cancellation.CancellationException
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.LinearProgressIndicator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
 
 // Activity объединяет WebView, drawer, provisioning и обновления — разбивать на части нецелесообразно
 @Suppress("TooManyFunctions", "LargeClass")
 class GameActivity : AppCompatActivity() {
-
     private lateinit var rootLayout: FrameLayout
 
     @VisibleForTesting
@@ -95,6 +94,7 @@ class GameActivity : AppCompatActivity() {
     val consoleLogBuffer = ConsoleLogBuffer()
     private lateinit var scriptProvisioner: DefaultScriptProvisioner
     private var injectionStateStorage: InjectionStateStorage? = null
+
     @VisibleForTesting
     internal var isFullscreen = false
         private set
@@ -137,30 +137,33 @@ class GameActivity : AppCompatActivity() {
     // Pending callback для <input type="file"> — хранится между запуском пикера и onActivityResult
     private var pendingFileChooserCallback: ValueCallback<Array<Uri>>? = null
 
-    private val fileChooserLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { result ->
-        val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
-        pendingFileChooserCallback?.onReceiveValue(uris)
-        pendingFileChooserCallback = null
-    }
-
-    private val locationPermissionRequest = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-
-        if (granted) {
-            pendingGeolocationCallback?.invoke(pendingGeolocationOrigin, true, false)
-        } else {
-            pendingGeolocationCallback?.invoke(pendingGeolocationOrigin, false, false)
-            Toast.makeText(this, R.string.location_permission_denied, Toast.LENGTH_LONG).show()
+    private val fileChooserLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
+            pendingFileChooserCallback?.onReceiveValue(uris)
+            pendingFileChooserCallback = null
         }
 
-        pendingGeolocationCallback = null
-        pendingGeolocationOrigin = null
-    }
+    private val locationPermissionRequest =
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) { permissions ->
+            val granted =
+                permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                    permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+            if (granted) {
+                pendingGeolocationCallback?.invoke(pendingGeolocationOrigin, true, false)
+            } else {
+                pendingGeolocationCallback?.invoke(pendingGeolocationOrigin, false, false)
+                Toast.makeText(this, R.string.location_permission_denied, Toast.LENGTH_LONG).show()
+            }
+
+            pendingGeolocationCallback = null
+            pendingGeolocationOrigin = null
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
@@ -257,7 +260,8 @@ class GameActivity : AppCompatActivity() {
         // Пересоздать SettingsFragment для применения новой темы/локали.
         // WebView не затрагивается — он обрабатывает configChanges самостоятельно.
         if (supportFragmentManager.backStackEntryCount == 0) {
-            supportFragmentManager.beginTransaction()
+            supportFragmentManager
+                .beginTransaction()
                 .replace(R.id.settingsContainer, SettingsFragment())
                 .commitAllowingStateLoss()
         }
@@ -273,9 +277,15 @@ class GameActivity : AppCompatActivity() {
         val background = ContextCompat.getColor(this, R.color.scoutButtonBackground)
         val content = ContextCompat.getColor(this, R.color.scoutButtonContent)
         val stroke = ContextCompat.getColor(this, R.color.scoutButtonStroke)
-        val backgroundTint = android.content.res.ColorStateList.valueOf(background)
-        val contentTint = android.content.res.ColorStateList.valueOf(content)
-        val strokeTint = android.content.res.ColorStateList.valueOf(stroke)
+        val backgroundTint =
+            android.content.res.ColorStateList
+                .valueOf(background)
+        val contentTint =
+            android.content.res.ColorStateList
+                .valueOf(content)
+        val strokeTint =
+            android.content.res.ColorStateList
+                .valueOf(stroke)
         for (id in intArrayOf(R.id.settingsButton, R.id.reloadButton, R.id.closeSettingsButton)) {
             val button = findViewById<MaterialButton>(id)
             button.backgroundTintList = backgroundTint
@@ -301,7 +311,8 @@ class GameActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        PreferenceManager.getDefaultSharedPreferences(this)
+        PreferenceManager
+            .getDefaultSharedPreferences(this)
             .unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
         super.onDestroy()
     }
@@ -312,8 +323,10 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun setupWindowInsets() {
-        isFullscreen = PreferenceManager.getDefaultSharedPreferences(this)
-            .getBoolean(KEY_FULLSCREEN_MODE, false)
+        isFullscreen =
+            PreferenceManager
+                .getDefaultSharedPreferences(this)
+                .getBoolean(KEY_FULLSCREEN_MODE, false)
 
         // Edge-to-edge всегда включён (обязательно на Android 15+).
         // В неполноэкранном режиме сдвигаем корневой layout паддингами,
@@ -349,28 +362,33 @@ class GameActivity : AppCompatActivity() {
      */
     private fun restoreLastAppliedGameSettings(prefs: android.content.SharedPreferences) {
         prefs.getString(KEY_APPLIED_GAME_THEME, null)?.let { themeName ->
-            val theme = try {
-                GameSettingsReader.ThemeMode.valueOf(themeName)
-            } catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
-                null
-            }
+            val theme =
+                try {
+                    GameSettingsReader.ThemeMode.valueOf(themeName)
+                } catch (
+                    @Suppress("SwallowedException") _: IllegalArgumentException,
+                ) {
+                    null
+                }
             if (theme != null) {
                 lastAppliedTheme = theme
-                val nightMode = when (theme) {
-                    GameSettingsReader.ThemeMode.AUTO -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-                    GameSettingsReader.ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
-                    GameSettingsReader.ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
-                }
+                val nightMode =
+                    when (theme) {
+                        GameSettingsReader.ThemeMode.AUTO -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                        GameSettingsReader.ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+                        GameSettingsReader.ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+                    }
                 AppCompatDelegate.setDefaultNightMode(nightMode)
             }
         }
         prefs.getString(KEY_APPLIED_GAME_LANGUAGE, null)?.let { language ->
             lastAppliedLanguage = language
-            val locales = if (language == "sys") {
-                LocaleListCompat.getEmptyLocaleList()
-            } else {
-                LocaleListCompat.forLanguageTags(language)
-            }
+            val locales =
+                if (language == "sys") {
+                    LocaleListCompat.getEmptyLocaleList()
+                } else {
+                    LocaleListCompat.forLanguageTags(language)
+                }
             AppCompatDelegate.setApplicationLocales(locales)
         }
     }
@@ -384,26 +402,34 @@ class GameActivity : AppCompatActivity() {
     private fun applyGameTheme(theme: GameSettingsReader.ThemeMode) {
         if (theme == lastAppliedTheme) return
         lastAppliedTheme = theme
-        PreferenceManager.getDefaultSharedPreferences(this)
-            .edit().putString(KEY_APPLIED_GAME_THEME, theme.name).apply()
-        val nightMode = when (theme) {
-            GameSettingsReader.ThemeMode.AUTO -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-            GameSettingsReader.ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
-            GameSettingsReader.ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
-        }
+        PreferenceManager
+            .getDefaultSharedPreferences(this)
+            .edit()
+            .putString(KEY_APPLIED_GAME_THEME, theme.name)
+            .apply()
+        val nightMode =
+            when (theme) {
+                GameSettingsReader.ThemeMode.AUTO -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                GameSettingsReader.ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+                GameSettingsReader.ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            }
         AppCompatDelegate.setDefaultNightMode(nightMode)
     }
 
     private fun applyGameLanguage(language: String) {
         if (language == lastAppliedLanguage) return
         lastAppliedLanguage = language
-        PreferenceManager.getDefaultSharedPreferences(this)
-            .edit().putString(KEY_APPLIED_GAME_LANGUAGE, language).apply()
-        val locales = if (language == "sys") {
-            LocaleListCompat.getEmptyLocaleList()
-        } else {
-            LocaleListCompat.forLanguageTags(language)
-        }
+        PreferenceManager
+            .getDefaultSharedPreferences(this)
+            .edit()
+            .putString(KEY_APPLIED_GAME_LANGUAGE, language)
+            .apply()
+        val locales =
+            if (language == "sys") {
+                LocaleListCompat.getEmptyLocaleList()
+            } else {
+                LocaleListCompat.forLanguageTags(language)
+            }
         AppCompatDelegate.setApplicationLocales(locales)
     }
 
@@ -419,11 +445,12 @@ class GameActivity : AppCompatActivity() {
         // SCREEN_ORIENTATION_UNSPECIFIED возвращает решение системе, что
         // уважает глобальную настройку авто-поворота и текущее положение
         // устройства.
-        requestedOrientation = if (enabled) {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        }
+        requestedOrientation =
+            if (enabled) {
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
     }
 
     private fun applyFullscreen(enabled: Boolean) {
@@ -440,22 +467,23 @@ class GameActivity : AppCompatActivity() {
         ViewCompat.requestApplyInsets(rootLayout)
     }
 
-    private fun createScoutBridge(): ScoutBridge = ScoutBridge(
-        onReady = {
-            runOnUiThread {
-                gameReady = true
-                hideLoadingOverlay()
-                hideLabelAndReload()
-            }
-        },
-        onHtmlInjected = {
-            runOnUiThread {
-                scoutButtonReplaced = true
-                hideScoutButton()
-            }
-        },
-        onOpenSettings = { runOnUiThread { openSettings() } },
-    )
+    private fun createScoutBridge(): ScoutBridge =
+        ScoutBridge(
+            onReady = {
+                runOnUiThread {
+                    gameReady = true
+                    hideLoadingOverlay()
+                    hideLabelAndReload()
+                }
+            },
+            onHtmlInjected = {
+                runOnUiThread {
+                    scoutButtonReplaced = true
+                    hideScoutButton()
+                }
+            },
+            onOpenSettings = { runOnUiThread { openSettings() } },
+        )
 
     private fun configureCookies() {
         val cookieManager = CookieManager.getInstance()
@@ -463,9 +491,7 @@ class GameActivity : AppCompatActivity() {
         cookieManager.setAcceptThirdPartyCookies(webView, true)
     }
 
-    private fun setupWebView() {
-        configureCookies()
-
+    private fun configureWebViewSettings() {
         @Suppress("SetJavaScriptEnabled") // JS обязателен для работы SBG
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
@@ -474,6 +500,11 @@ class GameActivity : AppCompatActivity() {
         webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         webView.settings.userAgentString =
             "${webView.settings.userAgentString} SbgScout/${BuildConfig.VERSION_NAME}"
+    }
+
+    private fun setupWebView() {
+        configureCookies()
+        configureWebViewSettings()
 
         configureWebViewPerformance(webView)
 
@@ -485,9 +516,10 @@ class GameActivity : AppCompatActivity() {
         webView.addJavascriptInterface(ShareBridge(this), "__sbg_share")
         webView.addJavascriptInterface(createDownloadBridge(), DownloadBridge.JS_INTERFACE_NAME)
         setupDownloadListener()
-        val settingsBridge = GameSettingsBridge { json ->
-            runOnUiThread { applyGameSettings(json) }
-        }
+        val settingsBridge =
+            GameSettingsBridge { json ->
+                runOnUiThread { applyGameSettings(json) }
+            }
         webView.addJavascriptInterface(settingsBridge, GameSettingsBridge.JS_INTERFACE_NAME)
         webView.addJavascriptInterface(createScoutBridge(), ScoutBridge.JS_INTERFACE_NAME)
 
@@ -499,18 +531,22 @@ class GameActivity : AppCompatActivity() {
         val downloader = ScriptDownloader(httpFetcher, scriptInstaller)
         scriptProvisioner = DefaultScriptProvisioner(scriptStorage, downloader, preferences)
         BundledScriptInstaller(
-            scriptInstaller, scriptStorage, scriptProvisioner, preferences,
+            scriptInstaller,
+            scriptStorage,
+            scriptProvisioner,
+            preferences,
             assetReader = { path -> assets.open(path).bufferedReader().readText() },
         ).installBundled()
         val bundledScriptBeacon = BundledScriptBeacon(httpFetcher, preferences)
         lifecycleScope.launch(Dispatchers.IO) { bundledScriptBeacon.ping() }
         injectionStateStorage = InjectionStateStorage(preferences)
-        val scriptInjector = ScriptInjector(
-            scriptStorage = scriptStorage,
-            applicationId = BuildConfig.APPLICATION_ID,
-            versionName = BuildConfig.VERSION_NAME,
-            injectionStateStorage = injectionStateStorage,
-        )
+        val scriptInjector =
+            ScriptInjector(
+                scriptStorage = scriptStorage,
+                applicationId = BuildConfig.APPLICATION_ID,
+                versionName = BuildConfig.VERSION_NAME,
+                injectionStateStorage = injectionStateStorage,
+            )
         sbgWebViewClient = SbgWebViewClient(scriptInjector)
         sbgWebViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
         sbgWebViewClient.onGamePageStarted = {
@@ -523,75 +559,81 @@ class GameActivity : AppCompatActivity() {
         }
         webView.webViewClient = sbgWebViewClient
 
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
-                consoleLogBuffer.add(consoleMessage)
-                val logLevel = when (consoleMessage.messageLevel()) {
-                    ConsoleMessage.MessageLevel.ERROR -> Log.ERROR
-                    ConsoleMessage.MessageLevel.WARNING -> Log.WARN
-                    ConsoleMessage.MessageLevel.DEBUG -> Log.DEBUG
-                    else -> Log.INFO
-                }
-                Log.println(
-                    logLevel,
-                    LOG_TAG,
-                    "${consoleMessage.message()} [${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}]",
-                )
-                return true
-            }
-
-            override fun onShowFileChooser(
-                webView: WebView,
-                filePathCallback: ValueCallback<Array<Uri>>,
-                fileChooserParams: FileChooserParams,
-            ): Boolean {
-                // Отменить предыдущий незавершённый выбор, если он есть —
-                // иначе WebView зависнет, ожидая ответа по старому callback.
-                pendingFileChooserCallback?.onReceiveValue(null)
-                pendingFileChooserCallback = filePathCallback
-                return try {
-                    fileChooserLauncher.launch(fileChooserParams.createIntent())
-                    true
-                } catch (@Suppress("SwallowedException") _: android.content.ActivityNotFoundException) {
-                    pendingFileChooserCallback = null
-                    filePathCallback.onReceiveValue(null)
-                    false
-                }
-            }
-
-            override fun onGeolocationPermissionsShowPrompt(
-                origin: String,
-                callback: GeolocationPermissions.Callback,
-            ) {
-                if (hasLocationPermission()) {
-                    callback.invoke(origin, true, false)
-                } else {
-                    pendingGeolocationCallback = callback
-                    pendingGeolocationOrigin = origin
-                    locationPermissionRequest.launch(
-                        arrayOf(
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                        ),
+        webView.webChromeClient =
+            object : WebChromeClient() {
+                override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                    consoleLogBuffer.add(consoleMessage)
+                    val logLevel =
+                        when (consoleMessage.messageLevel()) {
+                            ConsoleMessage.MessageLevel.ERROR -> Log.ERROR
+                            ConsoleMessage.MessageLevel.WARNING -> Log.WARN
+                            ConsoleMessage.MessageLevel.DEBUG -> Log.DEBUG
+                            else -> Log.INFO
+                        }
+                    Log.println(
+                        logLevel,
+                        LOG_TAG,
+                        "${consoleMessage.message()} [${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}]",
                     )
+                    return true
+                }
+
+                override fun onShowFileChooser(
+                    webView: WebView,
+                    filePathCallback: ValueCallback<Array<Uri>>,
+                    fileChooserParams: FileChooserParams,
+                ): Boolean {
+                    // Отменить предыдущий незавершённый выбор, если он есть —
+                    // иначе WebView зависнет, ожидая ответа по старому callback.
+                    pendingFileChooserCallback?.onReceiveValue(null)
+                    pendingFileChooserCallback = filePathCallback
+                    return try {
+                        fileChooserLauncher.launch(fileChooserParams.createIntent())
+                        true
+                    } catch (
+                        @Suppress("SwallowedException") _: android.content.ActivityNotFoundException,
+                    ) {
+                        pendingFileChooserCallback = null
+                        filePathCallback.onReceiveValue(null)
+                        false
+                    }
+                }
+
+                override fun onGeolocationPermissionsShowPrompt(
+                    origin: String,
+                    callback: GeolocationPermissions.Callback,
+                ) {
+                    if (hasLocationPermission()) {
+                        callback.invoke(origin, true, false)
+                    } else {
+                        pendingGeolocationCallback = callback
+                        pendingGeolocationOrigin = origin
+                        locationPermissionRequest.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION,
+                            ),
+                        )
+                    }
                 }
             }
-        }
     }
 
-    private fun createDownloadBridge(): DownloadBridge = DownloadBridge(
-        save = { filename, mimeType, bytes -> saveToDownloads(filename, mimeType, bytes) },
-        onResult = { savedName ->
-            runOnUiThread {
-                val message = if (savedName != null) {
-                    getString(R.string.download_saved, savedName)
-                } else {
-                    getString(R.string.download_failed)
+    private fun createDownloadBridge(): DownloadBridge =
+        DownloadBridge(
+            save = { filename, mimeType, bytes -> saveToDownloads(filename, mimeType, bytes) },
+            onResult = { savedName ->
+                runOnUiThread {
+                    val message =
+                        if (savedName != null) {
+                            getString(R.string.download_saved, savedName)
+                        } else {
+                            getString(R.string.download_failed)
+                        }
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                 }
-                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-            }
-        },
-    )
+            },
+        )
 
     private fun setupDownloadListener() {
         // Blob-скачивания перехватываются на JS-уровне через DownloadBridge.BOOTSTRAP_SCRIPT
@@ -609,8 +651,12 @@ class GameActivity : AppCompatActivity() {
      *
      * @return отображаемое имя сохранённого файла или null при ошибке
      */
-    private fun saveToDownloads(filename: String, mimeType: String, bytes: ByteArray): String? {
-        return try {
+    private fun saveToDownloads(
+        filename: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ): String? =
+        try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 saveViaMediaStore(filename, mimeType, bytes)
             } else {
@@ -623,17 +669,21 @@ class GameActivity : AppCompatActivity() {
             Log.e(LOG_TAG, "Failed to save download: $filename", e)
             null
         }
-    }
 
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
-    private fun saveViaMediaStore(filename: String, mimeType: String, bytes: ByteArray): String? {
+    private fun saveViaMediaStore(
+        filename: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ): String? {
         val resolver = contentResolver
-        val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, filename)
-            put(MediaStore.Downloads.MIME_TYPE, mimeType)
-            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-            put(MediaStore.Downloads.IS_PENDING, 1)
-        }
+        val values =
+            ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, filename)
+                put(MediaStore.Downloads.MIME_TYPE, mimeType)
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
         val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null
         resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: return null
         values.clear()
@@ -642,7 +692,10 @@ class GameActivity : AppCompatActivity() {
         return filename
     }
 
-    private fun saveToLegacyExternalFiles(filename: String, bytes: ByteArray): String? {
+    private fun saveToLegacyExternalFiles(
+        filename: String,
+        bytes: ByteArray,
+    ): String? {
         val downloadsDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: return null
         if (!downloadsDir.exists()) {
             downloadsDir.mkdirs()
@@ -664,7 +717,8 @@ class GameActivity : AppCompatActivity() {
         val reloadButton = findViewById<MaterialButton>(R.id.reloadButton)
         val closeButton = findViewById<MaterialButton>(R.id.closeSettingsButton)
 
-        supportFragmentManager.beginTransaction()
+        supportFragmentManager
+            .beginTransaction()
             .replace(R.id.settingsContainer, SettingsFragment())
             .commit()
 
@@ -722,8 +776,7 @@ class GameActivity : AppCompatActivity() {
         }
     }
 
-    private fun isSettingsOpen(): Boolean =
-        findViewById<View>(R.id.settingsContainer).visibility == View.VISIBLE
+    private fun isSettingsOpen(): Boolean = findViewById<View>(R.id.settingsContainer).visibility == View.VISIBLE
 
     /** Список включённых скриптов (для диагностики баг-репортов). */
     fun getEnabledScripts() = scriptStorage.getEnabled()
@@ -818,36 +871,39 @@ class GameActivity : AppCompatActivity() {
 
         // Кнопка «Пропустить»: через 1с если соединение не установлено,
         // через 5с после начала загрузки данных
-        var skipTimerJob = lifecycleScope.launch {
-            delay(SKIP_BUTTON_CONNECT_DELAY_MS)
-            skipButton.visibility = View.VISIBLE
-            skipButton.setOnClickListener { finishProvisioning() }
-        }
+        var skipTimerJob =
+            lifecycleScope.launch {
+                delay(SKIP_BUTTON_CONNECT_DELAY_MS)
+                skipButton.visibility = View.VISIBLE
+                skipButton.setOnClickListener { finishProvisioning() }
+            }
 
         lifecycleScope.launch {
-            val success = scriptProvisioner.provision(
-                onScriptLoading = { scriptName ->
-                    progress.isIndeterminate = true
-                    status.text = getString(R.string.loading_default_script, scriptName)
-                },
-                // Callback вызывается из Dispatchers.IO (внутри DefaultHttpFetcher),
-                // поэтому UI-операции выполняем через runOnUiThread
-                onDownloadProgress = { percent ->
-                    runOnUiThread {
-                        if (progress.isIndeterminate) {
-                            progress.isIndeterminate = false
-                            // Соединение установлено — перезапустить таймер на 5 секунд
-                            skipTimerJob.cancel()
-                            skipTimerJob = lifecycleScope.launch {
-                                delay(SKIP_BUTTON_DOWNLOAD_DELAY_MS)
-                                skipButton.visibility = View.VISIBLE
-                                skipButton.setOnClickListener { finishProvisioning() }
+            val success =
+                scriptProvisioner.provision(
+                    onScriptLoading = { scriptName ->
+                        progress.isIndeterminate = true
+                        status.text = getString(R.string.loading_default_script, scriptName)
+                    },
+                    // Callback вызывается из Dispatchers.IO (внутри DefaultHttpFetcher),
+                    // поэтому UI-операции выполняем через runOnUiThread
+                    onDownloadProgress = { percent ->
+                        runOnUiThread {
+                            if (progress.isIndeterminate) {
+                                progress.isIndeterminate = false
+                                // Соединение установлено — перезапустить таймер на 5 секунд
+                                skipTimerJob.cancel()
+                                skipTimerJob =
+                                    lifecycleScope.launch {
+                                        delay(SKIP_BUTTON_DOWNLOAD_DELAY_MS)
+                                        skipButton.visibility = View.VISIBLE
+                                        skipButton.setOnClickListener { finishProvisioning() }
+                                    }
                             }
+                            progress.setProgressCompat(percent, true)
                         }
-                        progress.setProgressCompat(percent, true)
-                    }
-                },
-            )
+                    },
+                )
             skipTimerJob.cancel()
             if (success) {
                 finishProvisioning()
@@ -903,11 +959,14 @@ class GameActivity : AppCompatActivity() {
             // Параллельная проверка приложения и скриптов
             var appResult: AppUpdateResult = AppUpdateResult.UpToDate
             try {
-                appResult = AppUpdateChecker(
-                    GithubReleaseProvider(httpFetcher),
-                    BuildConfig.VERSION_NAME,
-                ).check()
-            } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
+                appResult =
+                    AppUpdateChecker(
+                        GithubReleaseProvider(httpFetcher),
+                        BuildConfig.VERSION_NAME,
+                    ).check()
+            } catch (
+                @Suppress("TooGenericExceptionCaught") exception: Exception,
+            ) {
                 Log.w(LOG_TAG, "Авто-проверка обновлений приложения: ошибка", exception)
             }
             val scriptUpdates = checkScriptUpdates()
@@ -916,7 +975,9 @@ class GameActivity : AppCompatActivity() {
             if (appResult is AppUpdateResult.UpdateAvailable) {
                 Log.i(LOG_TAG, "Доступно обновление приложения: ${appResult.tagName}")
                 showAppUpdateDialog(
-                    appResult.downloadUrl, appResult.releaseNotes, httpFetcher,
+                    appResult.downloadUrl,
+                    appResult.releaseNotes,
+                    httpFetcher,
                 ) {
                     if (scriptUpdates.isNotEmpty()) showScriptUpdatesDialog(scriptUpdates)
                 }
@@ -945,38 +1006,45 @@ class GameActivity : AppCompatActivity() {
         val maxHeightPx = (RELEASE_NOTES_MAX_HEIGHT_DP * density).toInt()
         val paddingPx = (RELEASE_NOTES_PADDING_DP * density).toInt()
 
-        val progressIndicator = LinearProgressIndicator(this).apply {
-            isIndeterminate = true
-            visibility = View.GONE
-        }
+        val progressIndicator =
+            LinearProgressIndicator(this).apply {
+                isIndeterminate = true
+                visibility = View.GONE
+            }
         val releaseNotesContainer = FrameLayout(this)
-        val contentLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-            addView(progressIndicator)
-            addView(releaseNotesContainer)
-        }
+        val contentLayout =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                addView(progressIndicator)
+                addView(releaseNotesContainer)
+            }
         if (!releaseNotes.isNullOrBlank()) {
             addReleaseNotesView(releaseNotesContainer, releaseNotes, maxHeightPx)
         }
 
         var activeJob: Job? = null
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.app_update_available)
-            .setView(contentLayout)
-            .setPositiveButton(R.string.app_update_download, null)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setOnDismissListener {
-                activeJob?.cancel()
-                onDismiss?.invoke()
-            }
-            .create()
+        val dialog =
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.app_update_available)
+                .setView(contentLayout)
+                .setPositiveButton(R.string.app_update_download, null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setOnDismissListener {
+                    activeJob?.cancel()
+                    onDismiss?.invoke()
+                }.create()
 
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                activeJob = startAppDownload(
-                    dialog, progressIndicator, releaseNotesContainer, downloadUrl, httpFetcher,
-                )
+                activeJob =
+                    startAppDownload(
+                        dialog,
+                        progressIndicator,
+                        releaseNotesContainer,
+                        downloadUrl,
+                        httpFetcher,
+                    )
             }
         }
         dialog.show()
@@ -988,8 +1056,9 @@ class GameActivity : AppCompatActivity() {
      * Открывается сразу при нажатии «Проверить обновления приложения» в настройках.
      * Фазы: проверка (indeterminate) → результат / загрузка (determinate) → установка.
      * Cancel отменяет текущую операцию (проверку или загрузку).
+     *
+     * Метод длинный из-за управления фазами диалога (check → result → download) — дробить нецелесообразно.
      */
-    // Метод длинный из-за управления фазами диалога (check → result → download) — дробить нецелесообразно
     @Suppress("LongMethod")
     fun showAppUpdateCheckDialog(onDismiss: (() -> Unit)? = null) {
         val httpFetcher = DefaultHttpFetcher()
@@ -997,73 +1066,85 @@ class GameActivity : AppCompatActivity() {
         val paddingPx = (RELEASE_NOTES_PADDING_DP * density).toInt()
         val maxHeightPx = (RELEASE_NOTES_MAX_HEIGHT_DP * density).toInt()
 
-        val progressIndicator = LinearProgressIndicator(this).apply {
-            isIndeterminate = true
-        }
+        val progressIndicator =
+            LinearProgressIndicator(this).apply {
+                isIndeterminate = true
+            }
         val releaseNotesContainer = FrameLayout(this)
-        val contentLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-            addView(progressIndicator)
-            addView(releaseNotesContainer)
-        }
+        val contentLayout =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                addView(progressIndicator)
+                addView(releaseNotesContainer)
+            }
 
         var activeJob: Job? = null
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.app_update_checking)
-            .setView(contentLayout)
-            .setPositiveButton(R.string.app_update_download, null)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setOnDismissListener {
-                activeJob?.cancel()
-                onDismiss?.invoke()
-            }
-            .create()
+        val dialog =
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.app_update_checking)
+                .setView(contentLayout)
+                .setPositiveButton(R.string.app_update_download, null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setOnDismissListener {
+                    activeJob?.cancel()
+                    onDismiss?.invoke()
+                }.create()
 
         dialog.setOnShowListener {
             val downloadButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
             downloadButton.visibility = View.GONE
 
-            activeJob = lifecycleScope.launch {
-                try {
-                    val checker = AppUpdateChecker(
-                        GithubReleaseProvider(httpFetcher),
-                        BuildConfig.VERSION_NAME,
-                    )
-                    when (val result = checker.check()) {
-                        is AppUpdateResult.UpdateAvailable -> {
-                            progressIndicator.visibility = View.GONE
-                            dialog.setTitle(getString(R.string.app_update_available))
-                            if (!result.releaseNotes.isNullOrBlank()) {
-                                addReleaseNotesView(
-                                    releaseNotesContainer, result.releaseNotes, maxHeightPx,
-                                )
+            activeJob =
+                lifecycleScope.launch {
+                    try {
+                        val checker =
+                            AppUpdateChecker(
+                                GithubReleaseProvider(httpFetcher),
+                                BuildConfig.VERSION_NAME,
+                            )
+                        when (val result = checker.check()) {
+                            is AppUpdateResult.UpdateAvailable -> {
+                                progressIndicator.visibility = View.GONE
+                                dialog.setTitle(getString(R.string.app_update_available))
+                                if (!result.releaseNotes.isNullOrBlank()) {
+                                    addReleaseNotesView(
+                                        releaseNotesContainer,
+                                        result.releaseNotes,
+                                        maxHeightPx,
+                                    )
+                                }
+                                downloadButton.visibility = View.VISIBLE
+                                downloadButton.setOnClickListener {
+                                    activeJob =
+                                        startAppDownload(
+                                            dialog,
+                                            progressIndicator,
+                                            releaseNotesContainer,
+                                            result.downloadUrl,
+                                            httpFetcher,
+                                        )
+                                }
                             }
-                            downloadButton.visibility = View.VISIBLE
-                            downloadButton.setOnClickListener {
-                                activeJob = startAppDownload(
-                                    dialog, progressIndicator, releaseNotesContainer,
-                                    result.downloadUrl, httpFetcher,
-                                )
+                            is AppUpdateResult.UpToDate -> {
+                                progressIndicator.visibility = View.GONE
+                                dialog.setTitle(getString(R.string.app_up_to_date))
+                            }
+                            is AppUpdateResult.CheckFailed -> {
+                                progressIndicator.visibility = View.GONE
+                                dialog.setTitle(getString(R.string.app_update_check_failed))
                             }
                         }
-                        is AppUpdateResult.UpToDate -> {
-                            progressIndicator.visibility = View.GONE
-                            dialog.setTitle(getString(R.string.app_up_to_date))
-                        }
-                        is AppUpdateResult.CheckFailed -> {
-                            progressIndicator.visibility = View.GONE
-                            dialog.setTitle(getString(R.string.app_update_check_failed))
-                        }
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (
+                        @Suppress("TooGenericExceptionCaught") exception: Exception,
+                    ) {
+                        Log.w(LOG_TAG, "Не удалось проверить обновление приложения", exception)
+                        progressIndicator.visibility = View.GONE
+                        dialog.setTitle(getString(R.string.app_update_check_failed))
                     }
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
-                    Log.w(LOG_TAG, "Не удалось проверить обновление приложения", exception)
-                    progressIndicator.visibility = View.GONE
-                    dialog.setTitle(getString(R.string.app_update_check_failed))
                 }
-            }
         }
         dialog.show()
     }
@@ -1073,23 +1154,31 @@ class GameActivity : AppCompatActivity() {
         releaseNotes: String,
         maxHeightPx: Int,
     ) {
-        val textView = TextView(this).apply {
-            text = releaseNotes.trim()
-            setTextIsSelectable(true)
-        }
-        val scrollView = android.widget.ScrollView(this).apply {
-            addView(textView)
-        }
+        val textView =
+            TextView(this).apply {
+                text = releaseNotes.trim()
+                setTextIsSelectable(true)
+            }
+        val scrollView =
+            android.widget.ScrollView(this).apply {
+                addView(textView)
+            }
         // FrameLayout с ограничением максимальной высоты,
         // чтобы короткие release notes не растягивали диалог
-        val heightLimitedContainer = object : FrameLayout(this@GameActivity) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val constrainedHeight = View.MeasureSpec.makeMeasureSpec(
-                    maxHeightPx, View.MeasureSpec.AT_MOST,
-                )
-                super.onMeasure(widthMeasureSpec, constrainedHeight)
+        val heightLimitedContainer =
+            object : FrameLayout(this@GameActivity) {
+                override fun onMeasure(
+                    widthMeasureSpec: Int,
+                    heightMeasureSpec: Int,
+                ) {
+                    val constrainedHeight =
+                        View.MeasureSpec.makeMeasureSpec(
+                            maxHeightPx,
+                            View.MeasureSpec.AT_MOST,
+                        )
+                    super.onMeasure(widthMeasureSpec, constrainedHeight)
+                }
             }
-        }
         heightLimitedContainer.addView(scrollView)
         container.addView(heightLimitedContainer)
     }
@@ -1131,13 +1220,16 @@ class GameActivity : AppCompatActivity() {
                 dialog.dismiss()
             } catch (exception: CancellationException) {
                 throw exception
-            } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") exception: Exception,
+            ) {
                 dialog.dismiss()
-                Toast.makeText(
-                    this@GameActivity,
-                    getString(R.string.app_update_download_failed, exception.message),
-                    Toast.LENGTH_LONG,
-                ).show()
+                Toast
+                    .makeText(
+                        this@GameActivity,
+                        getString(R.string.app_update_download_failed, exception.message),
+                        Toast.LENGTH_LONG,
+                    ).show()
             }
         }
     }
@@ -1164,17 +1256,22 @@ class GameActivity : AppCompatActivity() {
             val scripts = scriptStorage.getAll()
             available.map { update ->
                 val script = scripts.find { it.identifier == update.identifier }
-                val notes = script?.sourceUrl?.let { sourceUrl ->
-                    try {
-                        notesProvider.fetchReleaseNotes(sourceUrl, update.currentVersion)
-                    } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
-                        Log.w(LOG_TAG, "Не удалось загрузить release notes для ${update.identifier}", exception)
-                        null
+                val notes =
+                    script?.sourceUrl?.let { sourceUrl ->
+                        try {
+                            notesProvider.fetchReleaseNotes(sourceUrl, update.currentVersion)
+                        } catch (
+                            @Suppress("TooGenericExceptionCaught") exception: Exception,
+                        ) {
+                            Log.w(LOG_TAG, "Не удалось загрузить release notes для ${update.identifier}", exception)
+                            null
+                        }
                     }
-                }
                 ScriptUpdateWithNotes(update, notes)
             }
-        } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
+        } catch (
+            @Suppress("TooGenericExceptionCaught") exception: Exception,
+        ) {
             Log.w(LOG_TAG, "Авто-проверка обновлений скриптов: ошибка", exception)
             emptyList()
         }
@@ -1182,36 +1279,45 @@ class GameActivity : AppCompatActivity() {
 
     private fun showScriptUpdatesDialog(updates: List<ScriptUpdateWithNotes>) {
         val scripts = scriptStorage.getAll()
-        val details = buildString {
-            for ((index, item) in updates.withIndex()) {
-                if (index > 0) append("\n\n")
-                val name = scripts.find { it.identifier == item.update.identifier }?.header?.name
-                    ?: item.update.identifier.value
-                append("$name ${item.update.currentVersion.value} \u2192 ${item.update.latestVersion.value}")
-                if (item.releaseNotes != null) {
-                    append("\n")
-                    append(item.releaseNotes)
+        val details =
+            buildString {
+                for ((index, item) in updates.withIndex()) {
+                    if (index > 0) append("\n\n")
+                    val name =
+                        scripts.find { it.identifier == item.update.identifier }?.header?.name
+                            ?: item.update.identifier.value
+                    append("$name ${item.update.currentVersion.value} \u2192 ${item.update.latestVersion.value}")
+                    if (item.releaseNotes != null) {
+                        append("\n")
+                        append(item.releaseNotes)
+                    }
                 }
             }
-        }
 
         val density = resources.displayMetrics.density
         val maxHeightPx = (RELEASE_NOTES_MAX_HEIGHT_DP * density).toInt()
         val paddingPx = (RELEASE_NOTES_PADDING_DP * density).toInt()
-        val textView = TextView(this).apply {
-            text = details
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-            setTextIsSelectable(true)
-        }
-        val scrollView = android.widget.ScrollView(this).apply { addView(textView) }
-        val container = object : FrameLayout(this@GameActivity) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val constrainedHeight = View.MeasureSpec.makeMeasureSpec(
-                    maxHeightPx, View.MeasureSpec.AT_MOST,
-                )
-                super.onMeasure(widthMeasureSpec, constrainedHeight)
+        val textView =
+            TextView(this).apply {
+                text = details
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                setTextIsSelectable(true)
             }
-        }
+        val scrollView = android.widget.ScrollView(this).apply { addView(textView) }
+        val container =
+            object : FrameLayout(this@GameActivity) {
+                override fun onMeasure(
+                    widthMeasureSpec: Int,
+                    heightMeasureSpec: Int,
+                ) {
+                    val constrainedHeight =
+                        View.MeasureSpec.makeMeasureSpec(
+                            maxHeightPx,
+                            View.MeasureSpec.AT_MOST,
+                        )
+                    super.onMeasure(widthMeasureSpec, constrainedHeight)
+                }
+            }
         container.addView(scrollView)
 
         MaterialAlertDialogBuilder(this)
@@ -1219,14 +1325,14 @@ class GameActivity : AppCompatActivity() {
             .setView(container)
             .setPositiveButton(R.string.update) { _, _ ->
                 openScriptManagerWithAutoUpdate()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
+            }.setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
     private fun openScriptManagerWithAutoUpdate() {
         openSettings()
-        supportFragmentManager.beginTransaction()
+        supportFragmentManager
+            .beginTransaction()
             .replace(R.id.settingsContainer, ScriptListFragment.newEmbeddedAutoUpdateInstance())
             .addToBackStack(null)
             .commit()

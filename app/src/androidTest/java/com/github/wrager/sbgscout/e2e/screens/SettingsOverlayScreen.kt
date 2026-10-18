@@ -36,7 +36,6 @@ import com.github.wrager.sbgscout.R
 class SettingsOverlayScreen(
     private val scenario: ActivityScenario<GameActivity>,
 ) : Screen {
-
     private val targetContext get() =
         InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -46,8 +45,9 @@ class SettingsOverlayScreen(
             check(container.visibility == View.VISIBLE) {
                 "Settings overlay должен быть VISIBLE"
             }
-            val fragment = activity.supportFragmentManager
-                .findFragmentById(R.id.settingsContainer)
+            val fragment =
+                activity.supportFragmentManager
+                    .findFragmentById(R.id.settingsContainer)
             check(fragment is PreferenceFragmentCompat) {
                 "В settingsContainer должен жить PreferenceFragmentCompat"
             }
@@ -62,11 +62,13 @@ class SettingsOverlayScreen(
      */
     fun clickPreferenceByKey(key: String) {
         scenario.onActivity { activity ->
-            val fragment = activity.supportFragmentManager
-                .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
-                ?: error("SettingsFragment не найден в settingsContainer")
-            val preference = fragment.findPreference<Preference>(key)
-                ?: error("Preference с key='$key' не найден в PreferenceScreen")
+            val fragment =
+                activity.supportFragmentManager
+                    .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
+                    ?: error("SettingsFragment не найден в settingsContainer")
+            val preference =
+                fragment.findPreference<Preference>(key)
+                    ?: error("Preference с key='$key' не найден в PreferenceScreen")
             preference.performClick()
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
@@ -86,7 +88,10 @@ class SettingsOverlayScreen(
         }
     }
 
-    fun setSwitchPreferenceChecked(key: String, checked: Boolean) {
+    fun setSwitchPreferenceChecked(
+        key: String,
+        checked: Boolean,
+    ) {
         scenario.onActivity { activity ->
             val pref = preference<SwitchPreferenceCompat>(activity, key)
             pref.isChecked = checked
@@ -106,13 +111,18 @@ class SettingsOverlayScreen(
         return rv ?: error("PreferenceFragmentCompat.listView не найден")
     }
 
-    fun assertPreferenceSummaryContains(key: String, substring: String) {
+    fun assertPreferenceSummaryContains(
+        key: String,
+        substring: String,
+    ) {
         scenario.onActivity { activity ->
-            val fragment = activity.supportFragmentManager
-                .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
-                ?: error("SettingsFragment не найден")
-            val preference = fragment.findPreference<Preference>(key)
-                ?: error("Preference '$key' не найден")
+            val fragment =
+                activity.supportFragmentManager
+                    .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
+                    ?: error("SettingsFragment не найден")
+            val preference =
+                fragment.findPreference<Preference>(key)
+                    ?: error("Preference '$key' не найден")
             val summary = preference.summary?.toString().orEmpty()
             check(summary.contains(substring)) {
                 "preference '$key' summary='$summary' не содержит '$substring'"
@@ -120,12 +130,15 @@ class SettingsOverlayScreen(
         }
     }
 
-    fun assertCategoryTitles(@StringRes vararg titleRes: Int) {
+    fun assertCategoryTitles(
+        @StringRes vararg titleRes: Int,
+    ) {
         val expectedTitles = titleRes.map { targetContext.getString(it) }.toSet()
         scenario.onActivity { activity ->
-            val fragment = activity.supportFragmentManager
-                .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
-                ?: error("SettingsFragment не найден")
+            val fragment =
+                activity.supportFragmentManager
+                    .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
+                    ?: error("SettingsFragment не найден")
             val screen = fragment.preferenceScreen
             val actualTitles = mutableSetOf<String>()
             for (i in 0 until screen.preferenceCount) {
@@ -168,13 +181,15 @@ class SettingsOverlayScreen(
         return ScriptManagerScreen(scenario).waitDisplayed()
     }
 
-    private fun preferenceFragment(activity: GameActivity): PreferenceFragmentCompat {
-        return activity.supportFragmentManager
+    private fun preferenceFragment(activity: GameActivity): PreferenceFragmentCompat =
+        activity.supportFragmentManager
             .findFragmentById(R.id.settingsContainer) as? PreferenceFragmentCompat
             ?: error("SettingsFragment не найден в settingsContainer")
-    }
 
-    private inline fun <reified T : Preference> preference(activity: GameActivity, key: String): T {
+    private inline fun <reified T : Preference> preference(
+        activity: GameActivity,
+        key: String,
+    ): T {
         val fragment = preferenceFragment(activity)
         return fragment.findPreference<T>(key)
             ?: error("Preference с key='$key' (${T::class.simpleName}) не найден в PreferenceScreen")

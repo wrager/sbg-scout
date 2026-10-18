@@ -38,13 +38,16 @@ class BundledScriptBeacon(
 ) {
     suspend fun ping() {
         val alreadyPinged = preferences.getStringSet(KEY_PINGED, emptySet()) ?: emptySet()
-        val bundledVersions = preferences.getStringSet(
-            BundledScriptInstaller.KEY_BUNDLED_VERSIONS, emptySet(),
-        ) ?: emptySet()
+        val bundledVersions =
+            preferences.getStringSet(
+                BundledScriptInstaller.KEY_BUNDLED_VERSIONS,
+                emptySet(),
+            ) ?: emptySet()
 
-        val pending = bundledPresets.mapNotNull { preset ->
-            toPendingPing(preset, bundledVersions, alreadyPinged)
-        }
+        val pending =
+            bundledPresets.mapNotNull { preset ->
+                toPendingPing(preset, bundledVersions, alreadyPinged)
+            }
 
         val newlyPinged = mutableSetOf<String>()
         for (pendingPing in pending) {
@@ -54,7 +57,8 @@ class BundledScriptBeacon(
         }
 
         if (newlyPinged.isNotEmpty()) {
-            preferences.edit()
+            preferences
+                .edit()
                 .putStringSet(KEY_PINGED, alreadyPinged + newlyPinged)
                 .apply()
         }
@@ -72,19 +76,22 @@ class BundledScriptBeacon(
         val version = versionKey.removePrefix(prefix).takeIf { it.isNotBlank() } ?: return null
         val key = versionKey
         if (key in alreadyPinged) return null
-        val pinnedUrl = preset.downloadUrl.replace(
-            "/releases/latest/download/",
-            "/releases/download/v$version/",
-        )
+        val pinnedUrl =
+            preset.downloadUrl.replace(
+                "/releases/latest/download/",
+                "/releases/download/v$version/",
+            )
         return PendingPing(preset, version, key, pinnedUrl)
     }
 
-    private suspend fun sendPing(pendingPing: PendingPing): Boolean {
-        return try {
+    private suspend fun sendPing(pendingPing: PendingPing): Boolean =
+        try {
             httpFetcher.fetch(pendingPing.pinnedUrl)
             Log.i(LOG_TAG, "Beacon: ${pendingPing.preset.displayName} v${pendingPing.version}")
             true
-        } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
+        } catch (
+            @Suppress("TooGenericExceptionCaught") exception: Exception,
+        ) {
             // Не сохраняем ключ в state — retry на следующем старте.
             Log.w(
                 LOG_TAG,
@@ -93,7 +100,6 @@ class BundledScriptBeacon(
             )
             false
         }
-    }
 
     private data class PendingPing(
         val preset: PresetScript,

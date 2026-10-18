@@ -3,9 +3,13 @@ package com.github.wrager.sbgscout.script.updater
 import org.json.JSONArray
 import org.json.JSONObject
 
-class GithubReleaseProvider(private val httpFetcher: HttpFetcher) {
-
-    suspend fun fetchReleases(owner: String, repository: String): List<GithubRelease> {
+class GithubReleaseProvider(
+    private val httpFetcher: HttpFetcher,
+) {
+    suspend fun fetchReleases(
+        owner: String,
+        repository: String,
+    ): List<GithubRelease> {
         val url = "$API_BASE_URL/repos/$owner/$repository/releases"
         val response = httpFetcher.fetch(url, GITHUB_API_HEADERS)
         return parseReleases(response)
@@ -31,9 +35,10 @@ class GithubReleaseProvider(private val httpFetcher: HttpFetcher) {
 
         private fun JSONObject.toGithubRelease(): GithubRelease {
             val assetsArray = getJSONArray("assets")
-            val assets = (0 until assetsArray.length()).map { index ->
-                assetsArray.getJSONObject(index).toGithubAsset()
-            }
+            val assets =
+                (0 until assetsArray.length()).map { index ->
+                    assetsArray.getJSONObject(index).toGithubAsset()
+                }
             return GithubRelease(
                 tagName = getString("tag_name"),
                 body = optString("body", null),
@@ -41,9 +46,10 @@ class GithubReleaseProvider(private val httpFetcher: HttpFetcher) {
             )
         }
 
-        private fun JSONObject.toGithubAsset(): GithubAsset = GithubAsset(
-            name = getString("name"),
-            downloadUrl = getString("browser_download_url"),
-        )
+        private fun JSONObject.toGithubAsset(): GithubAsset =
+            GithubAsset(
+                name = getString("name"),
+                downloadUrl = getString("browser_download_url"),
+            )
     }
 }

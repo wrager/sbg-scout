@@ -27,7 +27,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class BetaServerToggleE2ETest : E2ETestBase() {
-
     private val targetContext get() =
         InstrumentationRegistry.getInstrumentation().targetContext
     private val defaultPrefs get() =
@@ -68,7 +67,8 @@ class BetaServerToggleE2ETest : E2ETestBase() {
     @Test
     fun betaToggle_confirmDisableBeta_clearsFlagAndReloadsGame() {
         GameUrls.betaServerEnabled = true
-        defaultPrefs.edit()
+        defaultPrefs
+            .edit()
             .putBoolean(SbgScoutApplication.KEY_BETA_SERVER_ENABLED, true)
             .commit()
 

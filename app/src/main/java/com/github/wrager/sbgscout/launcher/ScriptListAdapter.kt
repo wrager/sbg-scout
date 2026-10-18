@@ -23,13 +23,21 @@ class ScriptListAdapter(
     private val onAddScriptClick: () -> Unit,
     private val onAddScriptFromFileClick: () -> Unit,
 ) : ListAdapter<ScriptUiItem, RecyclerView.ViewHolder>(DIFF_CALLBACK) {
-
     override fun getItemCount(): Int = super.getItemCount() + 1
 
     override fun getItemViewType(position: Int): Int =
-        if (position < super.getItemCount()) VIEW_TYPE_SCRIPT else VIEW_TYPE_ADD_BUTTON
+        if (position <
+            super.getItemCount()
+        ) {
+            VIEW_TYPE_SCRIPT
+        } else {
+            VIEW_TYPE_ADD_BUTTON
+        }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+    override fun onCreateViewHolder(
+        parent: ViewGroup,
+        viewType: Int,
+    ): RecyclerView.ViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         return if (viewType == VIEW_TYPE_ADD_BUTTON) {
             val view = inflater.inflate(R.layout.item_add_script, parent, false)
@@ -40,22 +48,31 @@ class ScriptListAdapter(
         }
     }
 
-    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+    override fun onBindViewHolder(
+        holder: RecyclerView.ViewHolder,
+        position: Int,
+    ) {
         if (holder is ScriptViewHolder) {
             holder.bind(getItem(position))
         }
     }
 
-    inner class AddScriptViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    inner class AddScriptViewHolder(
+        itemView: View,
+    ) : RecyclerView.ViewHolder(itemView) {
         init {
-            itemView.findViewById<View>(R.id.addScriptButton)
+            itemView
+                .findViewById<View>(R.id.addScriptButton)
                 .setOnClickListener { onAddScriptClick() }
-            itemView.findViewById<View>(R.id.addScriptFromFileButton)
+            itemView
+                .findViewById<View>(R.id.addScriptFromFileButton)
                 .setOnClickListener { onAddScriptFromFileClick() }
         }
     }
 
-    inner class ScriptViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    inner class ScriptViewHolder(
+        itemView: View,
+    ) : RecyclerView.ViewHolder(itemView) {
         private val nameText: TextView = itemView.findViewById(R.id.scriptName)
         private val descriptionText: TextView = itemView.findViewById(R.id.scriptDescription)
         private val detailsRow: View = itemView.findViewById(R.id.detailsRow)
@@ -123,9 +140,12 @@ class ScriptListAdapter(
             downloadStatusText.isClickable = false
             when (item.operationState) {
                 is ScriptOperationState.UpdateAvailable -> {
-                    val primaryColor = MaterialColors.getColor(
-                        itemView.context, androidx.appcompat.R.attr.colorPrimary, 0,
-                    )
+                    val primaryColor =
+                        MaterialColors.getColor(
+                            itemView.context,
+                            androidx.appcompat.R.attr.colorPrimary,
+                            0,
+                        )
                     downloadStatusText.text = itemView.context.getString(R.string.update)
                     downloadStatusText.setTextColor(primaryColor)
                     downloadStatusText.paintFlags =
@@ -189,7 +209,6 @@ class ScriptListAdapter(
                 }
             }
         }
-
     }
 
     companion object {
@@ -216,7 +235,10 @@ class ScriptListAdapter(
          * Если releaseTag задан и отличается от @version (например, CUI в репо EUI),
          * показывает оба: "v26.1.7 (v6.14.0)".
          */
-        internal fun formatVersion(version: String?, releaseTag: String?): String {
+        internal fun formatVersion(
+            version: String?,
+            releaseTag: String?,
+        ): String {
             if (version == null) return ""
             val versionText = "v$version"
             if (releaseTag == null) return versionText
@@ -247,11 +269,12 @@ class ScriptListAdapter(
             }
 
             val versionVisibility = if (hasVersion) View.VISIBLE else View.GONE
-            val latestStatusVisibility = when {
-                item.operationState is ScriptOperationState.UpToDate -> View.VISIBLE
-                hasVersion -> View.INVISIBLE
-                else -> View.GONE
-            }
+            val latestStatusVisibility =
+                when {
+                    item.operationState is ScriptOperationState.UpToDate -> View.VISIBLE
+                    hasVersion -> View.INVISIBLE
+                    else -> View.GONE
+                }
             val conflictNamesText = if (hasConflict) item.conflictNames.joinToString(", ") else ""
             val conflictContainerVisibility = if (hasConflict) View.VISIBLE else View.GONE
 
@@ -268,33 +291,40 @@ class ScriptListAdapter(
         /**
          * Чистая функция: маппинг [ScriptOperationState] на состояние ProgressBar.
          */
-        internal fun computeLoadingProgressState(
-            operationState: ScriptOperationState?,
-        ): LoadingProgressState = when (operationState) {
-            is ScriptOperationState.Downloading -> LoadingProgressState(
-                // progress == 0: соединение устанавливается, данные ещё не пошли
-                indeterminate = operationState.progress == 0,
-                progress = operationState.progress,
-                visibility = View.VISIBLE,
-            )
-            is ScriptOperationState.CheckingUpdate -> LoadingProgressState(
-                indeterminate = true,
-                progress = 0,
-                visibility = View.VISIBLE,
-            )
-            else -> LoadingProgressState(
-                indeterminate = false,
-                progress = 0,
-                visibility = View.INVISIBLE,
-            )
-        }
+        internal fun computeLoadingProgressState(operationState: ScriptOperationState?): LoadingProgressState =
+            when (operationState) {
+                is ScriptOperationState.Downloading ->
+                    LoadingProgressState(
+                        // progress == 0: соединение устанавливается, данные ещё не пошли
+                        indeterminate = operationState.progress == 0,
+                        progress = operationState.progress,
+                        visibility = View.VISIBLE,
+                    )
+                is ScriptOperationState.CheckingUpdate ->
+                    LoadingProgressState(
+                        indeterminate = true,
+                        progress = 0,
+                        visibility = View.VISIBLE,
+                    )
+                else ->
+                    LoadingProgressState(
+                        indeterminate = false,
+                        progress = 0,
+                        visibility = View.INVISIBLE,
+                    )
+            }
 
-        private val DIFF_CALLBACK = object : DiffUtil.ItemCallback<ScriptUiItem>() {
-            override fun areItemsTheSame(oldItem: ScriptUiItem, newItem: ScriptUiItem): Boolean =
-                oldItem.identifier == newItem.identifier
+        private val DIFF_CALLBACK =
+            object : DiffUtil.ItemCallback<ScriptUiItem>() {
+                override fun areItemsTheSame(
+                    oldItem: ScriptUiItem,
+                    newItem: ScriptUiItem,
+                ): Boolean = oldItem.identifier == newItem.identifier
 
-            override fun areContentsTheSame(oldItem: ScriptUiItem, newItem: ScriptUiItem): Boolean =
-                oldItem == newItem
-        }
+                override fun areContentsTheSame(
+                    oldItem: ScriptUiItem,
+                    newItem: ScriptUiItem,
+                ): Boolean = oldItem == newItem
+            }
     }
 }

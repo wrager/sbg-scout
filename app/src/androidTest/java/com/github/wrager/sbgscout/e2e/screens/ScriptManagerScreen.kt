@@ -26,14 +26,14 @@ import com.github.wrager.sbgscout.launcher.ScriptListFragment
 class ScriptManagerScreen(
     private val scenario: ActivityScenario<GameActivity>,
 ) : Screen {
-
     private val targetContext get() =
         InstrumentationRegistry.getInstrumentation().targetContext
 
     override fun assertDisplayed() {
         scenario.onActivity { activity ->
-            val fragment = activity.supportFragmentManager
-                .findFragmentById(R.id.settingsContainer)
+            val fragment =
+                activity.supportFragmentManager
+                    .findFragmentById(R.id.settingsContainer)
             check(fragment is ScriptListFragment) {
                 "В settingsContainer должен быть ScriptListFragment, а сейчас ${fragment?.javaClass?.simpleName}"
             }
@@ -45,8 +45,9 @@ class ScriptManagerScreen(
         while (System.currentTimeMillis() < deadline) {
             var ready = false
             scenario.onActivity { activity ->
-                val fragment = activity.supportFragmentManager
-                    .findFragmentById(R.id.settingsContainer)
+                val fragment =
+                    activity.supportFragmentManager
+                        .findFragmentById(R.id.settingsContainer)
                 ready = fragment is ScriptListFragment && fragment.isResumed
             }
             if (ready) {
@@ -67,7 +68,10 @@ class ScriptManagerScreen(
      * polling'а можно поймать момент, когда `findViewHolderForAdapterPosition`
      * возвращает null для ещё не биндованной позиции.
      */
-    fun waitForCard(cardName: String, timeoutMs: Long = CARD_WAIT_TIMEOUT_MS) {
+    fun waitForCard(
+        cardName: String,
+        timeoutMs: Long = CARD_WAIT_TIMEOUT_MS,
+    ) {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             val found = cardView(cardName) != null
@@ -78,16 +82,22 @@ class ScriptManagerScreen(
     }
 
     /** Кликает на дочернюю view с указанным id внутри карточки скрипта. */
-    fun clickCardChildView(cardName: String, @IdRes childId: Int) {
+    fun clickCardChildView(
+        cardName: String,
+        @IdRes childId: Int,
+    ) {
         waitForCard(cardName)
         scenario.onActivity { activity ->
-            val recyclerView = findScriptRecyclerView(activity)
-                ?: error("ScriptListFragment RecyclerView не найден")
+            val recyclerView =
+                findScriptRecyclerView(activity)
+                    ?: error("ScriptListFragment RecyclerView не найден")
             scrollToCard(recyclerView, cardName)
-            val itemView = findItemViewWithText(recyclerView, cardName)
-                ?: error("Карточка '$cardName' не найдена в RecyclerView")
-            val child = itemView.findViewById<View>(childId)
-                ?: error("Child view id=$childId не найден в карточке '$cardName'")
+            val itemView =
+                findItemViewWithText(recyclerView, cardName)
+                    ?: error("Карточка '$cardName' не найдена в RecyclerView")
+            val child =
+                itemView.findViewById<View>(childId)
+                    ?: error("Child view id=$childId не найден в карточке '$cardName'")
             child.performClick()
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
@@ -146,10 +156,14 @@ class ScriptManagerScreen(
         return visible
     }
 
-    private fun findFragmentView(activity: GameActivity, viewId: Int): View? {
-        val fragment = activity.supportFragmentManager
-            .findFragmentById(R.id.settingsContainer)
-            ?: return null
+    private fun findFragmentView(
+        activity: GameActivity,
+        viewId: Int,
+    ): View? {
+        val fragment =
+            activity.supportFragmentManager
+                .findFragmentById(R.id.settingsContainer)
+                ?: return null
         return fragment.view?.findViewById(viewId)
     }
 
@@ -213,12 +227,14 @@ class ScriptManagerScreen(
 
         // Шаг 2: после layout pass ищем ViewHolder и кликаем addScriptButton.
         scenario.onActivity { activity ->
-            val recyclerView = findScriptRecyclerView(activity)
-                ?: error("scriptList RecyclerView not found")
+            val recyclerView =
+                findScriptRecyclerView(activity)
+                    ?: error("scriptList RecyclerView not found")
             val adapter = recyclerView.adapter ?: error("adapter not attached")
             val lastHolder = recyclerView.findViewHolderForAdapterPosition(adapter.itemCount - 1)
-            val addButton = lastHolder?.itemView?.findViewById<View>(R.id.addScriptButton)
-                ?: error("Add script button not found in RecyclerView footer")
+            val addButton =
+                lastHolder?.itemView?.findViewById<View>(R.id.addScriptButton)
+                    ?: error("Add script button not found in RecyclerView footer")
             addButton.performClick()
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
@@ -227,14 +243,22 @@ class ScriptManagerScreen(
         // через inRoot(isDialog()), иначе Espresso RootViewPicker валится на
         // focused-root timeout (GameActivity в overlay-режиме, дочерний диалог
         // не становится focused root чисто).
-        onView(androidx.test.espresso.matcher.ViewMatchers.withId(R.id.scriptUrlInput))
-            .inRoot(isDialog())
-            .perform(androidx.test.espresso.action.ViewActions.replaceText(url))
+        onView(
+            androidx.test.espresso.matcher.ViewMatchers
+                .withId(R.id.scriptUrlInput),
+        ).inRoot(isDialog())
+            .perform(
+                androidx.test.espresso.action.ViewActions
+                    .replaceText(url),
+            )
         val addLabel = targetContext.getString(R.string.add)
         onView(withText(addLabel)).inRoot(isDialog()).perform(click())
     }
 
-    private fun scrollToCard(recyclerView: RecyclerView, cardName: String) {
+    private fun scrollToCard(
+        recyclerView: RecyclerView,
+        cardName: String,
+    ) {
         val adapter = recyclerView.adapter ?: return
         for (i in 0 until adapter.itemCount) {
             val holder = recyclerView.findViewHolderForAdapterPosition(i) ?: continue
@@ -269,7 +293,10 @@ class ScriptManagerScreen(
         return null
     }
 
-    private fun findItemViewWithText(recyclerView: RecyclerView, text: String): View? {
+    private fun findItemViewWithText(
+        recyclerView: RecyclerView,
+        text: String,
+    ): View? {
         for (i in 0 until (recyclerView.adapter?.itemCount ?: 0)) {
             val holder = recyclerView.findViewHolderForAdapterPosition(i) ?: continue
             if (findTextViewWithText(holder.itemView, text) != null) return holder.itemView
@@ -277,7 +304,10 @@ class ScriptManagerScreen(
         return null
     }
 
-    private fun findTextViewWithText(view: View, text: String): View? {
+    private fun findTextViewWithText(
+        view: View,
+        text: String,
+    ): View? {
         if (view is android.widget.TextView && view.text?.toString() == text) return view
         if (view is android.view.ViewGroup) {
             for (i in 0 until view.childCount) {

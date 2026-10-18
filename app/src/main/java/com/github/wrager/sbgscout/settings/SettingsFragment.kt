@@ -28,7 +28,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
  * Standalone-запуска нет — единственный entry-point приложения — [GameActivity].
  */
 class SettingsFragment : PreferenceFragmentCompat() {
-
     // Инвариант "фрагмент живёт только как overlay внутри GameActivity" закреплён
     // KDoc на классе: точка входа приложения одна (GameActivity), standalone-запуска нет.
     // Каст безопасен; property устраняет дублирование в местах обращения к host-активити.
@@ -37,7 +36,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private var versionTapCount = 0
 
-    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+    override fun onCreatePreferences(
+        savedInstanceState: Bundle?,
+        rootKey: String?,
+    ) {
         setPreferencesFromResource(R.xml.preferences, rootKey)
 
         // `requirePref` падает с понятным сообщением, если XML не содержит
@@ -56,7 +58,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         requirePref<Preference>("manage_scripts").setOnPreferenceClickListener {
-            parentFragmentManager.beginTransaction()
+            parentFragmentManager
+                .beginTransaction()
                 .replace(R.id.settingsContainer, ScriptListFragment.newEmbeddedInstance())
                 .addToBackStack(null)
                 .commit()
@@ -64,8 +67,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         requirePref<Preference>("reload_game").setOnPreferenceClickListener {
-            PreferenceManager.getDefaultSharedPreferences(requireContext())
-                .edit().putBoolean(GameActivity.KEY_RELOAD_REQUESTED, true).apply()
+            PreferenceManager
+                .getDefaultSharedPreferences(requireContext())
+                .edit()
+                .putBoolean(GameActivity.KEY_RELOAD_REQUESTED, true)
+                .apply()
             gameActivity.closeSettings()
             true
         }
@@ -81,7 +87,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         requirePref<Preference>("check_script_updates").setOnPreferenceClickListener {
-            parentFragmentManager.beginTransaction()
+            parentFragmentManager
+                .beginTransaction()
                 .replace(R.id.settingsContainer, ScriptListFragment.newEmbeddedAutoCheckInstance())
                 .addToBackStack(null)
                 .commit()
@@ -96,25 +103,26 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun showBetaToggleDialog() {
         val betaEnabled = GameUrls.betaServerEnabled
-        val messageRes = if (betaEnabled) {
-            R.string.settings_beta_server_disable_message
-        } else {
-            R.string.settings_beta_server_enable_message
-        }
+        val messageRes =
+            if (betaEnabled) {
+                R.string.settings_beta_server_disable_message
+            } else {
+                R.string.settings_beta_server_enable_message
+            }
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.settings_beta_server_title)
             .setMessage(messageRes)
             .setPositiveButton(R.string.settings_beta_server_confirm) { _, _ ->
                 val newValue = !betaEnabled
-                PreferenceManager.getDefaultSharedPreferences(requireContext())
+                PreferenceManager
+                    .getDefaultSharedPreferences(requireContext())
                     .edit()
                     .putBoolean(SbgScoutApplication.KEY_BETA_SERVER_ENABLED, newValue)
                     .putBoolean(GameActivity.KEY_RELOAD_REQUESTED, true)
                     .apply()
                 GameUrls.betaServerEnabled = newValue
                 gameActivity.closeSettings()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
+            }.setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -155,11 +163,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
      */
     private fun openDefaultAppSettings() {
         val packageUri = Uri.parse("package:${requireContext().packageName}")
-        val primaryIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            Intent(Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, packageUri)
-        } else {
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
-        }
+        val primaryIntent =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Intent(Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, packageUri)
+            } else {
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+            }
         try {
             startActivity(primaryIntent)
         } catch (_: ActivityNotFoundException) {
