@@ -8,8 +8,8 @@ import okhttp3.mockwebserver.RecordedRequest
  * Маршрутизатор fake-сервера игры + fake-GitHub.
  *
  * Game-поведение по путям:
- * - `GET /app` и подпути: если в куке нет `hittoken` — 302 на `/login`;
- *   иначе — HTML из [FakeGameServer.gamePageBody].
+ * - `GET /app`, `/store/` и подпути: если в куке нет `hittoken` — 302 на `/login`;
+ *   иначе — HTML из [FakeGameServer.gamePageBody] / [FakeGameServer.storePageBody].
  * - `GET /login`: HTML логина из [FakeGameServer.loginPageBody].
  * - `POST /login/callback`: 302 на `/app` + Set-Cookie для session-токена.
  * - `GET /favicon.ico`: пустой 204.
@@ -35,7 +35,8 @@ class FakeGameDispatcher(
         val method = request.method ?: "GET"
 
         return when {
-            method == "GET" && path.startsWith("/app") -> handleAppPage(request)
+            method == "GET" && path.startsWith("/app") -> authenticatedPage(request, server.gamePageBody)
+            method == "GET" && path.startsWith("/store/") -> authenticatedPage(request, server.storePageBody)
             method == "GET" && path.startsWith("/login") -> loginPage()
             method == "POST" && path.startsWith("/login/callback") -> loginCallback()
             path == "/favicon.ico" -> MockResponse().setResponseCode(204)
@@ -45,14 +46,17 @@ class FakeGameDispatcher(
         }
     }
 
-    private fun handleAppPage(request: RecordedRequest): MockResponse {
+    private fun authenticatedPage(
+        request: RecordedRequest,
+        body: String,
+    ): MockResponse {
         val cookieHeader = request.getHeader("Cookie").orEmpty()
         val hasSession = cookieHeader.contains("hittoken=${CookieFixtures.FAKE_SESSION_TOKEN}")
         return if (hasSession) {
             MockResponse()
                 .setResponseCode(200)
                 .setHeader("Content-Type", "text/html; charset=utf-8")
-                .setBody(server.gamePageBody)
+                .setBody(body)
         } else {
             MockResponse()
                 .setResponseCode(302)

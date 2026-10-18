@@ -52,7 +52,7 @@ class SbgWebViewClientExternalLinksTest {
 
     @Before
     fun setUp() {
-        // Хост игры для GameUrls.isGameStorePage, независимо от BuildConfig.
+        // Хост игры независимо от BuildConfig.
         GameUrls.hostMatchOverride = GAME_HOST
         mockkStatic(Uri::class)
         mockkStatic(Intent::class)
@@ -167,11 +167,6 @@ class SbgWebViewClientExternalLinksTest {
 
     private fun intentRequest(intentUrl: String): WebResourceRequest =
         request(stubUri(intentUrl, scheme = "intent", host = "pay", path = "/"))
-
-    /** Selector строится только для магазина: ссылка без хоста для него не разбиралась. */
-    private fun verifyNoBrowserSelector() {
-        verify(exactly = 0) { Uri.parse(BROWSER_SELECTOR_URL) }
-    }
 
     private fun verifyNotFoundToast(
         context: Context,
@@ -302,8 +297,7 @@ class SbgWebViewClientExternalLinksTest {
         assertTrue(client.shouldOverrideUrlLoading(webViewWith(activityRecording(started)), request(bankUri)))
 
         assertViewIntent(bankUri, started.single())
-        // Selector только у магазина; NEW_TASK не нужен, контекст — Activity.
-        verifyNoBrowserSelector()
+        // NEW_TASK не нужен, контекст — Activity.
         verify(exactly = 0) { viewIntent(bankUri).selector = any() }
         verify(exactly = 0) { viewIntent(bankUri).addFlags(any()) }
     }
@@ -345,26 +339,16 @@ class SbgWebViewClientExternalLinksTest {
     }
 
     @Test
-    fun `opens game store in browser with selector`() {
+    fun `keeps game store in WebView`() {
         val started = mutableListOf<Intent>()
         val storeUri = stubUri("https://$GAME_HOST/store/", scheme = "https", host = GAME_HOST, path = "/store/")
-        stubViewIntent(storeUri)
-        val browserSelectorUri = mockk<Uri>()
-        every { Uri.parse(BROWSER_SELECTOR_URL) } returns browserSelectorUri
-        val browserSelector = mockk<Intent>()
-        every { viewIntent(browserSelectorUri).addCategory(Intent.CATEGORY_BROWSABLE) } returns browserSelector
 
-        assertTrue(client.shouldOverrideUrlLoading(webViewWith(activityRecording(started)), request(storeUri)))
-
-        assertViewIntent(storeUri, started.single())
-        // Selector — ACTION_VIEW + BROWSABLE со ссылкой без хоста: под него подходят
-        // только браузеры, и магазин не возвращается в Scout через deep link.
-        verify { viewIntent(storeUri).selector = browserSelector }
+        assertFalse(client.shouldOverrideUrlLoading(webViewWith(activityRecording(started)), request(storeUri)))
+        assertTrue(started.isEmpty())
     }
 
     @Test
-    fun `opens nested store page of current game host in browser`() {
-        // Текущий хост игры из appUrl (здесь — бета-сервер) тоже считается игровым.
+    fun `keeps nested store page of beta server in WebView`() {
         GameUrls.betaServerEnabled = true
         stubUri("https://beta.$GAME_HOST/app", scheme = "https", host = "beta.$GAME_HOST", path = "/app")
         val started = mutableListOf<Intent>()
@@ -375,18 +359,13 @@ class SbgWebViewClientExternalLinksTest {
                 host = "beta.$GAME_HOST",
                 path = "/store/item/5",
             )
-        stubViewIntent(storeUri)
-
-        assertTrue(client.shouldOverrideUrlLoading(webViewWith(activityRecording(started)), request(storeUri)))
-
-        assertViewIntent(storeUri, started.single())
-        verify { viewIntent(storeUri).selector = any() }
+        assertFalse(client.shouldOverrideUrlLoading(webViewWith(activityRecording(started)), request(storeUri)))
+        assertTrue(started.isEmpty())
     }
 
     @Test
-    fun `opens Robokassa externally`() {
-        val started = mutableListOf<Intent>()
-        val webView = webViewWith(activityRecording(started))
+    fun `handles Robokassa outside WebView`() {
+        // Реальный CustomTabsIntent и сохранение магазина проверяет ExternalLinksE2ETest.
         val payment =
             stubUri(
                 "https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=sbg_game&InvoiceID=1",
@@ -395,16 +374,8 @@ class SbgWebViewClientExternalLinksTest {
                 path = "/Merchant/Index.aspx",
             )
         val root = stubUri("https://robokassa.ru/", scheme = "https", host = "robokassa.ru", path = "/")
-        stubViewIntent(payment)
-        stubViewIntent(root)
-
-        assertTrue(client.shouldOverrideUrlLoading(webView, request(payment)))
-        assertTrue(client.shouldOverrideUrlLoading(webView, request(root)))
-
-        assertEquals(2, started.size)
-        assertViewIntent(payment, started[0])
-        assertViewIntent(root, started[1])
-        verifyNoBrowserSelector()
+        assertTrue(client.shouldOverrideUrlLoading(null, request(payment)))
+        assertTrue(client.shouldOverrideUrlLoading(null, request(root)))
     }
 
     @Test
@@ -426,7 +397,6 @@ class SbgWebViewClientExternalLinksTest {
 
         assertEquals(links.size, started.size)
         links.forEachIndexed { index, link -> assertViewIntent(link, started[index]) }
-        verifyNoBrowserSelector()
     }
 
     @Test
@@ -669,6 +639,5 @@ class SbgWebViewClientExternalLinksTest {
 
     private companion object {
         const val GAME_HOST = "sbg-game.ru"
-        const val BROWSER_SELECTOR_URL = "https://"
     }
 }

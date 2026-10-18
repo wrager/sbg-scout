@@ -12,6 +12,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.browser.customtabs.CustomTabsIntent
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.bridge.DownloadBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
@@ -147,13 +148,9 @@ class SbgWebViewClient(
      *
      * Не-веб схемы (`bankXXX://` для оплаты через СБП, `intent:`, `tel:`, `mailto:`)
      * WebView не открывает (`ERR_UNKNOWN_URL_SCHEME`), поэтому они уходят системе
-     * в любом фрейме. Веб-страницы в основном фрейме уходят наружу, только если это
-     * магазин игры или [EXTERNAL_WEB_HOSTS].
-     *
-     * Магазин открывается в браузере, чтобы вся покупка прошла в одном месте:
-     * после оплаты приложение банка само открывает адрес возврата в браузере
-     * по умолчанию, а Scout остаётся на игре. Для заказа в браузере нужен вход
-     * в аккаунт игры.
+     * в любом фрейме. Веб-страницы в основном фрейме уходят наружу только для
+     * [EXTERNAL_WEB_HOSTS]. Магазин остаётся в WebView с текущей авторизацией,
+     * а Робокасса открывается в Custom Tab поверх него.
      */
     private fun shouldStayInWebView(
         uri: Uri,
@@ -164,13 +161,16 @@ class SbgWebViewClient(
             scheme in INTERNAL_SCHEMES -> true
             scheme !in WEB_SCHEMES -> false
             !isForMainFrame -> true
-            else -> !isExternalWebHost(uri.host) && !GameUrls.isGameStorePage(uri.toString())
+            else -> !EXTERNAL_WEB_HOSTS.any { isHostOrSubdomain(uri.host, it) }
         }
     }
 
-    private fun isExternalWebHost(host: String?): Boolean {
+    private fun isHostOrSubdomain(
+        host: String?,
+        expectedHost: String,
+    ): Boolean {
         val normalizedHost = host?.lowercase() ?: return false
-        return EXTERNAL_WEB_HOSTS.any { normalizedHost == it || normalizedHost.endsWith(".$it") }
+        return normalizedHost == expectedHost || normalizedHost.endsWith(".$expectedHost")
     }
 
     /**
@@ -195,16 +195,18 @@ class SbgWebViewClient(
 
     private fun createExternalIntent(url: String): Intent? {
         if (url.startsWith(INTENT_SCHEME_PREFIX, ignoreCase = true)) return parseIntentUri(url)
-        return Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-            // Ссылки сайта игры Scout принимает сам (deep link). Чтобы магазин
-            // открылся в браузере, а не вернулся в Scout, приложение выбирается
-            // по ссылке без хоста — под неё подходят только браузеры.
-            if (GameUrls.isGameStorePage(url)) {
-                selector =
-                    Intent(Intent.ACTION_VIEW, Uri.parse(BROWSER_SELECTOR_URL))
-                        .addCategory(Intent.CATEGORY_BROWSABLE)
-            }
+        val uri = Uri.parse(url)
+        if (isWebUrl(url) && isHostOrSubdomain(uri.host, PAYMENT_HOST)) {
+            // Без NEW_TASK: закрытие вкладки возвращает в магазин Scout.
+            // Браузер без поддержки Custom Tabs откроет обычную страницу.
+            return CustomTabsIntent
+                .Builder()
+                .setShowTitle(true)
+                .build()
+                .intent
+                .apply { data = uri }
         }
+        return Intent(Intent.ACTION_VIEW, uri)
     }
 
     /**
@@ -258,20 +260,16 @@ class SbgWebViewClient(
         /**
          * Хосты (вместе с поддоменами), которые в основном фрейме открываются вне WebView.
          *
-         * Робокасса — страховка на случай, если магазин всё же открыт в WebView
-         * (например, по ссылке на магазин из другого приложения): оплата тогда
-         * уходит в браузер, а WebView остаётся на странице магазина.
+         * Робокасса открывается в Custom Tab, WebView остаётся на магазине.
          *
          * Ссылки Telegram открываются в приложении Telegram. `oauth.telegram.org`
          * сюда не входит: вход в игру должен пройти в WebView.
          */
-        private val EXTERNAL_WEB_HOSTS = setOf("robokassa.ru", "t.me", "telegram.me")
+        private const val PAYMENT_HOST = "robokassa.ru"
+        private val EXTERNAL_WEB_HOSTS = setOf(PAYMENT_HOST, "t.me", "telegram.me")
 
         private const val INTENT_SCHEME_PREFIX = "intent:"
         private const val EXTRA_BROWSER_FALLBACK_URL = "browser_fallback_url"
-
-        /** Ссылка без хоста для selector'а: под неё подходят только браузеры. */
-        private const val BROWSER_SELECTOR_URL = "https://"
 
         private const val URI_PERMISSION_GRANT_FLAGS =
             Intent.FLAG_GRANT_READ_URI_PERMISSION or
