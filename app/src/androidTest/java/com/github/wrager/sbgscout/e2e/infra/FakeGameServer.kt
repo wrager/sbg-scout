@@ -29,6 +29,8 @@ class FakeGameServer {
 
     @Volatile var loginPageBody: String = "<html><body>fake login (no body set)</body></html>"
 
+    @Volatile var storePageBody: String = "<html><body>fake store (no body set)</body></html>"
+
     /** Содержимое юзерскриптов: ключ = "<owner>/<repo>/<tag>/<filename>". */
     internal val scriptAssets = ConcurrentHashMap<String, String>()
 

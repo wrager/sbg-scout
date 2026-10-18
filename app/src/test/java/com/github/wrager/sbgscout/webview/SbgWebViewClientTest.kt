@@ -315,10 +315,14 @@ class SbgWebViewClientTest {
 
     @Test
     fun `shouldOverrideUrlLoading returns false for regular URL`() {
+        // Остальные внешние ссылки — в SbgWebViewClientExternalLinksTest.
         val request = mockk<WebResourceRequest>()
         val uri = mockk<Uri>()
         every { request.url } returns uri
+        every { request.isForMainFrame } returns true
         every { uri.toString() } returns "https://example.com/page"
+        every { uri.scheme } returns "https"
+        every { uri.host } returns "example.com"
 
         assertFalse(client.shouldOverrideUrlLoading(null, request))
     }
