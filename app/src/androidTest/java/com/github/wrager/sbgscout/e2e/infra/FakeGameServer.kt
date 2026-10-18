@@ -14,7 +14,8 @@ import java.util.concurrent.TimeUnit
  * и HttpFetcher обращаются на этот же loopback без нужды в `10.0.2.2`.
  *
  * Настройка ответов:
- * - HTML игры, логина и правил — поля [gamePageBody] / [loginPageBody] / [rulesPageBody].
+ * - HTML игры, логина, правил и магазина — поля
+ *   [gamePageBody] / [loginPageBody] / [rulesPageBody] / [storePageBody].
  * - Скачивание юзерскриптов с GitHub — [stubScriptAsset] по комбинации
  *   owner/repo/tag/filename. Dispatcher перенаправляет запросы GitHub
  *   (переписанные через [DefaultHttpFetcher.urlRewriter] на префикс `/gh-web/`)
@@ -31,6 +32,8 @@ class FakeGameServer {
 
     /** HTML страницы правил — пример страницы игрового хоста вне игры и вне входа. */
     @Volatile var rulesPageBody: String = "<html><body>fake rules (no body set)</body></html>"
+
+    @Volatile var storePageBody: String = "<html><body>fake store (no body set)</body></html>"
 
     /** Содержимое юзерскриптов: ключ = "<owner>/<repo>/<tag>/<filename>". */
     internal val scriptAssets = ConcurrentHashMap<String, String>()
