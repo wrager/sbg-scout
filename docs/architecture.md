@@ -335,6 +335,7 @@ app/src/instr/
 Локальный Windows-запуск использует те же Gradle-задачи через `scripts/android.ps1`.
 `setupAndroid.ps1` устанавливает инструменты и создаёт выделенный AVD, а `test`
 дожидается загрузки и проверяет API 33/WebView 101 перед `connectedInstrAndroidTest`.
+AVD запускается с 2 ядрами, 2 ГБ RAM и SwiftShader без Vulkan.
 Скрипты общие для человека, Codex и Claude Code; пути, разрешения и команды описаны
 в [agent-setup.md](agent-setup.md). Это инфраструктура разработки, в APK она не входит.
 Для остановки зависшего AVD сохраняются PID и время запуска его host-процесса:
