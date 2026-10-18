@@ -231,9 +231,24 @@ Rerun старого run не заменяет ссылку нового. Artifa
 если run/artifact не удалены раньше; для скачивания нужен вход в GitHub.
 
 Распаковать ZIP и установить app-debug.apk. Debug устанавливается рядом со stable.
-Общий debug-keystore не используется: при несовпадении сертификатов CI-сборок
-потребуется переустановка debug-приложения. Статусы e2e и других jobs
-смотреть отдельно.
+CI восстанавливает постоянный debug-keystore из секрета `DEBUG_STORE` перед
+Gradle в `ANDROID_USER_HOME` внутри временного каталога runner. Это отдельный
+ключ, не связанный с релизным `RELEASE_STORE`; его base64
+содержимое хранится только в GitHub Secrets. Alias — `androiddebugkey`, пароли
+хранилища и ключа — стандартные `android`. Для создания использовать
+`keytool -genkeypair -storetype JKS -alias androiddebugkey -keyalg RSA -keysize 2048
+-validity 10000 -storepass android -keypass android -dname "CN=SBG Scout CI Debug"
+-keystore <путь-вне-репозитория>` и передать base64 файла в
+`gh secret set DEBUG_STORE --repo wrager/sbg-scout` через stdin. Не выводить ключ
+в логи и не добавлять keystore в Git. Не пересоздавать секрет при каждом запуске.
+
+Все новые PR-сборки подписываются одним ключом и могут устанавливаться поверх
+друг друга при неуменьшающемся `versionCode`. При переходе со старой CI-сборки
+понадобится одна переустановка debug-приложения. Локальная debug-подпись
+остаётся стандартной для машины разработчика. Для fork/Dependabot CI не получает
+debug-секрет и использует временный ключ; preview APK для них не публикуется.
+Отсутствие или повреждение `DEBUG_STORE` в обычном CI останавливает job.
+Статусы e2e и других jobs смотреть отдельно.
 
 ### Подготовка и публикация
 
@@ -261,7 +276,17 @@ Rerun старого run не заменяет ссылку нового. Artifa
    через `node scripts/updateBundledSvp.mjs --check` до сборки и перед публикацией.
    Ошибка сети или несовпадение с последним стабильным релизным артефактом
    останавливает выпуск без подмены закоммиченных файлов на runner. Job собирает и проверяет
-   подпись через `apksigner verify`, versionName и versionCode готового APK против тега. APK загружается как `sbg-scout-vX.Y.Z.apk`.
+   подпись через `apksigner verify`, versionName и versionCode готового APK против тега.
+   Затем `node scripts/checkReleaseSigning.mjs <тег> <APK>` находит предыдущий
+   опубликованный стабильный релиз с максимальной версией ниже текущей,
+   скачивает его единственный APK и проверяет оба APK через `apksigner`.
+   Полные наборы SHA-256 сертификатов должны совпадать. Проверка работает и при
+   повторе публикации: текущий тег, draft и prerelease не считаются предыдущим
+   релизом. Отсутствие предыдущего релиза/APK, ошибка GitHub, невалидная подпись
+   или смена ключа блокируют публикацию. Скрипту нужны GitHub CLI, Java и
+   Build Tools 36.0.0 из `ANDROID_HOME`; `GH_TOKEN` используется GitHub CLI.
+   Тесты без сети: `node --test scripts/checkReleaseSigning.test.mjs`.
+   APK загружается как `sbg-scout-vX.Y.Z.apk`.
    Только после загрузки softprops v3 публикует draft с текстом из
    `RELEASE_NOTES.md` и помечает его latest. Отдельный push тега не запускает выпуск.
 
