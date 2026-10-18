@@ -40,6 +40,9 @@ jobs:
       - name: Test release checks
         run: node --test scripts/checkRelease.test.mjs
 
+      - name: Test APK signing checks
+        run: node --test scripts/checkReleaseSigning.test.mjs
+
       - name: Test bundled SVP updates
         run: node --test scripts/updateBundledSvp.test.mjs
 
@@ -65,6 +68,22 @@ jobs:
           java-version: 25
 
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+
+      - name: Restore CI debug keystore
+        if: >-
+          github.event_name == 'push' ||
+          (github.event.pull_request.head.repo.full_name == github.repository &&
+          github.actor != 'dependabot[bot]')
+        env:
+          DEBUG_STORE: ${{ secrets.DEBUG_STORE }}
+          ANDROID_USER_HOME: ${{ runner.temp }}/android-user
+        run: |
+          test -n "$DEBUG_STORE" || { echo '::error::DEBUG_STORE is required for CI debug signing'; exit 1; }
+          umask 077
+          mkdir -p "$ANDROID_USER_HOME"
+          printf '%s' "$DEBUG_STORE" | base64 --decode > "$ANDROID_USER_HOME/debug.keystore"
+          keytool -list -keystore "$ANDROID_USER_HOME/debug.keystore" -storepass android -alias androiddebugkey
+          printf 'ANDROID_USER_HOME=%s\n' "$ANDROID_USER_HOME" >> "$GITHUB_ENV"
 
       - name: ktlint
         run: ./gradlew ktlintCheck
@@ -125,6 +144,7 @@ jobs:
 
             Для скачивания нужен вход в GitHub. Распакуйте ZIP и установите
             `app-debug.apk`. Debug устанавливается рядом со стабильной версией.
-            При несовпадении сертификатов CI-сборок потребуется переустановка debug.
+            Все новые CI-сборки подписаны одним debug-ключом. При переходе со старой
+            сборки потребуется один раз переустановить debug-приложение.
             Статусы e2e и других jobs смотрите отдельно. Ссылка действует 14 дней,
             если artifact или запуск CI не удалён раньше.
