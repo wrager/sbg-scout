@@ -10,7 +10,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 - В Windows окружение устанавливает `scripts/setupAndroid.ps1`; общие команды человека и агентов — `scripts/android.ps1` (`doctor`, `build`, `run`, `test`, `verify`, `logs`, `stop`). Для автоматической проверки debug-запуска использовать `run -Offline`, для UI-flow — `test` с `FakeGameServer`. Запуск PowerShell и доступ из Codex/Claude описаны в `docs/agent-setup.md`.
 - Исходники приложения: `app/src/main/`; JVM-тесты: `app/src/test/`; e2e: `app/src/androidTest/`; тестовая конфигурация: `app/src/instr/`.
 - Общий источник скиллов — `.agents/skills/scout-*/SKILL.md`. Codex обнаруживает их напрямую; `.claude/skills/` содержит генерируемые копии для Claude Code. Менять только исходники, затем запускать `node scripts/syncAgentSkills.mjs`. Копии коммитятся вместе с исходниками; CI проверяет их актуальность через `node scripts/syncAgentSkills.mjs --check`.
-- При проверке приложения использовать `scout-verify`; для скриншотов — `scout-screenshots`; для подготовки release PR от release-please — `scout-release`; для текста анонса — `scout-announce`. В Codex: `$scout-release`, в Claude: `/scout-release`.
+- При проверке приложения использовать `scout-verify`; для README-скриншотов — `scout-screenshots`; для visual regression — `scout-visual-regression`; для подготовки release PR от release-please — `scout-release`; для текста анонса — `scout-announce`. В Codex: `$scout-release`, в Claude: `/scout-release`.
 - Скилл можно прочитать по пути вручную, если текущая сессия ещё не обновила список. Новые скиллы называть с префиксом `scout-`.
 
 ## Критические запреты (нарушение = перманентный бан в игре)
@@ -24,7 +24,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 `./gradlew ktlintCheck detekt lintInstr testInstrUnitTest assembleDebug assembleInstr assembleRelease`
 
-В PowerShell использовать `./gradlew.bat` с теми же аргументами. Проверка релизных файлов: `node scripts/checkRelease.mjs`, тесты: `node --test scripts/checkRelease.test.mjs`. Проверка скиллов: `node scripts/syncAgentSkills.mjs --check`; тесты синхронизации: `node --test scripts/syncAgentSkills.test.mjs`.
+В PowerShell использовать `./gradlew.bat` с теми же аргументами. Проверка релизных файлов: `node scripts/checkRelease.mjs`, тесты: `node --test scripts/checkRelease.test.mjs scripts/updateBundledSvp.test.mjs`. Проверка скиллов: `node scripts/syncAgentSkills.mjs --check`; тесты синхронизации: `node --test scripts/syncAgentSkills.test.mjs`.
 
 Если сборка падает — пофиксить и повторить.
 
@@ -42,6 +42,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 ## Вшитые скрипты
 
+- При подготовке каждого release PR выполнять `node scripts/updateBundledSvp.mjs` до тестов и скриншотов; изменённый SVP коммитить в этот PR. Перед merge — `node scripts/updateBundledSvp.mjs --check`. CI release PR и публикация блокируют устаревший или изменённый бандл. Обычные сборки не требуют сети для обновления SVP.
 - **Вшитые скрипты (`app/src/main/assets/scripts/`) обновляются ТОЛЬКО из GitHub releases.** Соседние директории (`../sbg-vanilla-plus` и т.д.) — для исследования исходников, НЕ для вшивания в APK. Источник для вшивания — всегда release-артефакт с GitHub.
 
 ## Код
@@ -56,12 +57,14 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 - **Новое UI-поведение требует e2e-теста.** Unit-тест на изолированную логику (GameUrls, утилиты) не заменяет e2e-тест на UI-flow: диалоги, счётчики тапов, навигация, сохранение состояния в prefs. E2e-тесты живут в `app/src/androidTest/`, запускаются через `connectedInstrAndroidTest`.
 - Правило: любое новое поведение покрывается ЛИБО unit-тестом (если логика изолируема), ЛИБО e2e-тестом (если поведение завязано на UI или Activity), ЛИБО обоими.
 
+- **UI-изменения требуют обновления visual regression baseline'ов в том же коммите.** Если правка меняет наблюдаемый рендер любого из 10 baseline-сценариев (settings overlay, script manager, диалоги обновлений, popup игровых настроек, login) - запустить `./gradlew :app:updateVisualRegressionBaselines` (скилл `scout-visual-regression`) и закоммитить обновлённые PNG из `.github/images/visual-regression/` вместе с кодом. Без обновления baseline'ов CI workflow `e2e.yml` падает на намеренное изменение. Подробности архитектуры VR - в `docs/architecture.md`.
+
 ## Скриншоты README
 
 - Скриншоты в `.github/images/screenshots/` (`game_settings.png`, `settings.png`, `script-manager.png`) обновляются как часть каждого релиза тем же коммитом, что bump версии в `app/build.gradle.kts`.
 - Источник истины — e2e-генератор, не ручные снимки. Скилл `scout-screenshots` запускает три тест-класса в `app/src/androidTest/.../e2e/screenshots/` через `:app:updateReadmeScreenshots` (gradle-обёртка над `connectedInstrAndroidTest` с фильтром по `@ReadmeScreenshot` + `copyReadmeScreenshots`). Эмулятор: API 33, Pixel 4, WebView 101. Локаль приложения форсится на русскую внутри тестов через `LocaleManager.setApplicationLocales`, локаль эмулятора не имеет значения.
 - В `scout-release` скриншоты обновляются ПОСЛЕ `versionMajor`/`versionMinor`/`versionPatch` в `app/build.gradle.kts`, чтобы новая версия попала на экран настроек из `BuildConfig.VERSION_NAME`.
-- Итоговый squash-коммит release PR включает `RELEASE_NOTES.md`, `version.txt`, `.release-please-manifest.json`, `app/build.gradle.kts` и `.github/images/screenshots/` одной транзакцией. Скилл скриншотов сам не коммитит — это решает вызывающий сценарий.
+- Итоговый squash-коммит release PR включает `RELEASE_NOTES.md`, `version.txt`, `.release-please-manifest.json`, `app/build.gradle.kts`, `.github/images/screenshots/` и актуальный бандл SVP одной транзакцией. Скилл скриншотов сам не коммитит — это решает вызывающий сценарий.
 - `game_settings.png` использует mock-фикстуру (`app-page-with-settings-content-realistic.html`), потому что полные стили игры не лежат в репо. Локальный snapshot в `refs/game/private/` (gitignored через `/refs/`) подхватывается задачей `inlineGameSnapshot` как override фикстуры.
 
 ## Терминология
