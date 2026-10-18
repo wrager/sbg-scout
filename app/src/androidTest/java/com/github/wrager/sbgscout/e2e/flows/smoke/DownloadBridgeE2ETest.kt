@@ -22,7 +22,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class DownloadBridgeE2ETest : E2ETestBase() {
-
     @Test
     fun bootstrap_exposesBridgeAndInstallsBlobInterceptor() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -46,13 +45,14 @@ class DownloadBridgeE2ETest : E2ETestBase() {
         // Перехват createObjectURL должен возвращать валидный blob:URL
         // и запоминать Blob во внутренней Map (проверяется возвратом строки,
         // начинающейся с blob:).
-        val blobUrlOk = game.evaluateJs(
-            "(function(){" +
-                "var b = new Blob(['hi'],{type:'text/plain'});" +
-                "var url = URL.createObjectURL(b);" +
-                "return url.indexOf('blob:') === 0;" +
-                "})()",
-        )
+        val blobUrlOk =
+            game.evaluateJs(
+                "(function(){" +
+                    "var b = new Blob(['hi'],{type:'text/plain'});" +
+                    "var url = URL.createObjectURL(b);" +
+                    "return url.indexOf('blob:') === 0;" +
+                    "})()",
+            )
         assertEquals("true", blobUrlOk)
     }
 }

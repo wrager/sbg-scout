@@ -20,7 +20,6 @@ import org.junit.Test
  * - SVP v0.8.0 + EUI v8.2.0 → compatibleSince разрешает конфликт, GONE.
  */
 class ScriptManagerConflictE2ETest : E2ETestBase() {
-
     @Test
     fun svpPlusOldEui_showsConflictOnBothCards() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -29,13 +28,18 @@ class ScriptManagerConflictE2ETest : E2ETestBase() {
         sideloadEui("8.1.0", enabled = true)
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
 
-        val svp = scriptManager.cardView("SBG Vanilla+")
-            ?: throw AssertionError("SVP card not found")
-        val eui = scriptManager.cardView("SBG Enhanced UI")
-            ?: throw AssertionError("EUI card not found")
+        val svp =
+            scriptManager.cardView("SBG Vanilla+")
+                ?: throw AssertionError("SVP card not found")
+        val eui =
+            scriptManager.cardView("SBG Enhanced UI")
+                ?: throw AssertionError("EUI card not found")
 
         assertEquals(
             "SVP карточка должна показывать conflictContainer",
@@ -57,13 +61,18 @@ class ScriptManagerConflictE2ETest : E2ETestBase() {
         sideloadEui("8.2.0", enabled = true)
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
 
-        val svp = scriptManager.cardView("SBG Vanilla+")
-            ?: throw AssertionError("SVP card not found")
-        val eui = scriptManager.cardView("SBG Enhanced UI")
-            ?: throw AssertionError("EUI card not found")
+        val svp =
+            scriptManager.cardView("SBG Vanilla+")
+                ?: throw AssertionError("SVP card not found")
+        val eui =
+            scriptManager.cardView("SBG Enhanced UI")
+                ?: throw AssertionError("EUI card not found")
 
         assertEquals(
             View.GONE,
@@ -75,16 +84,20 @@ class ScriptManagerConflictE2ETest : E2ETestBase() {
         )
     }
 
-    private fun sideloadSvp(version: String, enabled: Boolean) {
+    private fun sideloadSvp(
+        version: String,
+        enabled: Boolean,
+    ) {
         ScriptStorageFixture.storage().save(
             UserScript(
                 identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
-                header = ScriptHeader(
-                    name = "SBG Vanilla+",
-                    version = version,
-                    namespace = "github.com/wrager/sbg-vanilla-plus",
-                    match = listOf("https://sbg-game.ru/app/*"),
-                ),
+                header =
+                    ScriptHeader(
+                        name = "SBG Vanilla+",
+                        version = version,
+                        namespace = "github.com/wrager/sbg-vanilla-plus",
+                        match = listOf("https://sbg-game.ru/app/*"),
+                    ),
                 sourceUrl = PresetScripts.SVP.downloadUrl,
                 updateUrl = PresetScripts.SVP.updateUrl,
                 content = "// fixture SVP v$version",
@@ -94,16 +107,20 @@ class ScriptManagerConflictE2ETest : E2ETestBase() {
         )
     }
 
-    private fun sideloadEui(version: String, enabled: Boolean) {
+    private fun sideloadEui(
+        version: String,
+        enabled: Boolean,
+    ) {
         ScriptStorageFixture.storage().save(
             UserScript(
                 identifier = ScriptIdentifier("github.com/egorantonov/sbg-enhanced/SBG Enhanced UI"),
-                header = ScriptHeader(
-                    name = "SBG Enhanced UI",
-                    version = version,
-                    namespace = "github.com/egorantonov/sbg-enhanced",
-                    match = listOf("https://sbg-game.ru/app/*"),
-                ),
+                header =
+                    ScriptHeader(
+                        name = "SBG Enhanced UI",
+                        version = version,
+                        namespace = "github.com/egorantonov/sbg-enhanced",
+                        match = listOf("https://sbg-game.ru/app/*"),
+                    ),
                 sourceUrl = PresetScripts.EUI.downloadUrl,
                 updateUrl = PresetScripts.EUI.updateUrl,
                 content = "// fixture EUI v$version",

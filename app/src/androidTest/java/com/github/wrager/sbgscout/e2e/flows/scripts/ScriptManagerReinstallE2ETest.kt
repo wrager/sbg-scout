@@ -37,7 +37,6 @@ import org.junit.Test
  *    snapshot с lastInjectedSnapshot — content hash изменился → reloadNeeded).
  */
 class ScriptManagerReinstallE2ETest : E2ETestBase() {
-
     @Test
     fun reinstallCustomScript_viaOverflow_updatesStorageAndShowsReloadButton() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -45,31 +44,35 @@ class ScriptManagerReinstallE2ETest : E2ETestBase() {
 
         // Sideload custom скрипт c content="ORIGINAL", enabled=true. sourceUrl
         // указывает на fake endpoint, который stub'ится ниже.
-        val reinstallUrl = "${server.baseUrl}/gh-web/custom-owner/custom-repo/releases/latest/download/custom-script.user.js"
-        val originalContent = buildScriptContent(
-            name = SCRIPT_NAME,
-            namespace = NAMESPACE,
-            version = "1.0.0",
-            marker = "ORIGINAL",
-        )
-        val reinstalledContent = buildScriptContent(
-            name = SCRIPT_NAME,
-            namespace = NAMESPACE,
-            version = "1.0.1",
-            marker = "REINSTALLED",
-        )
+        val reinstallUrl =
+            "${server.baseUrl}/gh-web/custom-owner/custom-repo/releases/latest/download/custom-script.user.js"
+        val originalContent =
+            buildScriptContent(
+                name = SCRIPT_NAME,
+                namespace = NAMESPACE,
+                version = "1.0.0",
+                marker = "ORIGINAL",
+            )
+        val reinstalledContent =
+            buildScriptContent(
+                name = SCRIPT_NAME,
+                namespace = NAMESPACE,
+                version = "1.0.1",
+                marker = "REINSTALLED",
+            )
         // Устанавливаем скрипт напрямую в storage с тем же identifier, который
         // получится после reparse после reinstall (namespace + "/" + name).
         val identifier = ScriptIdentifier("$NAMESPACE/$SCRIPT_NAME")
         ScriptStorageFixture.storage().save(
             UserScript(
                 identifier = identifier,
-                header = ScriptHeader(
-                    name = SCRIPT_NAME,
-                    version = "1.0.0",
-                    namespace = NAMESPACE,
-                    match = listOf("https://sbg-game.ru/app/*"),
-                ),
+                header =
+                    ScriptHeader(
+                        name = SCRIPT_NAME,
+                        version = "1.0.0",
+                        namespace = NAMESPACE,
+                        match = listOf("https://sbg-game.ru/app/*"),
+                    ),
                 sourceUrl = reinstallUrl,
                 updateUrl = null,
                 content = originalContent,
@@ -101,9 +104,12 @@ class ScriptManagerReinstallE2ETest : E2ETestBase() {
         // отправляет ReinstallCompleted только после scriptStorage.save через downloader.
         waitUntilScriptContentContains("REINSTALLED")
 
-        val stored = ScriptStorageFixture.storage().getAll()
-            .find { it.header.name == SCRIPT_NAME }
-            ?: fail("Скрипт '$SCRIPT_NAME' не найден в storage после reinstall").let { error("unreachable") }
+        val stored =
+            ScriptStorageFixture
+                .storage()
+                .getAll()
+                .find { it.header.name == SCRIPT_NAME }
+                ?: fail("Скрипт '$SCRIPT_NAME' не найден в storage после reinstall").let { error("unreachable") }
         assertEquals(
             "После reinstall версия должна обновиться до 1.0.1",
             "1.0.1",
@@ -123,10 +129,12 @@ class ScriptManagerReinstallE2ETest : E2ETestBase() {
         val deadline = SystemClock.uptimeMillis() + STORAGE_WAIT_TIMEOUT_MS
         val storage = ScriptStorageFixture.storage()
         while (SystemClock.uptimeMillis() < deadline) {
-            val content = storage.getAll()
-                .find { it.header.name == SCRIPT_NAME }
-                ?.content
-                .orEmpty()
+            val content =
+                storage
+                    .getAll()
+                    .find { it.header.name == SCRIPT_NAME }
+                    ?.content
+                    .orEmpty()
             if (content.contains(marker)) return
             Thread.sleep(POLL_INTERVAL_MS)
         }
@@ -149,7 +157,8 @@ class ScriptManagerReinstallE2ETest : E2ETestBase() {
         namespace: String,
         version: String,
         marker: String,
-    ): String = """
+    ): String =
+        """
         // ==UserScript==
         // @name $name
         // @namespace $namespace
@@ -157,7 +166,7 @@ class ScriptManagerReinstallE2ETest : E2ETestBase() {
         // @match https://sbg-game.ru/app/*
         // ==/UserScript==
         console.log('$marker: $name v$version');
-    """.trimIndent()
+        """.trimIndent()
 
     private companion object {
         const val SCRIPT_NAME = "Custom Reinstall Script"

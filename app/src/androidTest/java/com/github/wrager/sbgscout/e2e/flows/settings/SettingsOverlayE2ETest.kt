@@ -23,7 +23,6 @@ import org.junit.Test
  * PreferenceFragmentCompat и не зависит от отключения анимаций на эмуляторе.
  */
 class SettingsOverlayE2ETest : E2ETestBase() {
-
     private val targetContext get() =
         InstrumentationRegistry.getInstrumentation().targetContext
     private val defaultPrefs get() =
@@ -110,9 +109,10 @@ class SettingsOverlayE2ETest : E2ETestBase() {
 
     @Test
     fun manageScripts_navigatesToScriptListFragment() {
-        val scriptManager = setupFakeGameAndLaunch()
-            .openSettings()
-            .openManageScripts()
+        val scriptManager =
+            setupFakeGameAndLaunch()
+                .openSettings()
+                .openManageScripts()
         scriptManager.assertDisplayed()
     }
 
@@ -126,9 +126,10 @@ class SettingsOverlayE2ETest : E2ETestBase() {
 
         // После клика GameActivity делает closeSettings + webView.loadUrl(GameUrls.appUrl).
         // Значит fake-сервер должен получить второй GET /app.
-        val second = server.takeRequestMatching(5_000L) {
-            it.path == "/app" && it.method == "GET"
-        }
+        val second =
+            server.takeRequestMatching(5_000L) {
+                it.path == "/app" && it.method == "GET"
+            }
         assertEquals("/app", second.path)
     }
 

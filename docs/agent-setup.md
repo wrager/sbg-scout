@@ -15,7 +15,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/setupAndroid.ps1
 ```
 
 Установщик проверяет контрольные суммы архивов Temurin JDK 21/17 и Command-Line
-Tools 23. Через Android CLI устанавливает Platform 35, Build Tools 36.0.0,
+Tools 23. Через Android CLI устанавливает Platform 37, Build Tools 36.0.0,
 Platform Tools, Emulator и образ API 33 `default` x86_64 revision 2; создаёт AVD
 `sbg-scout-api33` (Pixel 4). Нужны сеть, принятие лицензии SDK и место для распаковки,
 данных эмулятора и кешей. Повторный запуск сохраняет существующий AVD.
@@ -112,7 +112,7 @@ Debug использует настоящий адрес игры. Для авт
 
 ## Окружение Android
 
-- Android SDK Platform 35, Build Tools 36.0.0 (AGP 9.1), Platform Tools (`adb`). Путь к SDK задаётся через `ANDROID_HOME` или локальный `local.properties` с `sdk.dir`; этот файл не коммитится. В Windows для `sdk.dir` удобно использовать прямые слеши.
+- Android SDK Platform 37, Build Tools, Platform Tools (`adb`). Путь к SDK задаётся через `ANDROID_HOME` или локальный `local.properties` с `sdk.dir`; этот файл не коммитится. В Windows для `sdk.dir` удобно использовать прямые слеши.
 - JDK 17 — Kotlin toolchain (`app/build.gradle.kts`); JDK 21 — Gradle daemon (`gradle/gradle-daemon-jvm.properties`). Нужен рабочий `java` в PATH или `JAVA_HOME` для старта wrapper. Gradle настроен на автозагрузку toolchain через Foojay; для первого запуска требуется сеть. В офлайн-окружении toolchain и зависимости должны быть подготовлены заранее.
 - Node.js 22+ — синхронизация скиллов и загрузчик референсов. Синхронизация использует только стандартную библиотеку, без `npm install`.
 - Для e2e и скриншотов — Android Emulator с образом API 33 `default` (без Google Play), Pixel 4, WebView 101. Такой профиль используется в `.github/workflows/e2e.yml`. Проверить `adb devices` и `adb shell dumpsys webviewupdate`; при нескольких устройствах задать `ANDROID_SERIAL`.

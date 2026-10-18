@@ -10,6 +10,9 @@ import com.github.wrager.sbgscout.script.model.UserScript
  * дополнить его через [UserScript.copy] перед сохранением.
  */
 sealed class ScriptInstallResult {
-    data class Parsed(val script: UserScript) : ScriptInstallResult()
+    data class Parsed(
+        val script: UserScript,
+    ) : ScriptInstallResult()
+
     data object InvalidHeader : ScriptInstallResult()
 }

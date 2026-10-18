@@ -14,7 +14,6 @@ import org.junit.Before
 import org.junit.Test
 
 class ClipboardBridgeTest {
-
     private lateinit var context: Context
     private lateinit var clipboardManager: ClipboardManager
     private lateinit var bridge: ClipboardBridge

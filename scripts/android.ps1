@@ -162,7 +162,7 @@ try {
             if (!(Test-Path -LiteralPath (Join-Path $env:ANDROID_AVD_HOME "$avdName.ini"))) {
                 throw 'AVD missing. Run scripts/setupAndroid.ps1 first.'
             }
-            foreach ($package in @('platforms\android-35', 'build-tools\36.0.0', 'system-images\android-33\default\x86_64')) {
+            foreach ($package in @('platforms\android-37.0', 'build-tools\36.0.0', 'system-images\android-33\default\x86_64')) {
                 if (!(Test-Path -LiteralPath (Join-Path $env:ANDROID_HOME "$package\source.properties"))) {
                     throw "Missing SDK package: $package"
                 }

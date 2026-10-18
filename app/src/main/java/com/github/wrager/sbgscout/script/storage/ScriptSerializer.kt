@@ -7,9 +7,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal object ScriptSerializer {
-
-    fun toJson(script: UserScript): JSONObject {
-        return JSONObject().apply {
+    fun toJson(script: UserScript): JSONObject =
+        JSONObject().apply {
             put("identifier", script.identifier.value)
             put("sourceUrl", script.sourceUrl)
             put("updateUrl", script.updateUrl)
@@ -18,9 +17,11 @@ internal object ScriptSerializer {
             putOpt("releaseTag", script.releaseTag)
             put("header", headerToJson(script.header))
         }
-    }
 
-    fun fromJson(json: JSONObject, content: String): UserScript {
+    fun fromJson(
+        json: JSONObject,
+        content: String,
+    ): UserScript {
         val headerJson = json.getJSONObject("header")
         return UserScript(
             identifier = ScriptIdentifier(json.getString("identifier")),
@@ -34,8 +35,8 @@ internal object ScriptSerializer {
         )
     }
 
-    private fun headerToJson(header: ScriptHeader): JSONObject {
-        return JSONObject().apply {
+    private fun headerToJson(header: ScriptHeader): JSONObject =
+        JSONObject().apply {
             put("name", header.name)
             putOpt("version", header.version)
             putOpt("description", header.description)
@@ -48,10 +49,9 @@ internal object ScriptSerializer {
             putOpt("runAt", header.runAt)
             putOpt("iconUrl", header.iconUrl)
         }
-    }
 
-    private fun headerFromJson(json: JSONObject): ScriptHeader {
-        return ScriptHeader(
+    private fun headerFromJson(json: JSONObject): ScriptHeader =
+        ScriptHeader(
             name = json.getString("name"),
             version = json.optString("version", null),
             description = json.optString("description", null),
@@ -64,7 +64,6 @@ internal object ScriptSerializer {
             runAt = json.optString("runAt", null),
             iconUrl = json.optString("iconUrl", null),
         )
-    }
 
     private fun JSONArray?.toStringList(): List<String> {
         if (this == null) return emptyList()

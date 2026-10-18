@@ -6,7 +6,6 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class HeaderParserTest {
-
     @Test
     fun `parses SVP header correctly`() {
         val header = HeaderParser.parse(SVP_HEADER)
@@ -88,7 +87,8 @@ class HeaderParserTest {
 
     @Test
     fun `parses multi-value keys`() {
-        val script = """
+        val script =
+            """
             // ==UserScript==
             // @name Multi Match Script
             // @match https://sbg-game.ru/app/*
@@ -96,7 +96,7 @@ class HeaderParserTest {
             // @grant GM_getValue
             // @grant GM_setValue
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         val header = HeaderParser.parse(script)
 
@@ -122,11 +122,12 @@ class HeaderParserTest {
 
     @Test
     fun `parses minimal header with only name`() {
-        val script = """
+        val script =
+            """
             // ==UserScript==
             // @name Minimal Script
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         val header = HeaderParser.parse(script)
 
@@ -139,25 +140,27 @@ class HeaderParserTest {
 
     @Test
     fun `returns null when header has no name`() {
-        val script = """
+        val script =
+            """
             // ==UserScript==
             // @version 1.0.0
             // @description No name
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         assertNull(HeaderParser.parse(script))
     }
 
     @Test
     fun `preserves unknown keys in rawEntries`() {
-        val script = """
+        val script =
+            """
             // ==UserScript==
             // @name Test Script
             // @license MIT
             // @homepage https://example.com
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         val header = HeaderParser.parse(script)
 
@@ -168,12 +171,13 @@ class HeaderParserTest {
 
     @Test
     fun `trims whitespace from values`() {
-        val script = """
+        val script =
+            """
             // ==UserScript==
             // @name         Padded Name
             // @version      1.0.0
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         val header = HeaderParser.parse(script)
 
@@ -184,14 +188,15 @@ class HeaderParserTest {
 
     @Test
     fun `content after end marker is ignored`() {
-        val script = """
+        val script =
+            """
             // ==UserScript==
             // @name Test Script
             // @version 1.0.0
             // ==/UserScript==
             // @version 2.0.0
             console.log('code');
-        """.trimIndent()
+            """.trimIndent()
 
         val header = HeaderParser.parse(script)
 
@@ -201,13 +206,14 @@ class HeaderParserTest {
 
     @Test
     fun `lines without at sign inside header are skipped`() {
-        val script = """
+        val script =
+            """
             // ==UserScript==
             // @name Test Script
             // This is a comment line
             // @version 1.0.0
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         val header = HeaderParser.parse(script)
 
@@ -218,12 +224,13 @@ class HeaderParserTest {
 
     @Test
     fun `icon64URL maps to iconUrl`() {
-        val script = """
+        val script =
+            """
             // ==UserScript==
             // @name Test Script
             // @icon64URL https://example.com/icon64.png
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         val header = HeaderParser.parse(script)
 
@@ -233,13 +240,14 @@ class HeaderParserTest {
 
     @Test
     fun `iconURL takes priority over icon64URL`() {
-        val script = """
+        val script =
+            """
             // ==UserScript==
             // @name Test Script
             // @iconURL https://example.com/icon.png
             // @icon64URL https://example.com/icon64.png
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
         val header = HeaderParser.parse(script)
 
@@ -249,14 +257,15 @@ class HeaderParserTest {
 
     @Test
     fun `handles content before header block`() {
-        val script = """
+        val script =
+            """
             /* eslint-disable no-console */
             // ==UserScript==
             // @name SBG plus
             // @version 1.0.12
             // ==/UserScript==
             window.__sbg_plus_version = '1.0.12';
-        """.trimIndent()
+            """.trimIndent()
 
         val header = HeaderParser.parse(script)
 
@@ -266,7 +275,8 @@ class HeaderParserTest {
     }
 
     companion object {
-        private val SVP_HEADER = """
+        private val SVP_HEADER =
+            """
             // ==UserScript==
             // @name         SBG Vanilla+
             // @namespace    https://github.com/wrager/sbg-vanilla-plus
@@ -283,9 +293,10 @@ class HeaderParserTest {
             // @grant        none
             // @run-at       document-idle
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
-        private val EUI_HEADER = """
+        private val EUI_HEADER =
+            """
             // ==UserScript==
             // @name SBG Enhanced UI
             // @description Enhanced UI for SBG
@@ -300,9 +311,10 @@ class HeaderParserTest {
             // @namespace https://github.com/egorantonov/sbg-enhanced
             // @updateURL https://github.com/egorantonov/sbg-enhanced/releases/latest/download/eui.user.js
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
-        private val CUI_HEADER = """
+        private val CUI_HEADER =
+            """
             // ==UserScript==
             // @name         SBG CUI fix
             // @namespace    https://sbg-game.ru/app/
@@ -316,9 +328,10 @@ class HeaderParserTest {
             // @grant        none
             // @iconURL      https://nicko-v.github.io/sbg-cui/assets/img/tm_script_logo.png
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
 
-        private val ANMILES_HEADER = """
+        private val ANMILES_HEADER =
+            """
             /* eslint-disable no-console */
             // ==UserScript==
             // @name           SBG plus
@@ -333,6 +346,6 @@ class HeaderParserTest {
             // @run-at         document-start
             // @grant          none
             // ==/UserScript==
-        """.trimIndent()
+            """.trimIndent()
     }
 }

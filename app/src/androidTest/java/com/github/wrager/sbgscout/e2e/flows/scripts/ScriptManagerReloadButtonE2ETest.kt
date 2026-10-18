@@ -30,7 +30,6 @@ import org.junit.Test
  * BundledScriptInstaller, который автоматически переустанавливает SVP.
  */
 class ScriptManagerReloadButtonE2ETest : E2ETestBase() {
-
     @Test
     fun reloadButton_visibleAfterEnablingNewCustomScript() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -111,9 +110,10 @@ class ScriptManagerReloadButtonE2ETest : E2ETestBase() {
             )
         }
 
-        val second = server.takeRequestMatching(RELOAD_REQUEST_TIMEOUT_MS) {
-            it.path == "/app" && it.method == "GET"
-        }
+        val second =
+            server.takeRequestMatching(RELOAD_REQUEST_TIMEOUT_MS) {
+                it.path == "/app" && it.method == "GET"
+            }
         assertEquals("/app", second.path)
     }
 

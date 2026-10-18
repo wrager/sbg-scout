@@ -55,9 +55,9 @@ $android = Join-Path $env:ANDROID_HOME 'cmdline-tools\23.0\bin\android.exe'
 # Command-line Tools 23 ships Android CLI. Call it directly: the sdkmanager.bat
 # compatibility shim can split semicolon package IDs on Windows.
 1..30 | ForEach-Object { 'y' } | & $android "--sdk=$env:ANDROID_HOME" sdk install `
-    'platform-tools' 'platforms/android-35@2.0.0' 'build-tools/36.0.0' 'emulator' 'system-images/android-33/default/x86_64@2.0.0'
+    'platform-tools' 'platforms/android-37.0@2.0.0' 'build-tools/36.0.0' 'emulator' 'system-images/android-33/default/x86_64@2.0.0'
 if ($LASTEXITCODE -ne 0) { throw "SDK installation failed ($LASTEXITCODE)" }
-foreach ($package in @('platform-tools', 'emulator', 'platforms\android-35', 'build-tools\36.0.0', 'system-images\android-33\default\x86_64')) {
+foreach ($package in @('platform-tools', 'emulator', 'platforms\android-37.0', 'build-tools\36.0.0', 'system-images\android-33\default\x86_64')) {
     if (!(Test-Path -LiteralPath (Join-Path $env:ANDROID_HOME "$package\source.properties"))) {
         throw "SDK installer did not install $package"
     }

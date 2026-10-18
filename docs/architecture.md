@@ -286,6 +286,12 @@ app/src/main/java/com/github/wrager/sbgscout/
 
 Обёртка над OkHttp `MockWebServer`, поднимается на `127.0.0.1:<random-port>` в том же процессе, что и приложение (instrumented-тесты — один процесс, loopback работает без `10.0.2.2`).
 
+OkHttp 5 инициализируется явно в `E2ETestBase.setUpE2E` до запуска fake-сервера.
+`androidTest/AndroidManifest.xml` удаляет автоматически добавленный Startup provider
+из тестового APK: AndroidX Startup уже входит в APK приложения, а его классы
+исключаются из тестового dex. Без этого отдельный запуск служебной Activity из
+AndroidX Test падает с `ClassNotFoundException` при создании provider.
+
 `FakeGameDispatcher` маршрутизирует запросы по путям:
 - `GET /app[*]` — при отсутствии cookie `hittoken=<fake>` отвечает `302 Location: /login`; иначе — HTML игровой страницы из `server.gamePageBody`.
 - `GET /login[*]` — HTML логина из `server.loginPageBody`.

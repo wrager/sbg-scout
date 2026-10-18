@@ -6,7 +6,6 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withText
-import org.hamcrest.CoreMatchers.not
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.BuildConfig
 import com.github.wrager.sbgscout.R
@@ -16,6 +15,7 @@ import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.infra.GithubReleaseFixtures
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import com.github.wrager.sbgscout.e2e.screens.SettingsOverlayScreen
+import org.hamcrest.CoreMatchers.not
 import org.junit.Test
 
 /**
@@ -39,7 +39,6 @@ import org.junit.Test
  * пути с разными диалогами.
  */
 class ManualAppUpdateCheckE2ETest : E2ETestBase() {
-
     private val targetContext get() =
         InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -129,7 +128,9 @@ class ManualAppUpdateCheckE2ETest : E2ETestBase() {
             try {
                 onView(withText(text)).inRoot(isDialog()).check(matches(isDisplayed()))
                 return
-            } catch (@Suppress("TooGenericExceptionCaught") _: Throwable) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") _: Throwable,
+            ) {
                 Thread.sleep(POLL_INTERVAL_MS)
             }
         }

@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicBoolean
  * и ждать повторно — использовать [reset] между ожиданиями.
  */
 class WebViewIdlingResource : IdlingResource {
-
     private val loaded = AtomicBoolean(false)
     private var callback: IdlingResource.ResourceCallback? = null
 

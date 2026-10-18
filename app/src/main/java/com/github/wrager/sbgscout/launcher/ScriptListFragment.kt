@@ -22,23 +22,22 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.script.injector.InjectionStateStorage
+import com.github.wrager.sbgscout.script.installer.ScriptInstaller
 import com.github.wrager.sbgscout.script.model.ScriptIdentifier
 import com.github.wrager.sbgscout.script.preset.ConflictDetector
 import com.github.wrager.sbgscout.script.preset.StaticConflictRules
+import com.github.wrager.sbgscout.script.provisioner.DefaultScriptProvisioner
 import com.github.wrager.sbgscout.script.storage.ScriptFileStorageImpl
 import com.github.wrager.sbgscout.script.storage.ScriptStorageImpl
-import com.github.wrager.sbgscout.script.provisioner.DefaultScriptProvisioner
 import com.github.wrager.sbgscout.script.updater.DefaultHttpFetcher
 import com.github.wrager.sbgscout.script.updater.GithubReleaseProvider
-import com.github.wrager.sbgscout.script.installer.ScriptInstaller
 import com.github.wrager.sbgscout.script.updater.ScriptDownloader
 import com.github.wrager.sbgscout.script.updater.ScriptUpdateChecker
-import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
-import java.io.File
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * Фрагмент со списком скриптов и управлением ими. Используется только
@@ -46,12 +45,12 @@ import kotlinx.coroutines.launch
  * (контейнер `R.id.settingsContainer`); standalone-запуска нет.
  */
 class ScriptListFragment : Fragment() {
-
     private lateinit var scriptAdapter: ScriptListAdapter
 
-    private val filePickerLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri -> uri?.let { readFileAndInstall(it) } }
+    private val filePickerLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.OpenDocument(),
+        ) { uri -> uri?.let { readFileAndInstall(it) } }
 
     private val viewModel: LauncherViewModel by viewModels {
         val context = requireContext()
@@ -84,7 +83,10 @@ class ScriptListFragment : Fragment() {
         savedInstanceState: Bundle?,
     ): View = inflater.inflate(R.layout.fragment_script_list, container, false)
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         super.onViewCreated(view, savedInstanceState)
         setupToolbar(view)
         setupCheckUpdatesButton(view)
@@ -108,7 +110,9 @@ class ScriptListFragment : Fragment() {
         }
     }
 
-    private fun setupToolbar(@Suppress("UNUSED_PARAMETER") view: View) {
+    private fun setupToolbar(
+        @Suppress("UNUSED_PARAMETER") view: View,
+    ) {
         // Toolbar без меню: возврат к SettingsFragment выполняется через
         // плавающую кнопку [x] в GameActivity. `menu_launcher` был нужен
         // только для standalone LauncherActivity, которая удалена.
@@ -129,29 +133,31 @@ class ScriptListFragment : Fragment() {
     private fun setupScriptList(view: View) {
         val scriptList = view.findViewById<RecyclerView>(R.id.scriptList)
         scriptList.layoutManager = LinearLayoutManager(requireContext())
-        scriptAdapter = ScriptListAdapter(
-            onToggleChanged = { identifier, enabled ->
-                viewModel.toggleScript(identifier, enabled)
-            },
-            onDownloadRequested = { identifier ->
-                viewModel.downloadScript(identifier)
-            },
-            onUpdateRequested = { identifier ->
-                viewModel.updateScript(identifier)
-            },
-            onOverflowClick = { anchor, item ->
-                showScriptOverflowMenu(anchor, item)
-            },
-            onAddScriptClick = { showAddScriptDialog() },
-            onAddScriptFromFileClick = { filePickerLauncher.launch(arrayOf("*/*")) },
-        )
+        scriptAdapter =
+            ScriptListAdapter(
+                onToggleChanged = { identifier, enabled ->
+                    viewModel.toggleScript(identifier, enabled)
+                },
+                onDownloadRequested = { identifier ->
+                    viewModel.downloadScript(identifier)
+                },
+                onUpdateRequested = { identifier ->
+                    viewModel.updateScript(identifier)
+                },
+                onOverflowClick = { anchor, item ->
+                    showScriptOverflowMenu(anchor, item)
+                },
+                onAddScriptClick = { showAddScriptDialog() },
+                onAddScriptFromFileClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+            )
         scriptList.adapter = scriptAdapter
     }
 
     private fun setupButtons(view: View) {
         val reloadButton = view.findViewById<MaterialButton>(R.id.reloadButton)
         reloadButton.setOnClickListener {
-            PreferenceManager.getDefaultSharedPreferences(requireContext())
+            PreferenceManager
+                .getDefaultSharedPreferences(requireContext())
                 .edit()
                 .putBoolean(com.github.wrager.sbgscout.GameActivity.KEY_RELOAD_REQUESTED, true)
                 .apply()
@@ -224,28 +230,34 @@ class ScriptListFragment : Fragment() {
         val density = resources.displayMetrics.density
         val maxHeightPx = (RELEASE_NOTES_MAX_HEIGHT_DP * density).toInt()
         val paddingPx = (RELEASE_NOTES_PADDING_DP * density).toInt()
-        val textView = TextView(context).apply {
-            text = releaseNotes
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-            setTextIsSelectable(true)
-        }
-        val scrollView = android.widget.ScrollView(context).apply { addView(textView) }
-        val container = object : FrameLayout(context) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val constrainedHeight = View.MeasureSpec.makeMeasureSpec(
-                    maxHeightPx, View.MeasureSpec.AT_MOST,
-                )
-                super.onMeasure(widthMeasureSpec, constrainedHeight)
+        val textView =
+            TextView(context).apply {
+                text = releaseNotes
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                setTextIsSelectable(true)
             }
-        }
+        val scrollView = android.widget.ScrollView(context).apply { addView(textView) }
+        val container =
+            object : FrameLayout(context) {
+                override fun onMeasure(
+                    widthMeasureSpec: Int,
+                    heightMeasureSpec: Int,
+                ) {
+                    val constrainedHeight =
+                        View.MeasureSpec.makeMeasureSpec(
+                            maxHeightPx,
+                            View.MeasureSpec.AT_MOST,
+                        )
+                    super.onMeasure(widthMeasureSpec, constrainedHeight)
+                }
+            }
         container.addView(scrollView)
         MaterialAlertDialogBuilder(context)
             .setTitle(R.string.script_updates_title)
             .setView(container)
             .setPositiveButton(R.string.update_all) { _, _ ->
                 viewModel.updateAll()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
+            }.setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -254,12 +266,15 @@ class ScriptListFragment : Fragment() {
             val content = readTextContent(requireContext().contentResolver, uri)
             if (content == null) return
             viewModel.addScriptFromContent(content)
-        } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
-            Toast.makeText(
-                requireContext(),
-                getString(R.string.file_read_error, exception.message),
-                Toast.LENGTH_SHORT,
-            ).show()
+        } catch (
+            @Suppress("TooGenericExceptionCaught") exception: Exception,
+        ) {
+            Toast
+                .makeText(
+                    requireContext(),
+                    getString(R.string.file_read_error, exception.message),
+                    Toast.LENGTH_SHORT,
+                ).show()
         }
     }
 
@@ -275,12 +290,14 @@ class ScriptListFragment : Fragment() {
                 if (url != null) {
                     viewModel.addScript(url)
                 }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
+            }.setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    private fun showScriptOverflowMenu(anchor: View, item: ScriptUiItem) {
+    private fun showScriptOverflowMenu(
+        anchor: View,
+        item: ScriptUiItem,
+    ) {
         val popup = PopupMenu(requireContext(), anchor)
         if (item.isGithubHosted) {
             popup.menu.add(R.string.select_version)
@@ -320,30 +337,31 @@ class ScriptListFragment : Fragment() {
             .setSingleChoiceItems(labels, currentIndex, null)
             .setPositiveButton(R.string.install) { dialog, _ ->
                 val listView = (dialog as androidx.appcompat.app.AlertDialog).listView
-                val selected = resolveSelectedVersion(versions, listView.checkedItemPosition)
-                    ?: return@setPositiveButton
+                val selected =
+                    resolveSelectedVersion(versions, listView.checkedItemPosition)
+                        ?: return@setPositiveButton
                 viewModel.installVersion(
                     identifier,
                     selected.version.downloadUrl,
                     selected.isLatest,
                     selected.version.tagName,
                 )
-            }
-            .setNegativeButton(android.R.string.cancel, null)
+            }.setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
     private fun showDeleteConfirmation(identifier: ScriptIdentifier) {
-        val scriptName = viewModel.uiState.value.scripts
-            .find { it.identifier == identifier }?.name ?: return
+        val scriptName =
+            viewModel.uiState.value.scripts
+                .find { it.identifier == identifier }
+                ?.name ?: return
 
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.delete_script)
             .setMessage(getString(R.string.delete_script_confirmation, scriptName))
             .setPositiveButton(R.string.delete) { _, _ ->
                 viewModel.deleteScript(identifier)
-            }
-            .setNegativeButton(android.R.string.cancel, null)
+            }.setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -353,12 +371,18 @@ class ScriptListFragment : Fragment() {
         private const val RELEASE_NOTES_MAX_HEIGHT_DP = 200
         private const val RELEASE_NOTES_PADDING_DP = 24
 
-        internal data class SelectedVersion(val version: VersionOption, val isLatest: Boolean)
+        internal data class SelectedVersion(
+            val version: VersionOption,
+            val isLatest: Boolean,
+        )
 
         // Bundle?.getBoolean(key, false) ?: false — выносим проверку из
         // instance-кода, где arguments?.getBoolean == true порождает 4 branches
         // на каждый вызов.
-        internal fun readBoolArg(arguments: Bundle?, key: String): Boolean {
+        internal fun readBoolArg(
+            arguments: Bundle?,
+            key: String,
+        ): Boolean {
             if (arguments == null) return false
             return arguments.getBoolean(key, false)
         }
@@ -382,12 +406,14 @@ class ScriptListFragment : Fragment() {
         // predicate-функции companion — каждая экономит 2-4 synthetic branches.
         // Объединены в одну функцию, возвращающую Pair, чтобы не превышать
         // лимит detekt на количество функций в companion (11).
-        internal fun computeListFlags(items: List<ScriptUiItem>): ListFlags = ListFlags(
-            hasDownloadedUpdatable = items.any { it.isDownloaded && it.isUpdatable },
-            hasAvailableUpdate = items.any {
-                it.operationState is ScriptOperationState.UpdateAvailable
-            },
-        )
+        internal fun computeListFlags(items: List<ScriptUiItem>): ListFlags =
+            ListFlags(
+                hasDownloadedUpdatable = items.any { it.isDownloaded && it.isUpdatable },
+                hasAvailableUpdate =
+                    items.any {
+                        it.operationState is ScriptOperationState.UpdateAvailable
+                    },
+            )
 
         internal data class ListFlags(
             val hasDownloadedUpdatable: Boolean,
@@ -408,21 +434,26 @@ class ScriptListFragment : Fragment() {
             context: android.content.Context,
             event: LauncherEvent,
         ): String? {
-            fun nameVer(name: String, version: String?): String =
-                if (version != null) "$name v$version" else name
+            fun nameVer(
+                name: String,
+                version: String?,
+            ): String = if (version != null) "$name v$version" else name
             return when (event) {
-                is LauncherEvent.ScriptAdded -> context.getString(
-                    R.string.script_added,
-                    nameVer(event.scriptName, event.scriptVersion),
-                )
-                is LauncherEvent.ScriptAddFailed -> context.getString(
-                    R.string.script_add_failed,
-                    event.errorMessage,
-                )
-                is LauncherEvent.ScriptDeleted -> context.getString(
-                    R.string.script_deleted,
-                    event.scriptName,
-                )
+                is LauncherEvent.ScriptAdded ->
+                    context.getString(
+                        R.string.script_added,
+                        nameVer(event.scriptName, event.scriptVersion),
+                    )
+                is LauncherEvent.ScriptAddFailed ->
+                    context.getString(
+                        R.string.script_add_failed,
+                        event.errorMessage,
+                    )
+                is LauncherEvent.ScriptDeleted ->
+                    context.getString(
+                        R.string.script_deleted,
+                        event.scriptName,
+                    )
                 is LauncherEvent.UpdatesCompleted ->
                     if (event.updatedCount > 0) {
                         context.getString(R.string.updates_applied, event.updatedCount)
@@ -430,22 +461,26 @@ class ScriptListFragment : Fragment() {
                         context.getString(R.string.no_updates)
                     }
                 is LauncherEvent.VersionsLoaded -> null
-                is LauncherEvent.VersionInstallCompleted -> context.getString(
-                    R.string.version_install_completed,
-                    nameVer(event.scriptName, event.scriptVersion),
-                )
-                is LauncherEvent.VersionInstallFailed -> context.getString(
-                    R.string.version_load_failed,
-                    event.errorMessage,
-                )
-                is LauncherEvent.ReinstallCompleted -> context.getString(
-                    R.string.reinstall_completed,
-                    nameVer(event.scriptName, event.scriptVersion),
-                )
-                is LauncherEvent.ReinstallFailed -> context.getString(
-                    R.string.reinstall_failed,
-                    event.errorMessage,
-                )
+                is LauncherEvent.VersionInstallCompleted ->
+                    context.getString(
+                        R.string.version_install_completed,
+                        nameVer(event.scriptName, event.scriptVersion),
+                    )
+                is LauncherEvent.VersionInstallFailed ->
+                    context.getString(
+                        R.string.version_load_failed,
+                        event.errorMessage,
+                    )
+                is LauncherEvent.ReinstallCompleted ->
+                    context.getString(
+                        R.string.reinstall_completed,
+                        nameVer(event.scriptName, event.scriptVersion),
+                    )
+                is LauncherEvent.ReinstallFailed ->
+                    context.getString(
+                        R.string.reinstall_failed,
+                        event.errorMessage,
+                    )
                 is LauncherEvent.CheckCompleted ->
                     if (event.availableCount > 0) {
                         context.getString(R.string.updates_available, event.availableCount)
@@ -462,9 +497,11 @@ class ScriptListFragment : Fragment() {
         internal fun buildVersionLabels(
             versions: List<VersionOption>,
             currentMarker: String,
-        ): Array<String> = versions.map { version ->
-            if (version.isCurrent) "${version.tagName} $currentMarker" else version.tagName
-        }.toTypedArray()
+        ): Array<String> =
+            versions
+                .map { version ->
+                    if (version.isCurrent) "${version.tagName} $currentMarker" else version.tagName
+                }.toTypedArray()
 
         // Pure-резолв выбора: versions[0] всегда самая новая (GitHub API
         // возвращает в обратном хронологическом порядке). При selectedPosition<0
@@ -484,13 +521,15 @@ class ScriptListFragment : Fragment() {
         fun newEmbeddedInstance(): ScriptListFragment = ScriptListFragment()
 
         /** Создать embedded-фрагмент, который автоматически проверит обновления при onResume. */
-        fun newEmbeddedAutoCheckInstance(): ScriptListFragment = ScriptListFragment().apply {
-            arguments = bundleOf(ARG_AUTO_CHECK to true)
-        }
+        fun newEmbeddedAutoCheckInstance(): ScriptListFragment =
+            ScriptListFragment().apply {
+                arguments = bundleOf(ARG_AUTO_CHECK to true)
+            }
 
         /** Создать embedded-фрагмент, который автоматически проверит и обновит все скрипты. */
-        fun newEmbeddedAutoUpdateInstance(): ScriptListFragment = ScriptListFragment().apply {
-            arguments = bundleOf(ARG_AUTO_UPDATE to true)
-        }
+        fun newEmbeddedAutoUpdateInstance(): ScriptListFragment =
+            ScriptListFragment().apply {
+                arguments = bundleOf(ARG_AUTO_UPDATE to true)
+            }
     }
 }

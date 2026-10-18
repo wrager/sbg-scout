@@ -12,7 +12,6 @@ import android.webkit.CookieManager
  * эту константу в одном месте.
  */
 object CookieFixtures {
-
     const val FAKE_SESSION_TOKEN = "fake_e2e_token"
 
     fun injectFakeAuth(baseUrl: String) {

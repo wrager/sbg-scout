@@ -5,8 +5,9 @@ import com.github.wrager.sbgscout.script.model.ScriptIdentifier
 import java.io.File
 import java.io.IOException
 
-class ScriptFileStorageImpl(private val scriptsDirectory: File) : ScriptFileStorage {
-
+class ScriptFileStorageImpl(
+    private val scriptsDirectory: File,
+) : ScriptFileStorage {
     init {
         if (!scriptsDirectory.exists()) {
             scriptsDirectory.mkdirs()
@@ -23,7 +24,10 @@ class ScriptFileStorageImpl(private val scriptsDirectory: File) : ScriptFileStor
         }
     }
 
-    override fun writeContent(identifier: ScriptIdentifier, content: String) {
+    override fun writeContent(
+        identifier: ScriptIdentifier,
+        content: String,
+    ) {
         val file = fileFor(identifier)
         try {
             file.writeText(content)

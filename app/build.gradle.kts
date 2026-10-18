@@ -13,7 +13,7 @@ jacoco {
 
 android {
     namespace = "com.github.wrager.sbgscout"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.github.wrager.sbgscout"
@@ -241,7 +241,11 @@ tasks.register("copyReadmeScreenshots") {
     group = "verification"
     description = "Скопировать README-скриншоты из test outputs в .github/images/screenshots/"
     doLast {
-        val outputsDir = layout.buildDirectory.dir("outputs/connected_android_test_additional_output").get().asFile
+        val outputsDir =
+            layout.buildDirectory
+                .dir("outputs/connected_android_test_additional_output")
+                .get()
+                .asFile
         if (!outputsDir.exists()) {
             error(
                 "Директория $outputsDir не существует. " +
@@ -253,7 +257,8 @@ tasks.register("copyReadmeScreenshots") {
         targetDir.mkdirs()
         val expectedNames = setOf("game_settings.png", "settings.png", "script-manager.png")
         val copied = mutableListOf<String>()
-        outputsDir.walkTopDown()
+        outputsDir
+            .walkTopDown()
             .filter { it.isFile && it.name in expectedNames }
             .forEach { source ->
                 val target = File(targetDir, source.name)
@@ -319,10 +324,12 @@ tasks.register("inlineGameSnapshot") {
             return@doLast
         }
         val htmlFile =
-            snapshotsDir.listFiles { f -> f.isFile && f.name.endsWith(".html") }
+            snapshotsDir
+                .listFiles { f -> f.isFile && f.name.endsWith(".html") }
                 ?.firstOrNull()
         val filesDir =
-            snapshotsDir.listFiles { f -> f.isDirectory && f.name.endsWith("_files") }
+            snapshotsDir
+                .listFiles { f -> f.isDirectory && f.name.endsWith("_files") }
                 ?.firstOrNull()
         if (htmlFile == null || filesDir == null) {
             if (outputFile.exists()) outputFile.delete()

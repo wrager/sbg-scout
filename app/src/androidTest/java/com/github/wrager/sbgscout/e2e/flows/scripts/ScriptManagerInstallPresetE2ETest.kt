@@ -28,15 +28,17 @@ import org.junit.Test
  * реальный клик по download-иконке + HTTP-flow через FakeGameServer.
  */
 class ScriptManagerInstallPresetE2ETest : E2ETestBase() {
-
     @Test
     fun bundledSvp_isPreinstalledAfterFirstGameActivityLaunch() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
         scriptManager.waitForCard("SBG Vanilla+")
 
         // BundledScriptInstaller.installBundled в GameActivity.setupWebView
@@ -45,11 +47,12 @@ class ScriptManagerInstallPresetE2ETest : E2ETestBase() {
         // SVP это "https://github.com/wrager/sbg-vanilla-plus" (с префиксом).
         // Проверяем по @name — он стабильный "SBG Vanilla+".
         val storage = ScriptStorageFixture.storage()
-        val svp = storage.getAll().find { it.header.name == "SBG Vanilla+" }
-            ?: run {
-                fail("SVP должен быть автоматически установлен BundledScriptInstaller")
-                throw AssertionError("unreachable")
-            }
+        val svp =
+            storage.getAll().find { it.header.name == "SBG Vanilla+" }
+                ?: run {
+                    fail("SVP должен быть автоматически установлен BundledScriptInstaller")
+                    throw AssertionError("unreachable")
+                }
 
         assertTrue("Bundled SVP помечен isPreset=true", svp.isPreset)
         assertTrue(
@@ -76,15 +79,19 @@ class ScriptManagerInstallPresetE2ETest : E2ETestBase() {
         )
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
 
         scriptManager.clickCardChildView("SBG Enhanced UI", R.id.actionButton)
 
         val storage = ScriptStorageFixture.storage()
-        val eui = waitForScript(storage) {
-            it.header.namespace == "github.com/egorantonov/sbg-enhanced"
-        }
+        val eui =
+            waitForScript(storage) {
+                it.header.namespace == "github.com/egorantonov/sbg-enhanced"
+            }
 
         assertEquals("8.2.0", eui.header.version)
         assertFalse(

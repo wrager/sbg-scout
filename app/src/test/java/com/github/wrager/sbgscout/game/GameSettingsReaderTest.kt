@@ -5,7 +5,6 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class GameSettingsReaderTest {
-
     private val reader = GameSettingsReader()
 
     @Test
@@ -78,11 +77,12 @@ class GameSettingsReaderTest {
 
     @Test
     fun `parse handles full game settings json`() {
-        val json = """
+        val json =
+            """
             {"lang": "en", "theme": "dark", "imghid": false, "dsvhid": false,
              "arabic": false, "selfpos": false, "exref": false, "base": "cdb",
              "plrhid": false, "opacity": 2, "efmode": "full", "atkord": false}
-        """.trimIndent()
+            """.trimIndent()
         val result = reader.parse(json)
         assertEquals(GameSettingsReader.ThemeMode.DARK, result?.theme)
         assertEquals("en", result?.language)

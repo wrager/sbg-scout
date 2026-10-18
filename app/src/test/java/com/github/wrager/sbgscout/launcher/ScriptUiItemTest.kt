@@ -12,7 +12,6 @@ import org.junit.Test
  * (regex `github\.com/([^/]+)/([^/]+)`).
  */
 class ScriptUiItemTest {
-
     @Test
     fun `isGithubHosted returns false when sourceUrl is null`() {
         assertFalse(buildItem(sourceUrl = null).isGithubHosted)
@@ -36,15 +35,16 @@ class ScriptUiItemTest {
         assertTrue(buildItem(sourceUrl = "https://github.com/owner/repo").isGithubHosted)
     }
 
-    private fun buildItem(sourceUrl: String?): ScriptUiItem = ScriptUiItem(
-        identifier = ScriptIdentifier("test/Script"),
-        name = "Script",
-        version = "1.0.0",
-        releaseTag = null,
-        author = null,
-        enabled = false,
-        isPreset = false,
-        conflictNames = emptyList(),
-        sourceUrl = sourceUrl,
-    )
+    private fun buildItem(sourceUrl: String?): ScriptUiItem =
+        ScriptUiItem(
+            identifier = ScriptIdentifier("test/Script"),
+            name = "Script",
+            version = "1.0.0",
+            releaseTag = null,
+            author = null,
+            enabled = false,
+            isPreset = false,
+            conflictNames = emptyList(),
+            sourceUrl = sourceUrl,
+        )
 }

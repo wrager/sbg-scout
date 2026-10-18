@@ -12,23 +12,28 @@ import org.json.JSONObject
  * ```
  */
 class GameSettingsReader {
-
     enum class ThemeMode { AUTO, DARK, LIGHT }
 
-    data class GameSettings(val theme: ThemeMode, val language: String)
+    data class GameSettings(
+        val theme: ThemeMode,
+        val language: String,
+    )
 
     fun parse(json: String?): GameSettings? {
         if (json.isNullOrBlank() || json == "null") return null
         return try {
             val obj = JSONObject(json)
-            val theme = when (obj.optString("theme", "auto")) {
-                "dark" -> ThemeMode.DARK
-                "light" -> ThemeMode.LIGHT
-                else -> ThemeMode.AUTO
-            }
+            val theme =
+                when (obj.optString("theme", "auto")) {
+                    "dark" -> ThemeMode.DARK
+                    "light" -> ThemeMode.LIGHT
+                    else -> ThemeMode.AUTO
+                }
             val language = obj.optString("lang", "sys")
             GameSettings(theme, language)
-        } catch (@Suppress("SwallowedException") _: JSONException) {
+        } catch (
+            @Suppress("SwallowedException") _: JSONException,
+        ) {
             null
         }
     }
