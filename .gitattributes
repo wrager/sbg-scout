@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# Preserve upstream release bytes for bundled SVP verification.
+app/src/main/assets/scripts/sbg-vanilla-plus.user.js -text
