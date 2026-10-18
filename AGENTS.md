@@ -23,7 +23,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 `./gradlew ktlintCheck detekt lintInstr testInstrUnitTest assembleDebug assembleInstr assembleRelease`
 
-В PowerShell использовать `./gradlew.bat` с теми же аргументами. Проверка скиллов: `node scripts/syncAgentSkills.mjs --check`; тесты синхронизации: `node --test scripts/syncAgentSkills.test.mjs`.
+В PowerShell использовать `./gradlew.bat` с теми же аргументами. Проверка релизных файлов: `node scripts/checkRelease.mjs`, тесты: `node --test scripts/checkRelease.test.mjs`. Проверка скиллов: `node scripts/syncAgentSkills.mjs --check`; тесты синхронизации: `node --test scripts/syncAgentSkills.test.mjs`.
 
 Если сборка падает — пофиксить и повторить.
 
