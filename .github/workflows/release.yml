@@ -49,16 +49,24 @@ jobs:
           test -n "$RELEASE_STORE_PASSWORD" || { echo '::error::RELEASE_STORE_PASSWORD is required'; exit 1; }
           test -n "$RELEASE_KEY_PASSWORD" || { echo '::error::RELEASE_KEY_PASSWORD is required'; exit 1; }
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.release-please.outputs.sha }}
+          persist-credentials: false
 
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+
+      - name: Check release notes
+        run: node scripts/checkRelease.mjs "$RELEASE_TAG"
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
         with:
           distribution: temurin
           java-version: 25
 
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
 
       - name: Build release APK
         env:
@@ -67,9 +75,12 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
-      - name: Verify signature and rename APK
+      - name: Verify release assets
         run: |
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+          test "$(apkanalyzer manifest version-name app/build/outputs/apk/release/app-release.apk)" = "${RELEASE_TAG#v}"
+          IFS=. read -r major minor patch <<< "${RELEASE_TAG#v}"
+          test "$(apkanalyzer manifest version-code app/build/outputs/apk/release/app-release.apk)" = "$((major * 10000 + minor * 100 + patch))"
           mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/sbg-scout-$RELEASE_TAG.apk"
 
       - name: Publish GitHub Release after uploading APK
