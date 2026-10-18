@@ -35,7 +35,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class DeepLinkE2ETest : E2ETestBase() {
-
     @Test
     fun launch_withViewIntent_loadsDeepLinkUrlInWebView() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")

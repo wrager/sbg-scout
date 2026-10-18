@@ -24,7 +24,6 @@ import java.net.URISyntaxException
 class SbgWebViewClient(
     private val scriptInjector: ScriptInjector,
 ) : WebViewClient() {
-
     /** Вызывается после загрузки страницы игры с текущим значением настроек. */
     var onGameSettingsRead: ((String?) -> Unit)? = null
 
@@ -33,7 +32,6 @@ class SbgWebViewClient(
 
     @Volatile
     private var gamePageFinishedAtLeastOnce = false
-
 
     /**
      * Вызывается после `onPageFinished` страницы игры.
@@ -52,7 +50,11 @@ class SbgWebViewClient(
             if (gamePageFinishedAtLeastOnce) value?.invoke()
         }
 
-    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+    override fun onPageStarted(
+        view: WebView?,
+        url: String?,
+        favicon: Bitmap?,
+    ) {
         super.onPageStarted(view, url, favicon)
         if (GameUrls.isGameAppPage(url) && view != null) {
             view.evaluateJavascript(UserAgentOverride.BOOTSTRAP_SCRIPT) {}
@@ -66,7 +68,10 @@ class SbgWebViewClient(
         }
     }
 
-    override fun onPageFinished(view: WebView?, url: String?) {
+    override fun onPageFinished(
+        view: WebView?,
+        url: String?,
+    ) {
         super.onPageFinished(view, url)
         if (GameUrls.isGameAppPage(url) && view != null) {
             onGameSettingsRead?.let { callback ->
@@ -79,22 +84,31 @@ class SbgWebViewClient(
         }
     }
 
-    private fun handleInjectionResults(view: WebView, results: List<InjectionResult>) {
+    private fun handleInjectionResults(
+        view: WebView,
+        results: List<InjectionResult>,
+    ) {
         val errors = results.filterIsInstance<InjectionResult.ScriptError>()
         if (errors.isEmpty()) return
-        val scriptNames = errors.joinToString(", ") {
-            it.scriptName.ifBlank { it.identifier.value }
-        }
+        val scriptNames =
+            errors.joinToString(", ") {
+                it.scriptName.ifBlank { it.identifier.value }
+            }
         val message = view.context.getString(R.string.script_execution_error, scriptNames)
         Toast.makeText(view.context, message, Toast.LENGTH_LONG).show()
     }
 
-    override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+    override fun onReceivedError(
+        view: WebView?,
+        request: WebResourceRequest?,
+        error: WebResourceError?,
+    ) {
         super.onReceivedError(view, request, error)
         // Запасной путь для переходов мимо shouldOverrideUrlLoading (например,
         // перенаправления на bankXXX:// в ответ на POST): ссылку открывает система,
         // а страница ошибки WebView убирается.
-        if (view != null && request?.isForMainFrame == true &&
+        if (view != null &&
+            request?.isForMainFrame == true &&
             error?.errorCode == ERROR_UNSUPPORTED_SCHEME
         ) {
             openExternally(view.context, request.url.toString())
@@ -102,14 +116,20 @@ class SbgWebViewClient(
         }
     }
 
-    override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+    override fun onRenderProcessGone(
+        view: WebView?,
+        detail: RenderProcessGoneDetail?,
+    ): Boolean {
         // Renderer-процесс упал или был убит системой.
         // false = дефолтное поведение (краш приложения).
         // При необходимости можно заменить на graceful recovery (пересоздание WebView).
         return false
     }
 
-    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+    override fun shouldOverrideUrlLoading(
+        view: WebView?,
+        request: WebResourceRequest?,
+    ): Boolean {
         val uri = request?.url ?: return false
         val url = uri.toString()
         if (url.contains("window.close")) {
@@ -135,7 +155,10 @@ class SbgWebViewClient(
      * по умолчанию, а Scout остаётся на игре. Для заказа в браузере нужен вход
      * в аккаунт игры.
      */
-    private fun shouldStayInWebView(uri: Uri, isForMainFrame: Boolean): Boolean {
+    private fun shouldStayInWebView(
+        uri: Uri,
+        isForMainFrame: Boolean,
+    ): Boolean {
         val scheme = uri.scheme?.lowercase()
         return when {
             scheme in INTERNAL_SCHEMES -> true
@@ -155,7 +178,10 @@ class SbgWebViewClient(
      * Если запустить приложение не удалось, для `intent:` открывается его
      * `browser_fallback_url`, иначе показывается сообщение.
      */
-    private fun openExternally(context: Context, url: String) {
+    private fun openExternally(
+        context: Context,
+        url: String,
+    ) {
         val intent = createExternalIntent(url) ?: return
         if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (startActivitySafely(context, intent)) return
@@ -174,8 +200,9 @@ class SbgWebViewClient(
             // открылся в браузере, а не вернулся в Scout, приложение выбирается
             // по ссылке без хоста — под неё подходят только браузеры.
             if (GameUrls.isGameStorePage(url)) {
-                selector = Intent(Intent.ACTION_VIEW, Uri.parse(BROWSER_SELECTOR_URL))
-                    .addCategory(Intent.CATEGORY_BROWSABLE)
+                selector =
+                    Intent(Intent.ACTION_VIEW, Uri.parse(BROWSER_SELECTOR_URL))
+                        .addCategory(Intent.CATEGORY_BROWSABLE)
             }
         }
     }
@@ -207,7 +234,10 @@ class SbgWebViewClient(
      * false, если подходящего приложения нет или система не дала его запустить
      * (`SecurityException` у активити, закрытой разрешением).
      */
-    private fun startActivitySafely(context: Context, intent: Intent): Boolean =
+    private fun startActivitySafely(
+        context: Context,
+        intent: Intent,
+    ): Boolean =
         try {
             context.startActivity(intent)
             true

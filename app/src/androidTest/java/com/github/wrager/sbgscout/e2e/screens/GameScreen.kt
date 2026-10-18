@@ -12,10 +12,10 @@ import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.infra.WebViewIdlingResource
 import com.github.wrager.sbgscout.settings.SettingsFragment
+import org.junit.Assert.assertTrue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
-import org.junit.Assert.assertTrue
 
 /**
  * PageObject для [GameActivity].
@@ -28,7 +28,6 @@ class GameScreen(
     private val scenario: ActivityScenario<GameActivity>,
     private val idlingResource: WebViewIdlingResource,
 ) : Screen {
-
     override fun assertDisplayed() {
         scenario.onActivity { activity ->
             // Доступ к полю уже гарантирует инициализацию: lateinit бросит
@@ -45,7 +44,10 @@ class GameScreen(
         return this
     }
 
-    fun evaluateJs(script: String, timeout: Long = EVAL_TIMEOUT_MS): String {
+    fun evaluateJs(
+        script: String,
+        timeout: Long = EVAL_TIMEOUT_MS,
+    ): String {
         val latch = CountDownLatch(1)
         val result = AtomicReference<String?>(null)
         scenario.onActivity { activity ->
@@ -112,8 +114,9 @@ class GameScreen(
         while (System.currentTimeMillis() < deadline) {
             var ready = false
             scenario.onActivity { activity ->
-                val fragment = activity.supportFragmentManager
-                    .findFragmentById(R.id.settingsContainer)
+                val fragment =
+                    activity.supportFragmentManager
+                        .findFragmentById(R.id.settingsContainer)
                 ready = fragment is SettingsFragment && fragment.isResumed
             }
             if (ready) {

@@ -1,6 +1,9 @@
 package com.github.wrager.sbgscout.script.updater
 
 import androidx.annotation.VisibleForTesting
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -10,12 +13,8 @@ import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
 import kotlin.coroutines.coroutineContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
 
 class DefaultHttpFetcher : HttpFetcher {
-
     override suspend fun fetch(
         url: String,
         headers: Map<String, String>,
@@ -82,82 +81,86 @@ class DefaultHttpFetcher : HttpFetcher {
             url: String,
             headers: Map<String, String>,
             onProgress: ((Int) -> Unit)?,
-        ): String = withContext(Dispatchers.IO) {
-            val connection = URL(rewriteUrl(url)).openConnection() as HttpURLConnection
-            try {
-                connection.connectTimeout = CONNECT_TIMEOUT_MS
-                connection.readTimeout = READ_TIMEOUT_MS
-                connection.useCaches = false
-                connection.setRequestProperty("Cache-Control", "no-cache, no-store")
-                connection.setRequestProperty("Pragma", "no-cache")
-                headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
+        ): String =
+            withContext(Dispatchers.IO) {
+                val connection = URL(rewriteUrl(url)).openConnection() as HttpURLConnection
+                try {
+                    connection.connectTimeout = CONNECT_TIMEOUT_MS
+                    connection.readTimeout = READ_TIMEOUT_MS
+                    connection.useCaches = false
+                    connection.setRequestProperty("Cache-Control", "no-cache, no-store")
+                    connection.setRequestProperty("Pragma", "no-cache")
+                    headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
 
-                // connection.inputStream — blocking: DNS + connect + redirect + первый ответ.
-                // connectTimeout не покрывает DNS-резолв на Android, а при redirect
-                // (github.com → objects.githubusercontent.com) таймауты удваиваются.
-                // Ограничиваем общее время до получения потока данных.
-                val inputStream = openInputStreamWithDeadline(connection)
+                    // connection.inputStream — blocking: DNS + connect + redirect + первый ответ.
+                    // connectTimeout не покрывает DNS-резолв на Android, а при redirect
+                    // (github.com → objects.githubusercontent.com) таймауты удваиваются.
+                    // Ограничиваем общее время до получения потока данных.
+                    val inputStream = openInputStreamWithDeadline(connection)
 
-                val contentLength = connection.contentLengthLong
-                val outputStream = ByteArrayOutputStream()
-                val buffer = ByteArray(CHUNK_SIZE)
-                var totalBytesRead = 0L
-                var lastReportedProgress = -1
-                inputStream.use {
-                    var bytesThisRead: Int
-                    while (inputStream.read(buffer).also { bytesThisRead = it } != -1) {
-                        ensureActive()
-                        outputStream.write(buffer, 0, bytesThisRead)
-                        totalBytesRead += bytesThisRead
-                        if (onProgress != null) {
-                            val progress = if (contentLength > 0) {
-                                ((totalBytesRead * 100) / contentLength).toInt()
-                                    .coerceIn(0, 100)
-                            } else {
-                                // Content-Length неизвестен (chunked transfer, redirect) —
-                                // сигнализируем 0 %, чтобы вызывающий код узнал,
-                                // что соединение установлено и данные пошли
-                                0
-                            }
-                            if (progress != lastReportedProgress) {
-                                lastReportedProgress = progress
-                                onProgress(progress)
+                    val contentLength = connection.contentLengthLong
+                    val outputStream = ByteArrayOutputStream()
+                    val buffer = ByteArray(CHUNK_SIZE)
+                    var totalBytesRead = 0L
+                    var lastReportedProgress = -1
+                    inputStream.use {
+                        var bytesThisRead: Int
+                        while (inputStream.read(buffer).also { bytesThisRead = it } != -1) {
+                            ensureActive()
+                            outputStream.write(buffer, 0, bytesThisRead)
+                            totalBytesRead += bytesThisRead
+                            if (onProgress != null) {
+                                val progress =
+                                    if (contentLength > 0) {
+                                        ((totalBytesRead * 100) / contentLength)
+                                            .toInt()
+                                            .coerceIn(0, 100)
+                                    } else {
+                                        // Content-Length неизвестен (chunked transfer, redirect) —
+                                        // сигнализируем 0 %, чтобы вызывающий код узнал,
+                                        // что соединение установлено и данные пошли
+                                        0
+                                    }
+                                if (progress != lastReportedProgress) {
+                                    lastReportedProgress = progress
+                                    onProgress(progress)
+                                }
                             }
                         }
                     }
+                    outputStream.toString(Charsets.UTF_8.name())
+                } finally {
+                    connection.disconnect()
                 }
-                outputStream.toString(Charsets.UTF_8.name())
-            } finally {
-                connection.disconnect()
             }
-        }
 
         internal suspend fun fetchToFileInternal(
             url: String,
             destination: File,
             headers: Map<String, String>,
             onProgress: ((Int) -> Unit)?,
-        ): Unit = withContext(Dispatchers.IO) {
-            val connection = URL(rewriteUrl(url)).openConnection() as HttpURLConnection
-            try {
-                connection.connectTimeout = CONNECT_TIMEOUT_MS
-                connection.readTimeout = READ_TIMEOUT_MS
-                connection.instanceFollowRedirects = true
-                headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
+        ): Unit =
+            withContext(Dispatchers.IO) {
+                val connection = URL(rewriteUrl(url)).openConnection() as HttpURLConnection
+                try {
+                    connection.connectTimeout = CONNECT_TIMEOUT_MS
+                    connection.readTimeout = READ_TIMEOUT_MS
+                    connection.instanceFollowRedirects = true
+                    headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
 
-                val inputStream = openInputStreamWithDeadline(connection)
-                val contentLength = connection.contentLengthLong
+                    val inputStream = openInputStreamWithDeadline(connection)
+                    val contentLength = connection.contentLengthLong
 
-                destination.parentFile?.mkdirs()
-                inputStream.use { input ->
-                    FileOutputStream(destination).use { output ->
-                        readStream(input, output, contentLength, onProgress)
+                    destination.parentFile?.mkdirs()
+                    inputStream.use { input ->
+                        FileOutputStream(destination).use { output ->
+                            readStream(input, output, contentLength, onProgress)
+                        }
                     }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
-        }
 
         private suspend fun readStream(
             inputStream: InputStream,
@@ -183,7 +186,10 @@ class DefaultHttpFetcher : HttpFetcher {
             }
         }
 
-        private fun computeProgress(bytesRead: Long, contentLength: Long): Int =
+        private fun computeProgress(
+            bytesRead: Long,
+            contentLength: Long,
+        ): Int =
             if (contentLength > 0) {
                 ((bytesRead * 100) / contentLength).toInt().coerceIn(0, 100)
             } else {
@@ -199,13 +205,14 @@ class DefaultHttpFetcher : HttpFetcher {
             var result: InputStream? = null
             var error: Exception? = null
 
-            val thread = Thread {
-                try {
-                    result = connection.inputStream
-                } catch (exception: Exception) {
-                    error = exception
+            val thread =
+                Thread {
+                    try {
+                        result = connection.inputStream
+                    } catch (exception: Exception) {
+                        error = exception
+                    }
                 }
-            }
             thread.start()
             thread.join(RESPONSE_DEADLINE_MS)
 

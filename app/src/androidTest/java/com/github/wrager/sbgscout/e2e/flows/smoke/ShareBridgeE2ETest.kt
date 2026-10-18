@@ -28,7 +28,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ShareBridgeE2ETest : E2ETestBase() {
-
     @Test
     fun open_startsActionViewIntentWithGivenUrl() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -44,7 +43,8 @@ class ShareBridgeE2ETest : E2ETestBase() {
         try {
             // Перехватываем все исходящие intent'ы, чтобы реальный браузер
             // не стартовал — эмулятор может его не иметь и тест упадёт с ANR.
-            Intents.intending(anyIntent())
+            Intents
+                .intending(anyIntent())
                 .respondWith(Instrumentation.ActivityResult(Activity.RESULT_OK, null))
 
             val targetUrl = "https://example.com/share-test"

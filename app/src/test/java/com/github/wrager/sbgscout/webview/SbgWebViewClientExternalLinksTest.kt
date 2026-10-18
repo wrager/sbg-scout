@@ -24,8 +24,6 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkConstructor
 import io.mockk.unmockkStatic
 import io.mockk.verify
-import java.net.URISyntaxException
-import java.util.IdentityHashMap
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -33,6 +31,8 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.net.URISyntaxException
+import java.util.IdentityHashMap
 
 /**
  * Unit-тесты внешних ссылок [SbgWebViewClient]: какие переходы
@@ -45,7 +45,6 @@ import org.junit.Test
  * конструктор `Intent` мокаются. Незастабленные вызовы идут в заглушки.
  */
 class SbgWebViewClientExternalLinksTest {
-
     private lateinit var client: SbgWebViewClient
 
     /** Один matcher на каждый Uri, см. [SameInstanceMatcher]. */
@@ -80,15 +79,18 @@ class SbgWebViewClientExternalLinksTest {
      * hashCode собственные, и один экземпляр на Uri всегда даёт одного и того же
      * представителя.
      */
-    private class SameInstanceMatcher(private val expected: Any) : Matcher<Any> {
+    private class SameInstanceMatcher(
+        private val expected: Any,
+    ) : Matcher<Any> {
         override fun match(arg: Any?): Boolean = arg === expected
     }
 
     /** Представитель всех `Intent(ACTION_VIEW, uri)`, созданных клиентом. */
-    private fun MockKMatcherScope.viewIntent(uri: Uri): Intent = constructedWith<Intent>(
-        EqMatcher(Intent.ACTION_VIEW),
-        uriMatchers.getOrPut(uri) { SameInstanceMatcher(uri) },
-    )
+    private fun MockKMatcherScope.viewIntent(uri: Uri): Intent =
+        constructedWith<Intent>(
+            EqMatcher(Intent.ACTION_VIEW),
+            uriMatchers.getOrPut(uri) { SameInstanceMatcher(uri) },
+        )
 
     /**
      * У `Intent` на JVM нет состояния: getData() отвечает только у
@@ -98,11 +100,19 @@ class SbgWebViewClientExternalLinksTest {
         every { viewIntent(uri).data } returns uri
     }
 
-    private fun assertViewIntent(uri: Uri, intent: Intent) {
+    private fun assertViewIntent(
+        uri: Uri,
+        intent: Intent,
+    ) {
         assertSame("ожидался Intent(ACTION_VIEW, $uri)", uri, intent.data)
     }
 
-    private fun stubUri(url: String, scheme: String?, host: String? = null, path: String? = null): Uri {
+    private fun stubUri(
+        url: String,
+        scheme: String?,
+        host: String? = null,
+        path: String? = null,
+    ): Uri {
         val uri = mockk<Uri>()
         every { uri.scheme } returns scheme
         every { uri.host } returns host
@@ -112,14 +122,18 @@ class SbgWebViewClientExternalLinksTest {
         return uri
     }
 
-    private fun stubBankUri(): Uri = stubUri(
-        "bank100000000004://Main/tpay/payment-1",
-        scheme = "bank100000000004",
-        host = "Main",
-        path = "/tpay/payment-1",
-    )
+    private fun stubBankUri(): Uri =
+        stubUri(
+            "bank100000000004://Main/tpay/payment-1",
+            scheme = "bank100000000004",
+            host = "Main",
+            path = "/tpay/payment-1",
+        )
 
-    private fun request(uri: Uri, isForMainFrame: Boolean = true): WebResourceRequest {
+    private fun request(
+        uri: Uri,
+        isForMainFrame: Boolean = true,
+    ): WebResourceRequest {
         val request = mockk<WebResourceRequest>()
         every { request.url } returns uri
         every { request.isForMainFrame } returns isForMainFrame
@@ -159,7 +173,10 @@ class SbgWebViewClientExternalLinksTest {
         verify(exactly = 0) { Uri.parse(BROWSER_SELECTOR_URL) }
     }
 
-    private fun verifyNotFoundToast(context: Context, toast: Toast) {
+    private fun verifyNotFoundToast(
+        context: Context,
+        toast: Toast,
+    ) {
         verify { Toast.makeText(context, R.string.external_app_not_found, Toast.LENGTH_LONG) }
         verify { toast.show() }
     }
@@ -170,13 +187,14 @@ class SbgWebViewClientExternalLinksTest {
     fun `keeps internal schemes in WebView`() {
         val started = mutableListOf<Intent>()
         val webView = webViewWith(activityRecording(started))
-        val urls = mapOf(
-            "about:blank" to "about",
-            "data:text/html,<p>page</p>" to "data",
-            "blob:https://$GAME_HOST/0b6f2c4e" to "blob",
-            "javascript:void(0)" to "javascript",
-            "file:///android_asset/page.html" to "file",
-        )
+        val urls =
+            mapOf(
+                "about:blank" to "about",
+                "data:text/html,<p>page</p>" to "data",
+                "blob:https://$GAME_HOST/0b6f2c4e" to "blob",
+                "javascript:void(0)" to "javascript",
+                "file:///android_asset/page.html" to "file",
+            )
 
         for ((url, scheme) in urls) {
             assertFalse(url, client.shouldOverrideUrlLoading(webView, request(stubUri(url, scheme))))
@@ -190,12 +208,13 @@ class SbgWebViewClientExternalLinksTest {
         val started = mutableListOf<Intent>()
         val webView = webViewWith(activityRecording(started))
         val store = stubUri("https://$GAME_HOST/store/", scheme = "https", host = GAME_HOST, path = "/store/")
-        val robokassa = stubUri(
-            "https://auth.robokassa.ru/Merchant/Index.aspx",
-            scheme = "https",
-            host = "auth.robokassa.ru",
-            path = "/Merchant/Index.aspx",
-        )
+        val robokassa =
+            stubUri(
+                "https://auth.robokassa.ru/Merchant/Index.aspx",
+                scheme = "https",
+                host = "auth.robokassa.ru",
+                path = "/Merchant/Index.aspx",
+            )
 
         assertFalse(client.shouldOverrideUrlLoading(webView, request(store, isForMainFrame = false)))
         assertFalse(client.shouldOverrideUrlLoading(webView, request(robokassa, isForMainFrame = false)))
@@ -206,11 +225,12 @@ class SbgWebViewClientExternalLinksTest {
     fun `keeps other game pages in WebView`() {
         val started = mutableListOf<Intent>()
         val webView = webViewWith(activityRecording(started))
-        val pages = listOf(
-            stubUri("https://$GAME_HOST/rules/game/", scheme = "https", host = GAME_HOST, path = "/rules/game/"),
-            stubUri("https://$GAME_HOST/login/", scheme = "https", host = GAME_HOST, path = "/login/"),
-            stubUri("https://$GAME_HOST/storefront", scheme = "https", host = GAME_HOST, path = "/storefront"),
-        )
+        val pages =
+            listOf(
+                stubUri("https://$GAME_HOST/rules/game/", scheme = "https", host = GAME_HOST, path = "/rules/game/"),
+                stubUri("https://$GAME_HOST/login/", scheme = "https", host = GAME_HOST, path = "/login/"),
+                stubUri("https://$GAME_HOST/storefront", scheme = "https", host = GAME_HOST, path = "/storefront"),
+            )
 
         for (page in pages) {
             assertFalse(page.toString(), client.shouldOverrideUrlLoading(webView, request(page)))
@@ -231,12 +251,13 @@ class SbgWebViewClientExternalLinksTest {
     fun `keeps Telegram OAuth in WebView`() {
         // Вход в игру через Telegram проходит в WebView и возвращается на /login/.
         val started = mutableListOf<Intent>()
-        val uri = stubUri(
-            "https://oauth.telegram.org/auth?bot_id=1&origin=https%3A%2F%2F$GAME_HOST",
-            scheme = "https",
-            host = "oauth.telegram.org",
-            path = "/auth",
-        )
+        val uri =
+            stubUri(
+                "https://oauth.telegram.org/auth?bot_id=1&origin=https%3A%2F%2F$GAME_HOST",
+                scheme = "https",
+                host = "oauth.telegram.org",
+                path = "/auth",
+            )
 
         assertFalse(client.shouldOverrideUrlLoading(webViewWith(activityRecording(started)), request(uri)))
         assertTrue(started.isEmpty())
@@ -247,11 +268,12 @@ class SbgWebViewClientExternalLinksTest {
         // Совпадение по окончанию хоста считается только для поддоменов.
         val started = mutableListOf<Intent>()
         val webView = webViewWith(activityRecording(started))
-        val lookalikes = listOf(
-            stubUri("https://notrobokassa.ru/", scheme = "https", host = "notrobokassa.ru", path = "/"),
-            stubUri("https://at.me/", scheme = "https", host = "at.me", path = "/"),
-            stubUri("https://t.me.example.com/", scheme = "https", host = "t.me.example.com", path = "/"),
-        )
+        val lookalikes =
+            listOf(
+                stubUri("https://notrobokassa.ru/", scheme = "https", host = "notrobokassa.ru", path = "/"),
+                stubUri("https://at.me/", scheme = "https", host = "at.me", path = "/"),
+                stubUri("https://t.me.example.com/", scheme = "https", host = "t.me.example.com", path = "/"),
+            )
 
         for (uri in lookalikes) {
             assertFalse(uri.toString(), client.shouldOverrideUrlLoading(webView, request(uri)))
@@ -292,10 +314,11 @@ class SbgWebViewClientExternalLinksTest {
         val bankUri = stubBankUri()
         stubViewIntent(bankUri)
 
-        val handled = client.shouldOverrideUrlLoading(
-            webViewWith(activityRecording(started)),
-            request(bankUri, isForMainFrame = false),
-        )
+        val handled =
+            client.shouldOverrideUrlLoading(
+                webViewWith(activityRecording(started)),
+                request(bankUri, isForMainFrame = false),
+            )
 
         assertTrue(handled)
         assertViewIntent(bankUri, started.single())
@@ -305,11 +328,12 @@ class SbgWebViewClientExternalLinksTest {
     fun `opens other app schemes externally`() {
         val started = mutableListOf<Intent>()
         val webView = webViewWith(activityRecording(started))
-        val links = listOf(
-            stubUri("tel:+79990000000", scheme = "tel"),
-            stubUri("mailto:support@example.com", scheme = "mailto"),
-            stubUri("tg://resolve?domain=sbg_game", scheme = "tg", host = "resolve"),
-        )
+        val links =
+            listOf(
+                stubUri("tel:+79990000000", scheme = "tel"),
+                stubUri("mailto:support@example.com", scheme = "mailto"),
+                stubUri("tg://resolve?domain=sbg_game", scheme = "tg", host = "resolve"),
+            )
         links.forEach { stubViewIntent(it) }
 
         for (link in links) {
@@ -344,12 +368,13 @@ class SbgWebViewClientExternalLinksTest {
         GameUrls.betaServerEnabled = true
         stubUri("https://beta.$GAME_HOST/app", scheme = "https", host = "beta.$GAME_HOST", path = "/app")
         val started = mutableListOf<Intent>()
-        val storeUri = stubUri(
-            "https://beta.$GAME_HOST/store/item/5",
-            scheme = "https",
-            host = "beta.$GAME_HOST",
-            path = "/store/item/5",
-        )
+        val storeUri =
+            stubUri(
+                "https://beta.$GAME_HOST/store/item/5",
+                scheme = "https",
+                host = "beta.$GAME_HOST",
+                path = "/store/item/5",
+            )
         stubViewIntent(storeUri)
 
         assertTrue(client.shouldOverrideUrlLoading(webViewWith(activityRecording(started)), request(storeUri)))
@@ -362,12 +387,13 @@ class SbgWebViewClientExternalLinksTest {
     fun `opens Robokassa externally`() {
         val started = mutableListOf<Intent>()
         val webView = webViewWith(activityRecording(started))
-        val payment = stubUri(
-            "https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=sbg_game&InvoiceID=1",
-            scheme = "https",
-            host = "auth.robokassa.ru",
-            path = "/Merchant/Index.aspx",
-        )
+        val payment =
+            stubUri(
+                "https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=sbg_game&InvoiceID=1",
+                scheme = "https",
+                host = "auth.robokassa.ru",
+                path = "/Merchant/Index.aspx",
+            )
         val root = stubUri("https://robokassa.ru/", scheme = "https", host = "robokassa.ru", path = "/")
         stubViewIntent(payment)
         stubViewIntent(root)
@@ -385,12 +411,13 @@ class SbgWebViewClientExternalLinksTest {
     fun `opens Telegram links externally`() {
         val started = mutableListOf<Intent>()
         val webView = webViewWith(activityRecording(started))
-        val links = listOf(
-            stubUri("https://t.me/sbg_game", scheme = "https", host = "t.me", path = "/sbg_game"),
-            stubUri("https://telegram.me/sbg_forum", scheme = "https", host = "telegram.me", path = "/sbg_forum"),
-            stubUri("https://www.t.me/sbg_game", scheme = "https", host = "www.t.me", path = "/sbg_game"),
-            stubUri("HTTPS://T.ME/sbg_game", scheme = "HTTPS", host = "T.ME", path = "/sbg_game"),
-        )
+        val links =
+            listOf(
+                stubUri("https://t.me/sbg_game", scheme = "https", host = "t.me", path = "/sbg_game"),
+                stubUri("https://telegram.me/sbg_forum", scheme = "https", host = "telegram.me", path = "/sbg_forum"),
+                stubUri("https://www.t.me/sbg_game", scheme = "https", host = "www.t.me", path = "/sbg_game"),
+                stubUri("HTTPS://T.ME/sbg_game", scheme = "HTTPS", host = "T.ME", path = "/sbg_game"),
+            )
         links.forEach { stubViewIntent(it) }
 
         for (link in links) {
@@ -436,10 +463,11 @@ class SbgWebViewClientExternalLinksTest {
         assertSame(parsedIntent, started.single())
         // Как в браузерах: только BROWSABLE-активити, без явного компонента и
         // selector'а, без выдачи доступа к URI (FileProvider приложения).
-        val grantFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
-            Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+        val grantFlags =
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
         verify {
             parsedIntent.addCategory(Intent.CATEGORY_BROWSABLE)
             parsedIntent.component = null
@@ -477,8 +505,9 @@ class SbgWebViewClientExternalLinksTest {
     fun `opens browser fallback url when intent app is missing`() {
         val started = mutableListOf<Intent>()
         val activity = mockk<Activity>(relaxed = true)
-        val intentUrl = "intent://pay/#Intent;scheme=bank100000000004;" +
-            "S.browser_fallback_url=https%3A%2F%2Fexample.com%2Fpay;end"
+        val intentUrl =
+            "intent://pay/#Intent;scheme=bank100000000004;" +
+                "S.browser_fallback_url=https%3A%2F%2Fexample.com%2Fpay;end"
         val parsedIntent = stubParsedIntent(intentUrl)
         every { parsedIntent.getStringExtra("browser_fallback_url") } returns "https://example.com/pay"
         every { activity.startActivity(any()) } answers {
@@ -499,8 +528,9 @@ class SbgWebViewClientExternalLinksTest {
         // Fallback со схемой javascript: и прочими не-http(s) не открывается.
         val activity = mockk<Activity>(relaxed = true)
         val toast = stubToast()
-        val intentUrl = "intent://pay/#Intent;scheme=bank100000000004;" +
-            "S.browser_fallback_url=javascript%3Aalert(1);end"
+        val intentUrl =
+            "intent://pay/#Intent;scheme=bank100000000004;" +
+                "S.browser_fallback_url=javascript%3Aalert(1);end"
         val parsedIntent = stubParsedIntent(intentUrl)
         every { parsedIntent.getStringExtra("browser_fallback_url") } returns "javascript:alert(1)"
         every { activity.startActivity(any()) } throws ActivityNotFoundException()
@@ -559,7 +589,10 @@ class SbgWebViewClientExternalLinksTest {
         return error
     }
 
-    private fun webViewWithHistory(context: Context, canGoBack: Boolean): WebView {
+    private fun webViewWithHistory(
+        context: Context,
+        canGoBack: Boolean,
+    ): WebView {
         val webView = webViewWith(context)
         every { webView.canGoBack() } returns canGoBack
         return webView

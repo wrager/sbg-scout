@@ -11,7 +11,10 @@ import androidx.test.platform.app.InstrumentationRegistry
 object AssetLoader {
     fun read(path: String): String {
         val context = InstrumentationRegistry.getInstrumentation().context
-        return context.assets.open(path).bufferedReader().use { it.readText() }
+        return context.assets
+            .open(path)
+            .bufferedReader()
+            .use { it.readText() }
     }
 
     /**
@@ -19,11 +22,10 @@ object AssetLoader {
      * для fixtures, которые могут отсутствовать (например, `game-snapshot.html`
      * генерируется из gitignored `refs/game/private/` и есть только локально).
      */
-    fun readOrNull(path: String): String? {
-        return try {
+    fun readOrNull(path: String): String? =
+        try {
             read(path)
         } catch (e: java.io.IOException) {
             null
         }
-    }
 }

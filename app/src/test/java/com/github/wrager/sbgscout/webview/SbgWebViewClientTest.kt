@@ -4,9 +4,9 @@ import android.app.Activity
 import android.content.Context
 import android.net.Uri
 import android.webkit.RenderProcessGoneDetail
+import android.webkit.ValueCallback
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
-import android.webkit.ValueCallback
 import android.widget.Toast
 import com.github.wrager.sbgscout.bridge.DownloadBridge
 import com.github.wrager.sbgscout.bridge.GameSettingsBridge
@@ -39,7 +39,6 @@ import org.junit.Test
  * приватный [handleInjectionResults] через [onPageStarted] callback.
  */
 class SbgWebViewClientTest {
-
     private lateinit var scriptInjector: ScriptInjector
     private lateinit var client: SbgWebViewClient
 

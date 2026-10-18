@@ -52,7 +52,6 @@ import org.junit.Test
  * так же как [com.github.wrager.sbgscout.e2e.flows.settings.AppUpdateCheckE2ETest].
  */
 class AutoUpdateFromDialogE2ETest : E2ETestBase() {
-
     @Test
     fun scriptUpdatesDialog_updateClick_opensAutoUpdateFragmentAndUpdatesStorage() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -73,7 +72,11 @@ class AutoUpdateFromDialogE2ETest : E2ETestBase() {
         // Script update: v0.8.1 доступна по latest.
         val svp081 = AssetLoader.read("fixtures/scripts/svp-v0.8.1.user.js")
         server.stubScriptAsset(
-            "wrager", "sbg-vanilla-plus", "latest", "sbg-vanilla-plus.user.js", svp081,
+            "wrager",
+            "sbg-vanilla-plus",
+            "latest",
+            "sbg-vanilla-plus.user.js",
+            svp081,
         )
         // Releases list: ScriptUpdateChecker сравнивает по tag_name через
         // GitHub API, ScriptReleaseNotesProvider берёт отсюда же release notes.
@@ -91,7 +94,9 @@ class AutoUpdateFromDialogE2ETest : E2ETestBase() {
         // Переопределяем disableAutoUpdateCheck — автопроверка нам нужна, т.к.
         // именно она запускает showScriptUpdatesDialog.
         val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
-        PreferenceManager.getDefaultSharedPreferences(targetContext).edit()
+        PreferenceManager
+            .getDefaultSharedPreferences(targetContext)
+            .edit()
             .putBoolean("auto_check_updates", true)
             .putLong("last_update_check", 0L)
             .commit()
@@ -121,12 +126,13 @@ class AutoUpdateFromDialogE2ETest : E2ETestBase() {
         ScriptStorageFixture.storage().save(
             UserScript(
                 identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
-                header = ScriptHeader(
-                    name = "SBG Vanilla+",
-                    version = version,
-                    namespace = "github.com/wrager/sbg-vanilla-plus",
-                    match = listOf("https://sbg-game.ru/app/*"),
-                ),
+                header =
+                    ScriptHeader(
+                        name = "SBG Vanilla+",
+                        version = version,
+                        namespace = "github.com/wrager/sbg-vanilla-plus",
+                        match = listOf("https://sbg-game.ru/app/*"),
+                    ),
                 sourceUrl = PresetScripts.SVP.downloadUrl,
                 updateUrl = PresetScripts.SVP.updateUrl,
                 content = "// sideloaded SVP $version",
@@ -142,7 +148,9 @@ class AutoUpdateFromDialogE2ETest : E2ETestBase() {
             try {
                 onView(withText(text)).inRoot(isDialog()).check(matches(isDisplayed()))
                 return
-            } catch (@Suppress("TooGenericExceptionCaught") _: Throwable) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") _: Throwable,
+            ) {
                 Thread.sleep(POLL_INTERVAL_MS)
             }
         }
@@ -157,8 +165,9 @@ class AutoUpdateFromDialogE2ETest : E2ETestBase() {
             var shown = false
             scenario.onActivity { activity ->
                 val container = activity.findViewById<View>(R.id.settingsContainer)
-                val fragment = activity.supportFragmentManager
-                    .findFragmentById(R.id.settingsContainer)
+                val fragment =
+                    activity.supportFragmentManager
+                        .findFragmentById(R.id.settingsContainer)
                 shown = container.visibility == View.VISIBLE &&
                     fragment is ScriptListFragment &&
                     fragment.isResumed
@@ -176,9 +185,12 @@ class AutoUpdateFromDialogE2ETest : E2ETestBase() {
         val deadline = SystemClock.uptimeMillis() + STORAGE_WAIT_TIMEOUT_MS
         val storage = ScriptStorageFixture.storage()
         while (SystemClock.uptimeMillis() < deadline) {
-            val version = storage.getAll()
-                .find { it.header.name == "SBG Vanilla+" }
-                ?.header?.version
+            val version =
+                storage
+                    .getAll()
+                    .find { it.header.name == "SBG Vanilla+" }
+                    ?.header
+                    ?.version
             if (version == expected) {
                 assertTrue(
                     "SVP должен быть enabled после auto-update",

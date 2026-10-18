@@ -39,7 +39,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ExternalLinksE2ETest : E2ETestBase() {
-
     private lateinit var scenario: ActivityScenario<GameActivity>
 
     @Test
@@ -106,7 +105,8 @@ class ExternalLinksE2ETest : E2ETestBase() {
 
     /** Ни браузер, ни приложение банка на эмуляторе не запускаются. */
     private fun stubExternalActivities() {
-        Intents.intending(anyIntent())
+        Intents
+            .intending(anyIntent())
             .respondWith(Instrumentation.ActivityResult(Activity.RESULT_OK, null))
     }
 
@@ -128,25 +128,29 @@ class ExternalLinksE2ETest : E2ETestBase() {
      * со ссылкой без хоста. Под него подходят только браузеры, поэтому магазин
      * не возвращается в Scout, который сам принимает ссылки сайта игры.
      */
-    private fun hasBrowserSelector(): Matcher<Intent> = object : TypeSafeMatcher<Intent>() {
-        override fun describeTo(description: Description) {
-            description.appendText(
-                "has selector: action=${Intent.ACTION_VIEW}, data=$BROWSER_SELECTOR_URL, " +
-                    "category=${Intent.CATEGORY_BROWSABLE}",
-            )
-        }
+    private fun hasBrowserSelector(): Matcher<Intent> =
+        object : TypeSafeMatcher<Intent>() {
+            override fun describeTo(description: Description) {
+                description.appendText(
+                    "has selector: action=${Intent.ACTION_VIEW}, data=$BROWSER_SELECTOR_URL, " +
+                        "category=${Intent.CATEGORY_BROWSABLE}",
+                )
+            }
 
-        override fun describeMismatchSafely(item: Intent, mismatchDescription: Description) {
-            mismatchDescription.appendText("selector was ").appendValue(item.selector)
-        }
+            override fun describeMismatchSafely(
+                item: Intent,
+                mismatchDescription: Description,
+            ) {
+                mismatchDescription.appendText("selector was ").appendValue(item.selector)
+            }
 
-        override fun matchesSafely(item: Intent): Boolean {
-            val selector = item.selector ?: return false
-            return selector.action == Intent.ACTION_VIEW &&
-                selector.data == Uri.parse(BROWSER_SELECTOR_URL) &&
-                selector.hasCategory(Intent.CATEGORY_BROWSABLE)
+            override fun matchesSafely(item: Intent): Boolean {
+                val selector = item.selector ?: return false
+                return selector.action == Intent.ACTION_VIEW &&
+                    selector.data == Uri.parse(BROWSER_SELECTOR_URL) &&
+                    selector.hasCategory(Intent.CATEGORY_BROWSABLE)
+            }
         }
-    }
 
     /** Все запросы, пришедшие на fake-сервер, в виде "METHOD /path". */
     private fun recordedRequests(): List<String> =

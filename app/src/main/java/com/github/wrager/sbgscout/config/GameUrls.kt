@@ -15,7 +15,6 @@ import com.github.wrager.sbgscout.BuildConfig
  * Значение инициализируется из SharedPreferences в `SbgScoutApplication.onCreate`.
  */
 object GameUrls {
-
     @VisibleForTesting
     @Volatile
     internal var appUrlOverride: String? = null
@@ -71,7 +70,10 @@ object GameUrls {
      * Страница игрового хоста (основного или текущего из [appUrl], например
      * бета-сервера) с путём [pathPrefix] или вложенным в него.
      */
-    private fun isGamePageUnder(url: String?, pathPrefix: String): Boolean {
+    private fun isGamePageUnder(
+        url: String?,
+        pathPrefix: String,
+    ): Boolean {
         if (url.isNullOrEmpty()) return false
         val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
         val scheme = uri.scheme?.lowercase()

@@ -18,15 +18,21 @@ class DownloadBridge(
     private val save: (filename: String, mimeType: String, bytes: ByteArray) -> String?,
     private val onResult: (savedName: String?) -> Unit,
 ) {
-
     @JavascriptInterface
-    fun saveBlob(base64: String, filename: String, mimeType: String) {
-        val bytes = try {
-            Base64.decode(base64, Base64.DEFAULT)
-        } catch (@Suppress("SwallowedException") _: IllegalArgumentException) {
-            onResult(null)
-            return
-        }
+    fun saveBlob(
+        base64: String,
+        filename: String,
+        mimeType: String,
+    ) {
+        val bytes =
+            try {
+                Base64.decode(base64, Base64.DEFAULT)
+            } catch (
+                @Suppress("SwallowedException") _: IllegalArgumentException,
+            ) {
+                onResult(null)
+                return
+            }
         val savedName = save(filename, mimeType, bytes)
         onResult(savedName)
     }
@@ -50,7 +56,8 @@ class DownloadBridge(
          * и атрибут `download`, читаем blob из кеша синхронно и передаём в мост.
          * Нативный click() НЕ вызывается (он бы открыл blob в новом табе).
          */
-        val BOOTSTRAP_SCRIPT = """
+        val BOOTSTRAP_SCRIPT =
+            """
             (function() {
               if (window.__sbg_download_installed) return;
               window.__sbg_download_installed = true;
@@ -88,6 +95,6 @@ class DownloadBridge(
                 return origClick.call(this);
               };
             })();
-        """.trimIndent()
+            """.trimIndent()
     }
 }

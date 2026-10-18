@@ -20,7 +20,6 @@ import org.junit.Test
  * поэтому `Uri.parse` мокается через MockK, как в [GameUrlsIsGameUrlTest].
  */
 class GameUrlsIsGameStorePageTest {
-
     @Before
     fun setUp() {
         mockkStatic(Uri::class)
@@ -36,7 +35,12 @@ class GameUrlsIsGameStorePageTest {
         GameUrls.betaServerEnabled = false
     }
 
-    private fun stubUri(url: String, scheme: String?, host: String?, path: String? = null) {
+    private fun stubUri(
+        url: String,
+        scheme: String?,
+        host: String?,
+        path: String? = null,
+    ) {
         val uri = mockk<Uri>()
         every { uri.scheme } returns scheme
         every { uri.host } returns host
