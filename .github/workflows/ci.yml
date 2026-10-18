@@ -40,6 +40,15 @@ jobs:
       - name: Test release checks
         run: node --test scripts/checkRelease.test.mjs
 
+      - name: Test bundled SVP updates
+        run: node --test scripts/updateBundledSvp.test.mjs
+
+      - name: Check latest bundled SVP in release PR
+        if: github.event_name == 'pull_request' && github.head_ref == 'release-please--branches--main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/updateBundledSvp.mjs --check
+
       - name: Test skill synchronization
         run: node --test scripts/syncAgentSkills.test.mjs
 

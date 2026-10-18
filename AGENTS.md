@@ -24,7 +24,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 `./gradlew ktlintCheck detekt lintInstr testInstrUnitTest assembleDebug assembleInstr assembleRelease`
 
-В PowerShell использовать `./gradlew.bat` с теми же аргументами. Проверка релизных файлов: `node scripts/checkRelease.mjs`, тесты: `node --test scripts/checkRelease.test.mjs`. Проверка скиллов: `node scripts/syncAgentSkills.mjs --check`; тесты синхронизации: `node --test scripts/syncAgentSkills.test.mjs`.
+В PowerShell использовать `./gradlew.bat` с теми же аргументами. Проверка релизных файлов: `node scripts/checkRelease.mjs`, тесты: `node --test scripts/checkRelease.test.mjs scripts/updateBundledSvp.test.mjs`. Проверка скиллов: `node scripts/syncAgentSkills.mjs --check`; тесты синхронизации: `node --test scripts/syncAgentSkills.test.mjs`.
 
 Если сборка падает — пофиксить и повторить.
 
@@ -42,6 +42,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 ## Вшитые скрипты
 
+- При подготовке каждого release PR выполнять `node scripts/updateBundledSvp.mjs` до тестов и скриншотов; изменённый SVP коммитить в этот PR. Перед merge — `node scripts/updateBundledSvp.mjs --check`. CI release PR и публикация блокируют устаревший или изменённый бандл. Обычные сборки не требуют сети для обновления SVP.
 - **Вшитые скрипты (`app/src/main/assets/scripts/`) обновляются ТОЛЬКО из GitHub releases.** Соседние директории (`../sbg-vanilla-plus` и т.д.) — для исследования исходников, НЕ для вшивания в APK. Источник для вшивания — всегда release-артефакт с GitHub.
 
 ## Код
@@ -63,7 +64,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 - Скриншоты в `.github/images/screenshots/` (`game_settings.png`, `settings.png`, `script-manager.png`) обновляются как часть каждого релиза тем же коммитом, что bump версии в `app/build.gradle.kts`.
 - Источник истины — e2e-генератор, не ручные снимки. Скилл `scout-screenshots` запускает три тест-класса в `app/src/androidTest/.../e2e/screenshots/` через `:app:updateReadmeScreenshots` (gradle-обёртка над `connectedInstrAndroidTest` с фильтром по `@ReadmeScreenshot` + `copyReadmeScreenshots`). Эмулятор: API 33, Pixel 4, WebView 101. Локаль приложения форсится на русскую внутри тестов через `LocaleManager.setApplicationLocales`, локаль эмулятора не имеет значения.
 - В `scout-release` скриншоты обновляются ПОСЛЕ `versionMajor`/`versionMinor`/`versionPatch` в `app/build.gradle.kts`, чтобы новая версия попала на экран настроек из `BuildConfig.VERSION_NAME`.
-- Итоговый squash-коммит release PR включает `RELEASE_NOTES.md`, `version.txt`, `.release-please-manifest.json`, `app/build.gradle.kts` и `.github/images/screenshots/` одной транзакцией. Скилл скриншотов сам не коммитит — это решает вызывающий сценарий.
+- Итоговый squash-коммит release PR включает `RELEASE_NOTES.md`, `version.txt`, `.release-please-manifest.json`, `app/build.gradle.kts`, `.github/images/screenshots/` и актуальный бандл SVP одной транзакцией. Скилл скриншотов сам не коммитит — это решает вызывающий сценарий.
 - `game_settings.png` использует mock-фикстуру (`app-page-with-settings-content-realistic.html`), потому что полные стили игры не лежат в репо. Локальный snapshot в `refs/game/private/` (gitignored через `/refs/`) подхватывается задачей `inlineGameSnapshot` как override фикстуры.
 
 ## Терминология
