@@ -196,18 +196,22 @@ Renovate использует semantic commit messages.
 
 ### Debug APK в PR
 
-После успешного Android job `check` CI обновляет комментарий `debug-apk`
-для PR из ветки этого репозитория. Ссылка ведёт на Actions artifact:
-нужен вход в GitHub; внутри ZIP — `sbg-scout-debug-<run_number>-<run_attempt>.apk`.
-Собирается результат слияния PR с базой; комментарий содержит фактический SHA,
-номер запуска, попытку и ссылку. Статусы e2e и остальных jobs проверяются отдельно.
-Для fork PR и push в `main` комментарий с APK не создаётся.
+После успешного Android job `check` CI сохраняет ровно
+`app/build/outputs/apk/debug/app-debug.apk` через actions/upload-artifact.
+Отдельный `preview-comment` добавляет ссылку на ZIP, SHA ветки и merge commit,
+run/attempt. Сборка имеет только contents: read; job комментария —
+pull-requests: write, без checkout, скачивания и исполнения кода PR.
+Для fork/Dependabot и push main preview не публикуется.
 
-При неудаче новой сборки остаётся предыдущая ссылка; rerun старого запуска
-может обновить комментарий старым APK. Ориентироваться на run/SHA.
-Артефакты хранятся по политике репозитория. Debug устанавливается рядом
-с release, но общий debug-keystore не используется: при несовпадении
-сертификатов разных CI-сборок потребуется переустановка debug-приложения.
+Имена artifact и message-id включают run/attempt: один комментарий на попытку,
+старые остаются историей. Сбой новой сборки не добавляет комментарий.
+Rerun старого run не заменяет ссылку нового. Artifact хранится 14 дней,
+если run/artifact не удалены раньше; для скачивания нужен вход в GitHub.
+
+Распаковать ZIP и установить app-debug.apk. Debug устанавливается рядом со stable.
+Общий debug-keystore не используется: при несовпадении сертификатов CI-сборок
+потребуется переустановка debug-приложения. Статусы e2e и других jobs
+смотреть отдельно.
 
 ### Подготовка и публикация
 
@@ -219,13 +223,15 @@ Renovate использует semantic commit messages.
    `CHANGELOG.md` не создаётся; автоматический черновик notes находится в теле PR.
 2. Вызвать `scout-release` для этого PR: сверить notes с итоговым кодом,
    записать русские `RELEASE_NOTES.md`, после bump версии сгенерировать три PNG,
-   проверить изображения и выполнить проверки. Служебную структуру тела PR,
+   проверить изображения и выполнить проверки. CI запускает
+   `node scripts/checkRelease.mjs`: заголовок notes должен совпадать с version.txt
+   и manifest. Это не проверка полноты текста; её обеспечивает review diff. Служебную структуру тела PR,
    заголовок и метки release-please сохранить. Перед merge повторить сверку,
    если бот изменил PR. Notes, версия и PNG входят в один итоговый squash.
 3. Вручную squash-merge подготовленный release PR. Workflow создаёт тег
    `vX.Y.Z` и draft GitHub Release, затем job `publish` проверяет наличие
    трёх signing secrets, делает checkout SHA релиза, собирает и проверяет
-   подпись через `apksigner verify`. APK загружается как `sbg-scout-vX.Y.Z.apk`.
+   подпись через `apksigner verify`, versionName и versionCode готового APK против тега. APK загружается как `sbg-scout-vX.Y.Z.apk`.
    Только после загрузки softprops v3 публикует draft с текстом из
    `RELEASE_NOTES.md` и помечает его latest. Отдельный push тега не запускает выпуск.
 
@@ -247,7 +253,7 @@ draft через GitHub UI/CLI; не удалять теги и не публи�
   pull requests**, сохранив default token permissions = read. Workflows выдают
   права записи только нужным jobs.
 - Первый release PR от `GITHUB_TOKEN` может потребовать **Approve workflows
-  to run**. Проверить появление всех required checks перед merge. Отдельный
+  to run**. Это возможно и после обновления ботом. Проверить появление всех required checks перед merge. Отдельный
   GitHub App/token для этого процесса пока не нужен.
 
 Начальная версия миграции — `1.2.0`, bootstrap — коммит тега `v1.2.0`
