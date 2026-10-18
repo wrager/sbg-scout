@@ -188,7 +188,7 @@ node --test scripts/syncAgentSkills.test.mjs
 `fix(updater): исправить загрузку APK`, `ci: обновить проверки`.
 Scope необязателен, описание может быть русским. Проверяется заголовок PR;
 внутренние коммиты переписывать не требуется. В `main` используется только
-squash с заголовком и описанием PR; завершающие `Co-authored-by` переносятся автоматически после обновления metadata workflow. Breaking change отмечать `!` в
+squash с заголовком и описанием PR; соавторов в описание добавляет агент по AGENTS.md. Breaking change отмечать `!` в
 заголовке (`feat!: ...`), пояснение оставлять в описании PR.
 
 `feat` увеличивает MINOR, `fix` и `perf` — PATCH, breaking change — MAJOR.
@@ -296,12 +296,3 @@ release-please и реальный PR с debug APK. Создание перво�
 Основания: [release-please](https://github.com/googleapis/release-please),
 [release-please action](https://github.com/googleapis/release-please-action),
 [softprops v3](https://github.com/softprops/action-gh-release/tree/v3.0.3).
-
-
-### Автоперенос соавторства PR
-
-`pr-coauthors.yml` собирает явные `Co-authored-by` из всех страниц коммитов PR через GraphQL, добавляет отсутствующие строки в завершающий абзац описания и сохраняет уже явно указанных соавторов. Разные модели с одним email учитываются отдельно; повторные события не переписывают неизменившийся текст. Служебное описание release-please и прочие trailers сохраняются. Маркер расположен перед финальным абзацем, после `Co-authored-by` нет закрывающего HTML-комментария.
-
-Workflow работает с метаданными PR в main: открытие/редактирование/новые коммиты, завершение существующего workflow Release, изменение своего YAML в main и ручной workflow_dispatch (номер PR либо все открытые PR). Обработчик Release покрывает обновления от GITHUB_TOKEN, которые сами не запускают следующий workflow. При смене head или неполной пагинации обновление отклоняется; описание читается заново перед записью.
-
-Это metadata-only `pull_request_target`: исходники и артефакты PR не скачиваются, код PR не выполняется. Права ограничены `contents: read` и `pull-requests: write`; workflow не делает merge и не выдаёт approval. Уже явно указанные credits автоматически не удаляются при force-push. Перед squash нужно дождаться обновления блока соавторов. Проверки контракта: `node --test scripts/pr-coauthors.test.mjs`.
