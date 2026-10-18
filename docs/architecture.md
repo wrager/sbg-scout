@@ -422,10 +422,18 @@ WebView-экраны (`game-settings`, `login`) только в light: фикс�
 
 ### CI
 
-`connectedInstrAndroidTest` и `visualRegressionTest` запускаются в `e2e.yml` отдельными командами Gradle в одном emulator-runner step (переиспользуют AVD). Так VR-фильтр configuration phase не ограничивает полный e2e-прогон. Ключ AVD-кэша включает профиль Pixel 4, чтобы baseline всегда сравнивались при разрешении 1080x2280 и density 440 dpi. Diff-картинки и actual.png попадают в `e2e-reports` artifact при падении.
+`e2e.yml` — reusable workflow, вызываемый из `ci.yml` по общему плану проверок; ручной `workflow_dispatch` запускает оба набора. `connectedInstrAndroidTest` и `visualRegressionTest` запускаются выбранными отдельными командами Gradle в одном emulator-runner step (переиспользуют AVD). Функциональный прогон исключает `@VisualRegressionTest` через `notAnnotation`, поэтому VR-сценарии исполняются один раз — в отдельном прогоне со сравнением PNG. Ключ AVD-кэша включает профиль Pixel 4, чтобы baseline всегда сравнивались при разрешении 1080x2280 и density 440 dpi. Diff-картинки и actual.png попадают в `e2e-reports` artifact при падении.
 
-Path-filter workflow включает `.github/images/visual-regression/**`: PR с изменениями только baseline также запускает e2e и сравнение PNG.
+При изменении только PNG baseline в `.github/images/visual-regression/` выбирается только visual regression, без функционального e2e. План учитывает общие Gradle-файлы, wrapper и настройки JVM, влияющие на тестируемую сборку.
 
 Генерация локального game snapshot предшествует сборке androidTest assets и моделям lint: совместный запуск полного CI и VR не зависит от порядка выполнения этих задач.
 
 Полноэкранные и прокручиваемые VR-снимки исключают системные status/navigation bar по WindowInsets текущей Activity. Сравнивается интерфейс приложения; значки сети и контраст системных кнопок AVD не создают ложные регрессии. Региональные снимки сохраняют заданные границы.
+
+## Выбор проверок CI и агентов
+
+`scripts/planChecks.mjs` — общий источник выбора проверок по изменённым путям. CI job `changes` вычисляет diff PR через merge-base base/head SHA, а для push — точную пару before/after; локальный режим добавляет staged, unstaged и untracked. Git возвращает NUL-разделённые имена без распознавания rename: проверяются и удалённый, и новый путь. Неизвестный путь включает полный набор без сетевого SVP; ошибка Git/планирования завершает job с ошибкой.
+
+`ci.yml` сохраняет required checks `check` и `agent-skills`, условно запускает jobs и отдельные шаги, а также вызывает e2e только для PR. Если планирование падает или не возвращает флаг группы, оба required jobs запускаются и падают на проверке плана. При успешном плане ненужные jobs получают Skipped, допустимый для branch protection. Debug artifact и комментарий создаются только при выбранной debug-сборке. Release PR всегда получает полный набор и сетевую проверку актуальности SVP.
+
+`pr-title.yml` остаётся независимым обязательным workflow для всех PR; `release.yml` обрабатывает каждый push main через release-please и публикует APK только при `release_created`. Подробная матрица и локальные команды — [ci-checks.md](ci-checks.md).

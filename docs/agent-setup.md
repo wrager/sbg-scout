@@ -111,6 +111,24 @@ Debug использует настоящий адрес игры. Для авт
 [ускорение эмулятора](https://developer.android.com/studio/run/emulator-acceleration),
 [Windows sandbox Codex](https://learn.chatgpt.com/docs/windows/windows-sandbox).
 
+### Параллельные worktree и длинные пути Windows
+
+Тесты разных worktree нельзя запускать одновременно на одном AVD: Gradle переустанавливает
+общие test APK и Android Test Orchestrator, из-за чего другой прогон может оборваться
+с `No ListenerManager`/`Test instrumentation process crashed`. Команда `android.ps1 test`
+использует общий `sbg-scout-api33`. Для параллельного прогона создать отдельный AVD
+из того же образа API 33 default с профилем Pixel 4, выбрать свободную пару emulator/adb
+портов и перед прямым Gradle-запуском задать его `ANDROID_SERIAL`. Не останавливать
+и не переустанавливать APK на эмуляторе другой задачи.
+
+В длинном пути worktree adb может не сохранить coverage-файлы с именем полного теста,
+даже при `LongPathsEnabled=1`. Для локального прогона можно временно отобразить worktree
+на свободную букву через `subst S: <абсолютный-путь-worktree>` и запускать Gradle
+из `S:\` (либо с `--project-dir S:\`). Сначала проверить, что буква свободна;
+после завершения удалить только созданное этой задачей отображение: `subst S: /d`.
+Системные настройки длинных путей менять не требуется. Временный AVD также удалить
+после завершения своей проверки, не затрагивая общие AVD.
+
 ## Окружение Android
 
 - Android SDK Platform 37, Build Tools, Platform Tools (`adb`). Путь к SDK задаётся через `ANDROID_HOME` или локальный `local.properties` с `sdk.dir`; этот файл не коммитится. В Windows для `sdk.dir` удобно использовать прямые слеши.
@@ -121,6 +139,8 @@ Debug использует настоящий адрес игры. Для авт
 `RELEASE_STORE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_PASSWORD` нужны для подписанного релиза в CI. Для обычной локальной проверки release-сборки секреты не требуются: без `RELEASE_STORE` APK будет неподписанным. Секреты и keystore в репозиторий не добавлять.
 
 ## Команды
+
+Перед коммитом получить выборочный план через `node scripts/planChecks.mjs --base origin/main` и выполнить его `commands`. Для документации Android-инструменты не нужны. Матрица, обработка diff и полные проверки описаны в [ci-checks.md](ci-checks.md). Примеры ниже — отдельные команды и явный полный Android-набор; `android.ps1 verify` сохраняет полный режим.
 
 PowerShell:
 
@@ -198,12 +218,12 @@ Renovate использует semantic commit messages.
 
 ### Debug APK в PR
 
-После успешного Android job `check` CI сохраняет ровно
+Когда план включает debug APK, после успешного Android job `check` CI сохраняет ровно
 `app/build/outputs/apk/debug/app-debug.apk` через actions/upload-artifact.
 Отдельный `preview-comment` добавляет ссылку на ZIP, SHA ветки и merge commit,
 run/attempt. Сборка имеет только contents: read; job комментария —
 pull-requests: write, без checkout, скачивания и исполнения кода PR.
-Для fork/Dependabot и push main preview не публикуется.
+Для fork/Dependabot и push main preview не публикуется. Если debug APK не выбран (например, изменились только docs или JVM-тесты), artifact и комментария нет.
 
 Имена artifact и message-id включают run/attempt: один комментарий на попытку,
 старые остаются историей. Сбой новой сборки не добавляет комментарий.
@@ -269,8 +289,8 @@ draft через GitHub UI/CLI; не удалять теги и не публи�
 
 - Разрешить только squash merge, squash title = **PR title**, тело = **PR description**.
 - Защитить `main`: PR обязателен, обход для администраторов отключён,
-  обязательны постоянные checks `check`, `agent-skills`, `pr-title`.
-  Условный e2e с path filters обязательным не назначать.
+  обязательны checks `check`, `agent-skills`, `pr-title`.
+  Первые два пропускаются на уровне job, когда не нужны; ошибка планирования вызывает их падение. Сам CI workflow не фильтровать по путям, чтобы required checks не оставались Pending. E2e вызывается условно из CI; его не назначать отдельным required check.
 - В Actions → General включить **Allow GitHub Actions to create and approve
   pull requests**, сохранив default token permissions = read. Workflows выдают
   права записи только нужным jobs.

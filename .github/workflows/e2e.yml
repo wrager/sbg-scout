@@ -1,15 +1,14 @@
 name: e2e
 
 on:
-  pull_request:
-    paths:
-      - 'app/src/main/**'
-      - 'app/src/androidTest/**'
-      - 'app/src/instr/**'
-      - 'app/build.gradle.kts'
-      - 'gradle/libs.versions.toml'
-      - '.github/images/visual-regression/**'
-      - '.github/workflows/e2e.yml'
+  workflow_call:
+    inputs:
+      functional:
+        required: true
+        type: boolean
+      visual:
+        required: true
+        type: boolean
   workflow_dispatch:
 
 concurrency:
@@ -48,7 +47,10 @@ jobs:
           # Общий профиль Pixel 4; кешируем данные AVD, запускаем без snapshot.
           key: avd-pixel4-api33-default-x86_64-coldboot-v4
 
-      - name: Run connectedInstrAndroidTest + visualRegressionTest
+      - name: Run selected emulator tests
+        env:
+          RUN_FUNCTIONAL: ${{ github.event_name == 'workflow_dispatch' || inputs.functional }}
+          RUN_VISUAL: ${{ github.event_name == 'workflow_dispatch' || inputs.visual }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
@@ -62,11 +64,10 @@ jobs:
             -no-window -gpu swiftshader -feature -Vulkan -cores 2 -no-snapshot
             -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          # Отдельные Gradle invocations сохраняют полный e2e-прогон:
-          # VR-фильтр применяется только ко второй команде, AVD общий.
+          # Separate invocations share the AVD; functional tests exclude VR to avoid running it twice.
           script: |
-            ./gradlew connectedInstrAndroidTest --stacktrace --no-daemon
-            ./gradlew visualRegressionTest --stacktrace --no-daemon
+            if [ "$RUN_FUNCTIONAL" = true ]; then ./gradlew connectedInstrAndroidTest "-Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.github.wrager.sbgscout.e2e.visualregression.VisualRegressionTest" --stacktrace --no-daemon; fi
+            if [ "$RUN_VISUAL" = true ]; then ./gradlew visualRegressionTest --stacktrace --no-daemon; fi
 
       - name: Upload reports
         if: always()
