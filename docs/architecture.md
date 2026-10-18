@@ -338,6 +338,14 @@ app/src/instr/
 
 ### CI
 
+Локальный Windows-запуск использует те же Gradle-задачи через `scripts/android.ps1`.
+`setupAndroid.ps1` устанавливает инструменты и создаёт выделенный AVD, а `test`
+дожидается загрузки и проверяет API 33/WebView 101 перед `connectedInstrAndroidTest`.
+Скрипты общие для человека, Codex и Claude Code; пути, разрешения и команды описаны
+в [agent-setup.md](agent-setup.md). Это инфраструктура разработки, в APK она не входит.
+Для остановки зависшего AVD сохраняются PID и время запуска его host-процесса:
+при отсутствии доступного AVD завершается только подтверждённое дерево этого процесса.
+
 `.github/workflows/e2e.yml` — отдельный workflow на `reactivecircus/android-emulator-runner` (API 33, x86_64, pixel_4), запускается по `pull_request` с path-filter (`app/src/main/**`, `app/src/androidTest/**`, `app/src/instr/**`, `app/build.gradle.kts`, `gradle/libs.versions.toml`) и `workflow_dispatch`. AVD snapshot кэшируется между запусками. Не добавлен в `push: main`, чтобы не блокировать мердж долгим прогоном эмулятора. Основной `ci.yml` собирает instr-APK (`assembleInstr`) для быстрого ловли поломок сборки до запуска emulator runner.
 
 ### Запрет обращений к прод-серверу
