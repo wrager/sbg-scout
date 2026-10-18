@@ -13,6 +13,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  windows-tools:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test Android command helpers
+        shell: powershell
+        run: ./scripts/android.test.ps1
+
   agent-skills:
     runs-on: ubuntu-latest
     steps:
