@@ -71,9 +71,9 @@ jobs:
 
       - name: Restore CI debug keystore
         if: >-
-          github.event_name == 'push' ||
-          (github.event.pull_request.head.repo.full_name == github.repository &&
-          github.actor != 'dependabot[bot]')
+          github.actor != 'dependabot[bot]' &&
+          (github.event_name == 'push' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
         env:
           DEBUG_STORE: ${{ secrets.DEBUG_STORE }}
           ANDROID_USER_HOME: ${{ runner.temp }}/android-user
