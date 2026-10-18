@@ -17,7 +17,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Check shared agent skills
         run: node scripts/syncAgentSkills.mjs --check
