@@ -24,7 +24,6 @@ import androidx.test.platform.app.InstrumentationRegistry
  * измерений/layout), этого достаточно для любого разумного теста.
  */
 object RecyclerViewScrolling {
-
     fun <A : android.app.Activity> scrollToLastPosition(
         scenario: ActivityScenario<A>,
         @IdRes recyclerViewId: Int,
@@ -69,7 +68,10 @@ object RecyclerViewScrolling {
         return result
     }
 
-    private fun findTextViewWithText(view: View, text: String): View? {
+    private fun findTextViewWithText(
+        view: View,
+        text: String,
+    ): View? {
         if (view is android.widget.TextView && view.text?.toString() == text) return view
         if (view is android.view.ViewGroup) {
             for (i in 0 until view.childCount) {

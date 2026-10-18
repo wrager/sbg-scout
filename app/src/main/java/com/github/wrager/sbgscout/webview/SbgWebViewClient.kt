@@ -18,7 +18,6 @@ import com.github.wrager.sbgscout.script.injector.ScriptInjector
 class SbgWebViewClient(
     private val scriptInjector: ScriptInjector,
 ) : WebViewClient() {
-
     /** Вызывается после загрузки страницы игры с текущим значением настроек. */
     var onGameSettingsRead: ((String?) -> Unit)? = null
 
@@ -30,7 +29,6 @@ class SbgWebViewClient(
 
     @Volatile
     private var gamePageFinishedAtLeastOnce = false
-
 
     /**
      * Вызывается после `onPageFinished` страницы игры.
@@ -49,7 +47,11 @@ class SbgWebViewClient(
             if (gamePageFinishedAtLeastOnce) value?.invoke()
         }
 
-    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+    override fun onPageStarted(
+        view: WebView?,
+        url: String?,
+        favicon: Bitmap?,
+    ) {
         super.onPageStarted(view, url, favicon)
         if (!GameUrls.isGameAppPage(url)) {
             onOtherPageStarted?.invoke(url)
@@ -65,7 +67,10 @@ class SbgWebViewClient(
         }
     }
 
-    override fun onPageFinished(view: WebView?, url: String?) {
+    override fun onPageFinished(
+        view: WebView?,
+        url: String?,
+    ) {
         super.onPageFinished(view, url)
         if (GameUrls.isGameAppPage(url) && view != null) {
             onGameSettingsRead?.let { callback ->
@@ -78,24 +83,34 @@ class SbgWebViewClient(
         }
     }
 
-    private fun handleInjectionResults(view: WebView, results: List<InjectionResult>) {
+    private fun handleInjectionResults(
+        view: WebView,
+        results: List<InjectionResult>,
+    ) {
         val errors = results.filterIsInstance<InjectionResult.ScriptError>()
         if (errors.isEmpty()) return
-        val scriptNames = errors.joinToString(", ") {
-            it.scriptName.ifBlank { it.identifier.value }
-        }
+        val scriptNames =
+            errors.joinToString(", ") {
+                it.scriptName.ifBlank { it.identifier.value }
+            }
         val message = view.context.getString(R.string.script_execution_error, scriptNames)
         Toast.makeText(view.context, message, Toast.LENGTH_LONG).show()
     }
 
-    override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+    override fun onRenderProcessGone(
+        view: WebView?,
+        detail: RenderProcessGoneDetail?,
+    ): Boolean {
         // Renderer-процесс упал или был убит системой.
         // false = дефолтное поведение (краш приложения).
         // При необходимости можно заменить на graceful recovery (пересоздание WebView).
         return false
     }
 
-    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+    override fun shouldOverrideUrlLoading(
+        view: WebView?,
+        request: WebResourceRequest?,
+    ): Boolean {
         val uri = request?.url ?: return false
         val url = uri.toString()
         if (url.contains("window.close")) {

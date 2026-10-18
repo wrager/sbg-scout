@@ -15,29 +15,35 @@ import org.junit.Test
  * скрипт из ScriptStorage (SharedPreferences + файл контента).
  */
 class ScriptManagerDeleteE2ETest : E2ETestBase() {
-
     @Test
     fun delete_installedScript_removesFromStorage() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
 
-        val script = ScriptStorageFixture.minimalScript(
-            name = "Deletable Script",
-            identifierValue = "deletable-script",
-        )
+        val script =
+            ScriptStorageFixture.minimalScript(
+                name = "Deletable Script",
+                identifierValue = "deletable-script",
+            )
         val storage = ScriptStorageFixture.storage()
         storage.save(script)
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
 
         scriptManager.deleteCardViaOverflow("Deletable Script")
 
         waitUntilDeleted(storage, script.identifier.value)
     }
 
-    private fun waitUntilDeleted(storage: ScriptStorage, identifierValue: String) {
+    private fun waitUntilDeleted(
+        storage: ScriptStorage,
+        identifierValue: String,
+    ) {
         val deadline = SystemClock.uptimeMillis() + TIMEOUT_MS
         while (SystemClock.uptimeMillis() < deadline) {
             val found = storage.getAll().find { it.identifier.value == identifierValue }

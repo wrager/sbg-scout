@@ -8,7 +8,6 @@ import org.junit.Test
  * (страница входа) от верха содержимого `rootLayout` в GameActivity.
  */
 class TopButtonsTopMarginTest {
-
     @Test
     fun `root padding covers safe zone so margin is only the gap`() {
         // Обычный режим: отступ rootLayout сверху равен высоте статус-бара.

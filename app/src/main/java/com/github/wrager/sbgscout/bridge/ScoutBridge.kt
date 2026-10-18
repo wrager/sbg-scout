@@ -20,7 +20,6 @@ class ScoutBridge(
     private val onHtmlInjected: () -> Unit,
     private val onOpenSettings: () -> Unit,
 ) {
-
     @JavascriptInterface
     fun onGameReady() {
         onReady()
@@ -74,7 +73,8 @@ class ScoutBridge(
          * Если этого не случится (нет сети, ошибка этапа) — подложка загрузки
          * не снимается, нативные «Scout» и «Reload» остаются доступны.
          */
-        val BOOTSTRAP_SCRIPT = """
+        val BOOTSTRAP_SCRIPT =
+            """
             (function() {
                 var STRINGS = {
                     ru: { item: 'Настройки SBG Scout', button: 'Открыть' },
@@ -153,6 +153,6 @@ class ScoutBridge(
                     start();
                 }
             })();
-        """.trimIndent()
+            """.trimIndent()
     }
 }

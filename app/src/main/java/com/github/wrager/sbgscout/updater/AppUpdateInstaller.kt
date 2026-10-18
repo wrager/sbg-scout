@@ -13,7 +13,6 @@ class AppUpdateInstaller(
     private val context: Context,
     private val httpFetcher: HttpFetcher,
 ) {
-
     /**
      * Скачивает APK по [downloadUrl] в кеш-директорию и запускает установку.
      */
@@ -30,10 +29,11 @@ class AppUpdateInstaller(
     private fun launchInstaller(apkFile: File) {
         val authority = "${context.packageName}.fileprovider"
         val contentUri = FileProvider.getUriForFile(context, authority, apkFile)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(contentUri, APK_MIME_TYPE)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+        val intent =
+            Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri, APK_MIME_TYPE)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
         context.startActivity(intent)
     }
 

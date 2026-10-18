@@ -21,7 +21,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class LockPortraitOrientationModeE2ETest : E2ETestBase() {
-
     @Test
     fun changingLockPortraitOrientationPref_togglesRequestedOrientation() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")

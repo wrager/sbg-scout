@@ -21,12 +21,12 @@ import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.infra.WebViewIdlingResource
 import com.github.wrager.sbgscout.settings.SettingsFragment
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * PageObject для [GameActivity].
@@ -39,7 +39,6 @@ class GameScreen(
     private val scenario: ActivityScenario<GameActivity>,
     private val idlingResource: WebViewIdlingResource,
 ) : Screen {
-
     override fun assertDisplayed() {
         scenario.onActivity { activity ->
             // Доступ к полю уже гарантирует инициализацию: lateinit бросит
@@ -56,7 +55,10 @@ class GameScreen(
         return this
     }
 
-    fun evaluateJs(script: String, timeout: Long = EVAL_TIMEOUT_MS): String {
+    fun evaluateJs(
+        script: String,
+        timeout: Long = EVAL_TIMEOUT_MS,
+    ): String {
         val latch = CountDownLatch(1)
         val result = AtomicReference<String?>(null)
         scenario.onActivity { activity ->
@@ -97,12 +99,13 @@ class GameScreen(
     fun loadingUiState(): LoadingUiState {
         var state: LoadingUiState? = null
         scenario.onActivity { activity ->
-            state = LoadingUiState(
-                overlay = activity.findViewById<View>(R.id.loadingOverlay).isShown,
-                label = activity.findViewById<View>(R.id.gameInitializingLabel).isShown,
-                reload = activity.findViewById<View>(R.id.reloadButton).isShown,
-                scout = activity.findViewById<View>(R.id.settingsButton).isShown,
-            )
+            state =
+                LoadingUiState(
+                    overlay = activity.findViewById<View>(R.id.loadingOverlay).isShown,
+                    label = activity.findViewById<View>(R.id.gameInitializingLabel).isShown,
+                    reload = activity.findViewById<View>(R.id.reloadButton).isShown,
+                    scout = activity.findViewById<View>(R.id.settingsButton).isShown,
+                )
         }
         return checkNotNull(state) { "GameActivity недоступна" }
     }
@@ -150,20 +153,22 @@ class GameScreen(
             val container = activity.findViewById<View>(R.id.topButtonsContainer)
             val rootLocation = IntArray(2).also { root.getLocationOnScreen(it) }
             val containerLocation = IntArray(2).also { container.getLocationOnScreen(it) }
-            val safeTopInset = ViewCompat.getRootWindowInsets(root)
-                ?.getInsetsIgnoringVisibility(
-                    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
-                )
-                ?.top ?: 0
+            val safeTopInset =
+                ViewCompat
+                    .getRootWindowInsets(root)
+                    ?.getInsetsIgnoringVisibility(
+                        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+                    )?.top ?: 0
             val areaHeight = root.height - root.paddingTop - root.paddingBottom
-            geometry = TopButtonsGeometry(
-                top = containerLocation[1],
-                centerY = containerLocation[1] + container.height / 2,
-                safeTop = rootLocation[1] + safeTopInset,
-                areaCenterY = rootLocation[1] + root.paddingTop + areaHeight / 2,
-                screenTop = rootLocation[1],
-                screenHeight = root.height,
-            )
+            geometry =
+                TopButtonsGeometry(
+                    top = containerLocation[1],
+                    centerY = containerLocation[1] + container.height / 2,
+                    safeTop = rootLocation[1] + safeTopInset,
+                    areaCenterY = rootLocation[1] + root.paddingTop + areaHeight / 2,
+                    screenTop = rootLocation[1],
+                    screenHeight = root.height,
+                )
         }
         return checkNotNull(geometry) { "GameActivity недоступна" }
     }
@@ -200,7 +205,10 @@ class GameScreen(
      * `login`, `rules`). В отличие от [waitForLoaded] работает и вне игры:
      * idling срабатывает только на загрузке страницы игры.
      */
-    fun waitForFakePage(name: String, timeoutMs: Long = PAGE_TIMEOUT_MS): GameScreen {
+    fun waitForFakePage(
+        name: String,
+        timeoutMs: Long = PAGE_TIMEOUT_MS,
+    ): GameScreen {
         val expected = "\"$name\""
         val deadline = SystemClock.uptimeMillis() + timeoutMs
         var actual = evaluateJs(FAKE_PAGE_MARKER_SCRIPT)
@@ -231,10 +239,11 @@ class GameScreen(
      * Элемент не должен быть под нативными кнопками в центре экрана.
      */
     fun tapElement(elementId: String) {
-        val raw = evaluateJs(
-            "(function(){var e=document.getElementById('$elementId');if(!e)return null;" +
-                "var r=e.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()",
-        )
+        val raw =
+            evaluateJs(
+                "(function(){var e=document.getElementById('$elementId');if(!e)return null;" +
+                    "var r=e.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()",
+            )
         check(raw != "null") { "Элемент #$elementId не найден на странице" }
         val cssCenter = JSONArray(raw)
         val screenPoint = FloatArray(2)
@@ -291,8 +300,9 @@ class GameScreen(
         while (System.currentTimeMillis() < deadline) {
             var ready = false
             scenario.onActivity { activity ->
-                val fragment = activity.supportFragmentManager
-                    .findFragmentById(R.id.settingsContainer)
+                val fragment =
+                    activity.supportFragmentManager
+                        .findFragmentById(R.id.settingsContainer)
                 ready = fragment is SettingsFragment && fragment.isResumed
             }
             if (ready) {

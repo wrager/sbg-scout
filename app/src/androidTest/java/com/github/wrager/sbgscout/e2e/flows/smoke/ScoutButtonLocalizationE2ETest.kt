@@ -25,7 +25,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ScoutButtonLocalizationE2ETest : E2ETestBase() {
-
     @Test
     fun injectedButton_usesRussian_whenLangIsSysAndNavigatorLanguageIsRu() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-with-settings-content.html")
@@ -39,10 +38,11 @@ class ScoutButtonLocalizationE2ETest : E2ETestBase() {
         // JSON-строку в двойных кавычках, либо литерал "null".
         val deadline = SystemClock.uptimeMillis() + TIMEOUT_MS
         while (SystemClock.uptimeMillis() < deadline) {
-            val raw = game.evaluateJs(
-                "(function(){var b=document.getElementById('sbg-scout-settings-btn');" +
-                    "return b?b.textContent:null;})()",
-            )
+            val raw =
+                game.evaluateJs(
+                    "(function(){var b=document.getElementById('sbg-scout-settings-btn');" +
+                        "return b?b.textContent:null;})()",
+                )
             if (raw != "null") {
                 assertEquals("\"Открыть\"", raw)
                 return

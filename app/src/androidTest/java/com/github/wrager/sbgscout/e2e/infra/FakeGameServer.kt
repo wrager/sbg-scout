@@ -1,10 +1,10 @@
 package com.github.wrager.sbgscout.e2e.infra
 
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import java.net.InetAddress
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import okhttp3.mockwebserver.MockWebServer
-import okhttp3.mockwebserver.RecordedRequest
 
 /**
  * Обёртка над [MockWebServer] с маршрутизацией под fake-игру и fake-GitHub.
@@ -23,7 +23,6 @@ import okhttp3.mockwebserver.RecordedRequest
  *   `/gh-api/repos/<owner>/<repo>/releases[/latest]`.
  */
 class FakeGameServer {
-
     private val server = MockWebServer()
 
     @Volatile var gamePageBody: String = "<html><body>fake app page (no body set)</body></html>"
@@ -93,11 +92,12 @@ class FakeGameServer {
                         "запроса. Пропущены: $skipped",
                 )
             }
-            val request = server.takeRequest(remaining, TimeUnit.MILLISECONDS)
-                ?: throw AssertionError(
-                    "takeRequestMatching: очередь пуста за ${timeoutMs}ms. " +
-                        "Пропущены: $skipped",
-                )
+            val request =
+                server.takeRequest(remaining, TimeUnit.MILLISECONDS)
+                    ?: throw AssertionError(
+                        "takeRequestMatching: очередь пуста за ${timeoutMs}ms. " +
+                            "Пропущены: $skipped",
+                    )
             if (predicate(request)) return request
             skipped += "${request.method} ${request.path}"
         }
@@ -122,12 +122,20 @@ class FakeGameServer {
     }
 
     /** Регистрирует ответ для `/gh-api/repos/<owner>/<repo>/releases/latest`. */
-    fun stubGithubReleaseLatest(owner: String, repo: String, json: String) {
+    fun stubGithubReleaseLatest(
+        owner: String,
+        repo: String,
+        json: String,
+    ) {
         githubLatestReleaseJson["$owner/$repo"] = json
     }
 
     /** Регистрирует ответ для `/gh-api/repos/<owner>/<repo>/releases`. */
-    fun stubGithubReleasesList(owner: String, repo: String, json: String) {
+    fun stubGithubReleasesList(
+        owner: String,
+        repo: String,
+        json: String,
+    ) {
         githubReleasesListJson["$owner/$repo"] = json
     }
 

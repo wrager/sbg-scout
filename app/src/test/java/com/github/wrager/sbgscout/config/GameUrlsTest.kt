@@ -13,7 +13,6 @@ import org.junit.Test
  * и четыре ветки в [GameUrls.isGameAppPage] (null URL, host match, /app match).
  */
 class GameUrlsTest {
-
     @After
     fun clearOverrides() {
         GameUrls.appUrlOverride = null

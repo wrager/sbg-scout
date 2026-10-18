@@ -25,7 +25,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class GameLoadingE2ETest : E2ETestBase() {
-
     @Test
     fun pageWithoutLoadingScreen_hidesLoadingUi_andHtmlButtonReplacesScout() {
         // Страница без .loading-screen (как прежние фикстуры) готова сразу.
@@ -41,7 +40,8 @@ class GameLoadingE2ETest : E2ETestBase() {
         // единственным путём к настройкам.
         val game = launchGame("fixtures/app-page-minimal.html")
 
-        game.waitForLoadingUi(LoadingUiState.hidden(scout = true))
+        game
+            .waitForLoadingUi(LoadingUiState.hidden(scout = true))
             .assertLoadingUiStays(LoadingUiState.hidden(scout = true))
         assertFalse("HTML-кнопке некуда вставляться", game.isHtmlButtonInjected())
     }
@@ -50,7 +50,8 @@ class GameLoadingE2ETest : E2ETestBase() {
     fun loadingScreen_keepsLoadingUi_untilGameRemovesIt() {
         val game = launchGame(LOADING_SCREEN_FIXTURE)
 
-        game.waitForLoadingUi(LoadingUiState.LOADING)
+        game
+            .waitForLoadingUi(LoadingUiState.LOADING)
             .assertLoadingUiStays(LoadingUiState.LOADING)
         assertFalse("HTML-кнопка вставлена до загрузки игры", game.isHtmlButtonInjected())
 

@@ -20,7 +20,6 @@ import org.junit.Test
  * и [GameUrls.appUrl]: хост из него тоже считается игровым (бета-сервер).
  */
 class GameUrlsIsGameLoginPageTest {
-
     @Before
     fun setUp() {
         mockkStatic(Uri::class)
@@ -38,7 +37,12 @@ class GameUrlsIsGameLoginPageTest {
         GameUrls.betaServerEnabled = false
     }
 
-    private fun stubUri(url: String, scheme: String?, host: String?, path: String?) {
+    private fun stubUri(
+        url: String,
+        scheme: String?,
+        host: String?,
+        path: String?,
+    ) {
         val uri = mockk<Uri>()
         every { uri.scheme } returns scheme
         every { uri.host } returns host

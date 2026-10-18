@@ -5,7 +5,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScriptVersionTest {
-
     @Test
     fun `equal versions return zero`() {
         assertEquals(0, ScriptVersion("1.0.0").compareTo(ScriptVersion("1.0.0")))
@@ -93,11 +92,12 @@ class ScriptVersionTest {
     fun `compareTo works through Comparable bridge in sortedBy`() {
         // Синтетический compareTo(Any) bridge у inline value-class вызывается,
         // когда ScriptVersion используется как Comparable в stdlib алгоритмах.
-        val sorted = listOf(
-            ScriptVersion("1.10.0"),
-            ScriptVersion("1.2.0"),
-            ScriptVersion("2.0.0"),
-        ).sorted()
+        val sorted =
+            listOf(
+                ScriptVersion("1.10.0"),
+                ScriptVersion("1.2.0"),
+                ScriptVersion("2.0.0"),
+            ).sorted()
         assertEquals(ScriptVersion("1.2.0"), sorted[0])
         assertEquals(ScriptVersion("1.10.0"), sorted[1])
         assertEquals(ScriptVersion("2.0.0"), sorted[2])

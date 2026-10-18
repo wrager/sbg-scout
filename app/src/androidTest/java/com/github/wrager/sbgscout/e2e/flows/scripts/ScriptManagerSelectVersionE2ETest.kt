@@ -44,7 +44,6 @@ import org.junit.Test
  * 7. Ждём, пока storage перейдёт на 0.8.1.
  */
 class ScriptManagerSelectVersionE2ETest : E2ETestBase() {
-
     @Test
     fun selectVersion_githubHostedScript_installsSelectedVersion() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -66,13 +65,19 @@ class ScriptManagerSelectVersionE2ETest : E2ETestBase() {
         // Asset с версионным тегом — installVersion скачает .user.js.
         val svp081 = AssetLoader.read("fixtures/scripts/svp-v0.8.1.user.js")
         server.stubScriptAsset(
-            "wrager", "sbg-vanilla-plus", "v0.8.1", "sbg-vanilla-plus.user.js", svp081,
+            "wrager",
+            "sbg-vanilla-plus",
+            "v0.8.1",
+            "sbg-vanilla-plus.user.js",
+            svp081,
         )
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings()
-            .openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
         scriptManager.waitForCard("SBG Vanilla+")
 
         scriptManager.selectVersionCardViaOverflow("SBG Vanilla+")
@@ -95,12 +100,13 @@ class ScriptManagerSelectVersionE2ETest : E2ETestBase() {
         ScriptStorageFixture.storage().save(
             UserScript(
                 identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
-                header = ScriptHeader(
-                    name = "SBG Vanilla+",
-                    version = version,
-                    namespace = "github.com/wrager/sbg-vanilla-plus",
-                    match = listOf("https://sbg-game.ru/app/*"),
-                ),
+                header =
+                    ScriptHeader(
+                        name = "SBG Vanilla+",
+                        version = version,
+                        namespace = "github.com/wrager/sbg-vanilla-plus",
+                        match = listOf("https://sbg-game.ru/app/*"),
+                    ),
                 sourceUrl = PresetScripts.SVP.downloadUrl,
                 updateUrl = PresetScripts.SVP.updateUrl,
                 content = "// sideloaded SVP $version",
@@ -116,7 +122,9 @@ class ScriptManagerSelectVersionE2ETest : E2ETestBase() {
             try {
                 onView(withText(text)).inRoot(isDialog()).check(matches(isDisplayed()))
                 return
-            } catch (@Suppress("TooGenericExceptionCaught") _: Throwable) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") _: Throwable,
+            ) {
                 Thread.sleep(POLL_INTERVAL_MS)
             }
         }
@@ -127,9 +135,12 @@ class ScriptManagerSelectVersionE2ETest : E2ETestBase() {
         val deadline = SystemClock.uptimeMillis() + STORAGE_WAIT_TIMEOUT_MS
         val storage = ScriptStorageFixture.storage()
         while (SystemClock.uptimeMillis() < deadline) {
-            val version = storage.getAll()
-                .find { it.header.name == "SBG Vanilla+" }
-                ?.header?.version
+            val version =
+                storage
+                    .getAll()
+                    .find { it.header.name == "SBG Vanilla+" }
+                    ?.header
+                    ?.version
             if (version == expected) return
             Thread.sleep(POLL_INTERVAL_MS)
         }

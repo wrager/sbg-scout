@@ -23,14 +23,22 @@ import org.hamcrest.Matcher
  * ```
  */
 object RecyclerViewChildAction {
+    fun clickChildViewWithId(
+        @IdRes id: Int,
+    ): ViewAction =
+        object : ViewAction {
+            override fun getConstraints(): Matcher<View> = isAssignableFrom(View::class.java)
 
-    fun clickChildViewWithId(@IdRes id: Int): ViewAction = object : ViewAction {
-        override fun getConstraints(): Matcher<View> = isAssignableFrom(View::class.java)
-        override fun getDescription(): String = "Click on child view with id $id"
-        override fun perform(uiController: UiController, view: View) {
-            val target = view.findViewById<View>(id)
-                ?: throw AssertionError("Child view with id $id not found in ${view.javaClass.simpleName}")
-            target.performClick()
+            override fun getDescription(): String = "Click on child view with id $id"
+
+            override fun perform(
+                uiController: UiController,
+                view: View,
+            ) {
+                val target =
+                    view.findViewById<View>(id)
+                        ?: throw AssertionError("Child view with id $id not found in ${view.javaClass.simpleName}")
+                target.performClick()
+            }
         }
-    }
 }

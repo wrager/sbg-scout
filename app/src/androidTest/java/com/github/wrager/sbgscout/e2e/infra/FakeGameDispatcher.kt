@@ -32,7 +32,6 @@ import okhttp3.mockwebserver.RecordedRequest
 class FakeGameDispatcher(
     private val server: FakeGameServer,
 ) : Dispatcher() {
-
     override fun dispatch(request: RecordedRequest): MockResponse {
         val path = request.path ?: return notFound("null path")
         val method = request.method ?: "GET"
@@ -103,8 +102,9 @@ class FakeGameDispatcher(
     }
 
     private fun serveScriptAsset(key: String): MockResponse {
-        val content = server.scriptAssets[key]
-            ?: return notFound("gh-web: no stub for key='$key'")
+        val content =
+            server.scriptAssets[key]
+                ?: return notFound("gh-web: no stub for key='$key'")
         return MockResponse()
             .setResponseCode(200)
             .setHeader("Content-Type", "application/javascript; charset=utf-8")
@@ -121,14 +121,16 @@ class FakeGameDispatcher(
         val parts = trimmed.split("/")
         if (parts.size >= 5 && parts[0] == "repos" && parts[3] == "releases" && parts[4] == "latest") {
             val key = "${parts[1]}/${parts[2]}"
-            val json = server.githubLatestReleaseJson[key]
-                ?: return notFound("gh-api: no latest release stub for '$key'")
+            val json =
+                server.githubLatestReleaseJson[key]
+                    ?: return notFound("gh-api: no latest release stub for '$key'")
             return jsonOk(json)
         }
         if (parts.size >= 4 && parts[0] == "repos" && parts[3] == "releases") {
             val key = "${parts[1]}/${parts[2]}"
-            val json = server.githubReleasesListJson[key]
-                ?: return notFound("gh-api: no releases-list stub for '$key'")
+            val json =
+                server.githubReleasesListJson[key]
+                    ?: return notFound("gh-api: no releases-list stub for '$key'")
             return jsonOk(json)
         }
         return notFound("gh-api: unrecognized path $path")

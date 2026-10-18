@@ -30,7 +30,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class OtherPagesE2ETest : E2ETestBase() {
-
     private val targetContext get() =
         InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -40,7 +39,8 @@ class OtherPagesE2ETest : E2ETestBase() {
         server.loginPageBody = AssetLoader.read(LOGIN_FIXTURE)
         val game = GameScreen(launchGameActivity(), idling)
 
-        game.waitForFakePage("login")
+        game
+            .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
             .assertLoadingUiStays(LoadingUiState.hidden(scout = true))
     }
@@ -53,22 +53,26 @@ class OtherPagesE2ETest : E2ETestBase() {
         CookieFixtures.injectFakeAuth(server.baseUrl)
         val game = GameScreen(launchGameActivity(), idling).waitForLoaded()
         // В игре нативную «Scout» заменила HTML-кнопка в настройках игры.
-        game.waitForLoadingUi(LoadingUiState.hidden(scout = false))
+        game
+            .waitForLoadingUi(LoadingUiState.hidden(scout = false))
             .waitForTopButtonsCentered()
 
         game.navigateByScript("/login/")
-        game.waitForFakePage("login")
+        game
+            .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
             .waitForTopButtonsAtTop()
 
         // Закрытие настроек восстанавливает «Scout» по текущей странице.
         game.openSettings().close()
-        game.waitForLoadingUi(LoadingUiState.hidden(scout = true))
+        game
+            .waitForLoadingUi(LoadingUiState.hidden(scout = true))
             .assertLoadingUiStays(LoadingUiState.hidden(scout = true))
             .waitForTopButtonsAtTop()
 
         game.navigateByScript("/rules/game/")
-        game.waitForFakePage("rules")
+        game
+            .waitForFakePage("rules")
             .waitForLoadingUi(LoadingUiState.hidden(scout = false))
             .waitForTopButtonsCentered()
     }
@@ -80,13 +84,15 @@ class OtherPagesE2ETest : E2ETestBase() {
         server.loginPageBody = AssetLoader.read(LOGIN_FIXTURE)
         val scenario = launchGameActivity()
         val game = GameScreen(scenario, idling)
-        game.waitForFakePage("login")
+        game
+            .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
             .waitForTopButtonsAtTop()
 
         LoginScreen(scenario).waitUntilReady().submitFakeAuth()
 
-        game.waitForLoaded()
+        game
+            .waitForLoaded()
             .waitForFakePage("app")
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
             .waitForTopButtonsCentered()
@@ -96,7 +102,8 @@ class OtherPagesE2ETest : E2ETestBase() {
     fun loginPageInFullscreen_keepsButtonsBelowStatusBarArea() {
         // В полноэкранном режиме у rootLayout нет отступа сверху, а статус-бар
         // выезжает по свайпу поверх контента: блок всё равно встаёт ниже его зоны.
-        PreferenceManager.getDefaultSharedPreferences(targetContext)
+        PreferenceManager
+            .getDefaultSharedPreferences(targetContext)
             .edit()
             .putBoolean(KEY_FULLSCREEN, true)
             .commit()
@@ -104,7 +111,8 @@ class OtherPagesE2ETest : E2ETestBase() {
         val scenario = launchGameActivity()
         val game = GameScreen(scenario, idling)
 
-        game.waitForFakePage("login")
+        game
+            .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
             .waitForTopButtonsAtTop()
         scenario.onActivity { activity ->
@@ -128,12 +136,14 @@ class OtherPagesE2ETest : E2ETestBase() {
 
         // Настоящее касание: страница игры остаётся в истории для «Назад».
         game.tapElement("fake-rules-link")
-        game.waitForFakePage("rules")
+        game
+            .waitForFakePage("rules")
             .waitForLoadingUi(LoadingUiState.hidden(scout = false))
             .assertLoadingUiStays(LoadingUiState.hidden(scout = false))
 
         Espresso.pressBack()
-        game.waitForFakePage("app")
+        game
+            .waitForFakePage("app")
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
 
         // В игре «Scout» снова разрешена: закрытие настроек её не прячет.
@@ -151,14 +161,16 @@ class OtherPagesE2ETest : E2ETestBase() {
         val scenario = launchGameActivity()
         val game = GameScreen(scenario, idling).waitForLoaded()
         game.navigateByScript("/rules/game/")
-        game.waitForFakePage("rules")
+        game
+            .waitForFakePage("rules")
             .waitForLoadingUi(LoadingUiState.hidden(scout = false))
 
         scenario.recreate()
 
         // Новая Activity стартует с надписью, «Scout» и «Reload» из разметки;
         // восстановленная страница правил должна их скрыть.
-        game.waitForFakePage("rules")
+        game
+            .waitForFakePage("rules")
             .waitForLoadingUi(LoadingUiState.hidden(scout = false))
             .assertLoadingUiStays(LoadingUiState.hidden(scout = false))
     }

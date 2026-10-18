@@ -27,19 +27,24 @@ import org.junit.Test
  * Negative path: нет header'а → скрипт НЕ сохраняется.
  */
 class ScriptManagerAddScriptE2ETest : E2ETestBase() {
-
     @Test
     fun addScriptViaUrl_validHeader_savesScriptInStorage() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
         server.stubScriptAsset(
-            "user", "repo", "latest", "script.user.js",
+            "user",
+            "repo",
+            "latest",
+            "script.user.js",
             AssetLoader.read("fixtures/scripts/custom-v1.0.0.user.js"),
         )
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
 
         scriptManager.openAddScriptDialogAndSubmitUrl(
             "https://github.com/user/repo/releases/latest/download/script.user.js",
@@ -56,13 +61,19 @@ class ScriptManagerAddScriptE2ETest : E2ETestBase() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
         server.stubScriptAsset(
-            "user", "repo", "latest", "broken.user.js",
+            "user",
+            "repo",
+            "latest",
+            "broken.user.js",
             AssetLoader.read("fixtures/scripts/no-header.user.js"),
         )
 
         val scenario = launchGameActivity()
-        val scriptManager = GameScreen(scenario, idling).waitForLoaded()
-            .openSettings().openManageScripts()
+        val scriptManager =
+            GameScreen(scenario, idling)
+                .waitForLoaded()
+                .openSettings()
+                .openManageScripts()
 
         scriptManager.openAddScriptDialogAndSubmitUrl(
             "https://github.com/user/repo/releases/latest/download/broken.user.js",
@@ -72,9 +83,10 @@ class ScriptManagerAddScriptE2ETest : E2ETestBase() {
         Thread.sleep(2_000L)
 
         val storage = ScriptStorageFixture.storage()
-        val saved = storage.getAll().find {
-            it.sourceUrl?.contains("broken.user.js") == true
-        }
+        val saved =
+            storage.getAll().find {
+                it.sourceUrl?.contains("broken.user.js") == true
+            }
         assertNull("Скрипт без UserScript header не должен сохраняться", saved)
     }
 
