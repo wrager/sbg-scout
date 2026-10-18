@@ -8,6 +8,7 @@ on:
       - 'app/src/instr/**'
       - 'app/build.gradle.kts'
       - 'gradle/libs.versions.toml'
+      - '.github/images/visual-regression/**'
       - '.github/workflows/e2e.yml'
   workflow_dispatch:
 
@@ -40,16 +41,14 @@ jobs:
 
       - name: AVD cache
         uses: actions/cache@v6
-        id: avd-cache
         with:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          # Ключ включает emulator target: пересобирать snapshot при смене.
-          key: avd-api33-default-x86_64-v2
+          # Общий профиль Pixel 4; кешируем данные AVD, запускаем без snapshot.
+          key: avd-pixel4-api33-default-x86_64-coldboot-v4
 
-      - name: Create AVD snapshot
-        if: steps.avd-cache.outputs.cache-hit != 'true'
+      - name: Run connectedInstrAndroidTest + visualRegressionTest
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
@@ -57,25 +56,17 @@ jobs:
           arch: x86_64
           profile: pixel_4
           force-avd-creation: false
-          ram-size: 4096M
-          heap-size: 1024M
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-options: >-
+            -no-window -gpu swiftshader -feature -Vulkan -cores 2 -no-snapshot
+            -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: echo "AVD snapshot created"
-
-      - name: Run connectedInstrAndroidTest
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 33
-          target: default
-          arch: x86_64
-          profile: pixel_4
-          force-avd-creation: false
-          ram-size: 4096M
-          heap-size: 1024M
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          script: ./gradlew connectedInstrAndroidTest --stacktrace --no-daemon
+          # Отдельные Gradle invocations сохраняют полный e2e-прогон:
+          # VR-фильтр применяется только ко второй команде, AVD общий.
+          script: |
+            ./gradlew connectedInstrAndroidTest --stacktrace --no-daemon
+            ./gradlew visualRegressionTest --stacktrace --no-daemon
 
       - name: Upload reports
         if: always()
@@ -85,5 +76,7 @@ jobs:
           path: |
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/
+            app/build/reports/visual-regression/
+            app/build/outputs/connected_android_test_additional_output/**/visual-regression/
           if-no-files-found: warn
           retention-days: 14

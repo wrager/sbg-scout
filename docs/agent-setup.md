@@ -160,6 +160,7 @@ scripts/syncAgentSkills.mjs <- синхронизация и проверка к
 |---|---|---|
 | Сборка, lint, unit-тесты, e2e | `$scout-verify` | `/scout-verify` |
 | Три скриншота README | `$scout-screenshots` | `/scout-screenshots` |
+| Проверка UI по baseline | `$scout-visual-regression` | `/scout-visual-regression` |
 | Подготовка release PR без push | `$scout-release` | `/scout-release` |
 | Текст анонса с базовой версии | `$scout-announce 1.2.0` | `/scout-announce 1.2.0` |
 
@@ -225,7 +226,8 @@ Rerun старого run не заменяет ссылку нового. Artifa
 2. Вызвать `scout-release` для этого PR: выполнить `node scripts/updateBundledSvp.mjs`
    до тестов и скриншотов, включить обновлённый
    `app/src/main/assets/scripts/sbg-vanilla-plus.user.js` в этот же PR; сверить notes с итоговым кодом,
-   записать русские `RELEASE_NOTES.md`, после bump версии сгенерировать три PNG,
+   записать русские `RELEASE_NOTES.md`, после bump версии сгенерировать три README-PNG
+   и обновить visual regression baseline через `scout-visual-regression`,
    проверить изображения и выполнить проверки. CI запускает
    `node scripts/checkRelease.mjs`: заголовок notes должен совпадать с version.txt
    и manifest. Это не проверка полноты текста; её обеспечивает review diff. Служебную структуру тела PR,

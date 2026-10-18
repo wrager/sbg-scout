@@ -341,7 +341,7 @@ AVD запускается с 2 ядрами, 2 ГБ RAM и SwiftShader без V
 Для остановки зависшего AVD сохраняются PID и время запуска его host-процесса:
 при отсутствии доступного AVD завершается только подтверждённое дерево этого процесса.
 
-`.github/workflows/e2e.yml` — отдельный workflow на `reactivecircus/android-emulator-runner` (API 33, x86_64, pixel_4), запускается по `pull_request` с path-filter (`app/src/main/**`, `app/src/androidTest/**`, `app/src/instr/**`, `app/build.gradle.kts`, `gradle/libs.versions.toml`) и `workflow_dispatch`. AVD snapshot кэшируется между запусками. Не добавлен в `push: main`, чтобы не блокировать мердж долгим прогоном эмулятора. Основной `ci.yml` собирает instr-APK (`assembleInstr`) для быстрого ловли поломок сборки до запуска emulator runner.
+`.github/workflows/e2e.yml` — отдельный workflow на `reactivecircus/android-emulator-runner` (API 33, x86_64, pixel_4), запускается по `pull_request` с path-filter (`app/src/main/**`, `app/src/androidTest/**`, `app/src/instr/**`, `app/build.gradle.kts`, `gradle/libs.versions.toml`) и `workflow_dispatch`. CI использует 2 ядра, 2 ГБ RAM, heap 256 МБ и SwiftShader без Vulkan. Данные AVD кешируются, каждый прогон выполняет холодную загрузку без восстановления snapshot. Не добавлен в `push: main`, чтобы не блокировать мердж долгим прогоном эмулятора. Основной `ci.yml` собирает instr-APK (`assembleInstr`) для быстрого ловли поломок сборки до запуска emulator runner.
 
 ### Запрет обращений к прод-серверу
 
@@ -372,3 +372,52 @@ CI release PR и `publish` до сборки и перед публикацие�
 Обычные Gradle-сборки используют закоммиченный файл и не обновляют его из сети.
 Подготовка и восстановление описаны в
 [инструкции PR и релизов](agent-setup.md#pr-и-релизы).
+
+## Visual regression
+
+Pixel-by-pixel сравнение скриншотов UI с зафиксированными baseline в `.github/images/visual-regression/`. На каждом PR прогон `visualRegressionTest` сравнивает фактический рендер с baseline; различие выше threshold (per-channel diff > 8 + > 0.1% пикселей) фейлит CI и публикует triplet `[baseline | actual | highlight]` в артефактах.
+
+### Покрытие (10 baseline'ов)
+
+- `app-settings-{light,dark}.png` — settings overlay (PreferenceFragment поверх GameActivity).
+- `script-manager-{light,dark}.png` — список скриптов (SVP enabled, EUI скачен но disabled, CUI с download-иконкой).
+- `dialog-app-update-{light,dark}.png` — диалог проверки обновления приложения в фазе UpdateAvailable.
+- `dialog-script-update-{light,dark}.png` — диалог release-notes после auto-check скриптов.
+- `game-settings-light.png` — popup игровых настроек в WebView с инжектированной кнопкой "SBG Scout".
+- `login-light.png` — fake-страница авторизации.
+
+WebView-экраны (`game-settings`, `login`) только в light: фикстуры без dark CSS, dark-вариант потребовал бы отдельной dark-фикстуры.
+
+### Архитектура: device-side capture, host-side compare
+
+Тесты с аннотацией `@VisualRegressionTest` пишут только `actual.png` через [`VisualRegressionCapture`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/VisualRegressionCapture.kt) в test storage. Сравнение делает host-side gradle-задача `compareVisualRegressionBaselines` (pure JVM через `javax.imageio`) — baseline не пакуется в test-APK, режим update = просто overwrite baseline.
+
+- `captureFullNative(name)` — весь экран эмулятора (диалоги, login, popup'ы).
+- `captureScrollableNative(name, recyclerView)` — scroll-stitched длинный bitmap (settings, script-manager) через переиспользуемый [`ScrollStitchCapture`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/screenshots/ScrollStitchCapture.kt).
+- Native-разрешение (1080xN), без масштабирования: pixel-diff чувствителен к anti-aliasing и font-hinting, которые `Bitmap.createScaledBitmap` сглаживает.
+
+### Детерминизация
+
+- [`ThemeOverride`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/ThemeOverride.kt) — записывает `KEY_APPLIED_GAME_THEME` в SharedPreferences до `launchGameActivity()` и вызывает `AppCompatDelegate.setDefaultNightMode`. Без этого тема осталась бы AUTO и тесты были бы недетерминированы по системной теме эмулятора.
+- [`StatusBarDemoMode`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/StatusBarDemoMode.kt) — через SystemUI demo mode broadcast'ы фиксирует часы (12:00), батарею (100%), иконки сети и скрывает notifications. Демо-режим стабилизирует исходные кадры; финальные полноэкранные и прокручиваемые PNG исключают системные панели по WindowInsets.
+- Локаль приложения — русская, через `LocaleManager.setApplicationLocales`.
+- Login-сценарий ждёт исчезновения панели буфера обмена SystemUI по resource ID `com.android.systemui:id/clipboard_preview`, независимо от текста и системной локали. Если панель не исчезла за 10 секунд, тест завершается до сохранения PNG.
+- Фиксированные stub'ы FakeGameServer для динамических данных (версии релизов, body release notes).
+
+### Gradle-задачи
+
+- `./gradlew visualRegressionTest` — прогон + сравнение с baseline. Зелёный = регрессий нет.
+- `./gradlew updateVisualRegressionBaselines` — прогон + перезапись baseline в `.github/images/visual-regression/`. Запускается локально при намеренных UI-изменениях; `git diff` показывает реально изменившиеся файлы, коммитятся только они.
+- `./gradlew copyVisualRegressionBaselines` / `compareVisualRegressionBaselines` — host-side финализаторы.
+
+Скилл `scout-visual-regression` описывает проверку и обновление baseline для Codex и Claude Code (см. [общий источник](../.agents/skills/scout-visual-regression/SKILL.md)).
+
+### CI
+
+`connectedInstrAndroidTest` и `visualRegressionTest` запускаются в `e2e.yml` отдельными командами Gradle в одном emulator-runner step (переиспользуют AVD). Так VR-фильтр configuration phase не ограничивает полный e2e-прогон. Ключ AVD-кэша включает профиль Pixel 4, чтобы baseline всегда сравнивались при разрешении 1080x2280 и density 440 dpi. Diff-картинки и actual.png попадают в `e2e-reports` artifact при падении.
+
+Path-filter workflow включает `.github/images/visual-regression/**`: PR с изменениями только baseline также запускает e2e и сравнение PNG.
+
+Генерация локального game snapshot предшествует сборке androidTest assets и моделям lint: совместный запуск полного CI и VR не зависит от порядка выполнения этих задач.
+
+Полноэкранные и прокручиваемые VR-снимки исключают системные status/navigation bar по WindowInsets текущей Activity. Сравнивается интерфейс приложения; значки сети и контраст системных кнопок AVD не создают ложные регрессии. Региональные снимки сохраняют заданные границы.
