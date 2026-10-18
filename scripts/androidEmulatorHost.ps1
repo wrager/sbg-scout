@@ -8,8 +8,8 @@ param(
 . (Join-Path $PSScriptRoot 'androidEnvironment.ps1') -ToolsRoot $ToolsRoot
 $logsDirectory = Join-Path $ToolsRoot 'logs'
 New-Item -ItemType Directory -Force -Path $logsDirectory | Out-Null
-$arguments = @('-avd', 'sbg-scout-api33', '-port', '5580', '-memory', '2048', '-no-snapshot',
-    '-gpu', 'swiftshader', '-no-boot-anim', '-noaudio', '-camera-back', 'none', '-camera-front', 'none')
+$arguments = @('-avd', 'sbg-scout-api33', '-port', '5580', '-memory', '2048', '-cores', '2', '-no-snapshot',
+    '-gpu', 'swiftshader', '-feature', '-Vulkan', '-no-boot-anim', '-noaudio', '-camera-back', 'none', '-camera-front', 'none')
 if (!$ShowWindow) { $arguments += '-no-window' }
 & "$env:ANDROID_HOME\emulator\emulator.exe" @arguments `
     1> (Join-Path $logsDirectory 'emulator.stdout.log') `
