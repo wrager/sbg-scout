@@ -4,6 +4,112 @@
 
 Открывать корень репозитория `sbg-scout`. Codex читает `AGENTS.md`; `CLAUDE.md` импортирует тот же файл через `@AGENTS.md`. Правила проекта менять в `AGENTS.md`, не копировать между двумя файлами. Личные конфиги и глобальные скиллы для работы с этим репозиторием менять не требуется.
 
+## Быстрый старт в Windows
+
+Общие команды человека, Codex и Claude Code находятся в `scripts/android.ps1`.
+Android Studio не требуется. Нужны Windows PowerShell 5.1+, Git и Node.js 22+.
+Из корня репозитория первоначальная установка выполняется так:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/setupAndroid.ps1
+```
+
+Установщик проверяет контрольные суммы архивов Temurin JDK 21/17 и Command-Line
+Tools 23. Через Android CLI устанавливает Platform 37, Build Tools 36.0.0,
+Platform Tools, Emulator и образ API 33 `default` x86_64 revision 2; создаёт AVD
+`sbg-scout-api33` (Pixel 4). Нужны сеть, принятие лицензии SDK и место для распаковки,
+данных эмулятора и кешей. Повторный запуск сохраняет существующий AVD.
+
+Каталог инструментов: `%USERPROFILE%\AppData\Local\SBGScout` (`jdk17`, `jdk21`,
+`sdk`, `gradle`, `android-user`, `avd`, `logs`). Он находится вне Git. У установщика,
+командного скрипта и скрипта окружения есть `-ToolsRoot` для другого каталога.
+
+Сначала выполнить `android.ps1 doctor` (команда ниже). Если Emulator сообщает
+`WHPX ... is installed and usable`, менять компоненты Windows не нужно, даже если
+список optional features показывает `HypervisorPlatform` как выключенный.
+Если ускорение недоступно, включить **Windows Hypervisor Platform** из PowerShell
+с правами администратора (только этот скрипт требует UAC):
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/enableAndroidHypervisor.ps1
+```
+
+Результат: `%USERPROFILE%\AppData\Local\SBGScout\logs\hypervisor.txt`.
+Если `RestartNeeded: True`, перезагрузить Windows в удобный момент. Скрипт сам
+компьютер не перезагружает. Затем `doctor` должен подтвердить доступность WHPX.
+
+```powershell
+# Java, SDK, AVD, Gradle и ускорение эмулятора
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 doctor
+# APK: app/build/outputs/apk/debug/app-debug.apk
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 build
+# Собрать, открыть эмулятор с окном, установить и запустить debug-приложение
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 run -ShowWindow
+# Smoke e2e через FakeGameServer; эмулятор запускается автоматически без окна
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 test
+# Все e2e или указанный класс
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 test -AllTests
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 test -TestClass com.github.wrager.sbgscout.e2e.flows.smoke.GameLoadsSmokeTest
+# Полная проверка CI (lint, JVM-тесты, debug/instr/release)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 verify
+# Последние 2000 строк logcat в logs/logcat.txt; остановка только нашего AVD
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 logs
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 stop
+```
+
+`emulator` запускает только виртуальное устройство. По умолчанию окно скрыто;
+`-ShowWindow` показывает его при новом запуске. Для уже запущенного без окна AVD
+выполнить `stop`, затем `emulator -ShowWindow`. Ожидание загрузки ограничено
+180 секундами (`-BootTimeoutSeconds`). Порт 5580 резервируется для этого AVD;
+при конфликте скрипт останавливается. Подключённые телефоны и другие AVD не выбираются.
+`stop` штатно завершает доступный AVD через adb. Если AVD завис в `offline`,
+он завершает только дерево сохранённого процесса, сверяя PID и время запуска;
+без подтверждённого владельца чужие процессы не останавливаются.
+Перед e2e проверяются API 33 и WebView 101; при несовпадении тесты не запускаются.
+
+Debug использует настоящий адрес игры. Для автоматической проверки запуска агентом
+применять `run -Offline`: Wi-Fi и мобильные данные **на нашем эмуляторе** отключаются
+до запуска Activity. Вернуть сеть можно через Wi-Fi в настройках Android.
+Игровой UI проверять через `test` с `FakeGameServer`. Скрипты не задают GPS,
+не входят в аккаунт и не выполняют игровых действий.
+
+### Доступ из Codex и проверка в Claude Code
+
+Скрипты сами задают окружение процесса, поэтому изменение глобального PATH,
+открытие Android Studio и создание `local.properties` не нужны. Для прямых команд
+в текущем PowerShell: `. ./scripts/androidEnvironment.ps1`, затем `./gradlew.bat --version`.
+Для сборок предпочитать `android.ps1`: он также передаёт Gradle путь к JDK 17 и
+ограничивает число workers до двух. Эмулятор получает 2 ГиБ RAM, snapshots отключены;
+это уменьшает потребление памяти и диска на машине с 16 ГиБ RAM. Gradle запускается
+с `--no-daemon`, Kotlin компилируется в его процессе: после команды не остаются
+долгоживущие JVM, удерживающие память и перенаправленный вывод PowerShell.
+
+В Codex с `workspace-write` каталог инструментов лежит вне разрешённой области.
+При отказе агент использует штатный запрос выполнения с доступом к хосту
+(`require_escalated`), не меняя ACL и не отключая песочницу. Это же необходимо
+для долгоживущих `adb`/Emulator: MXC может завершать фоновые дочерние процессы после
+окончания команды. Доступ к хосту не означает права администратора Windows.
+Нужны запись в каталог SBGScout, сеть для зависимостей и локальные соединения с adb.
+Одобрения зависят от политики агента; скрипты их не обходят.
+
+После установки проверить из **новой сессии Claude Code** в корне репозитория:
+
+1. Прочитать `AGENTS.md` и этот файл, выполнить `android.ps1 doctor`, затем `build`.
+2. Выполнить `android.ps1 emulator`; отдельной командой вызвать `logs`, проверив,
+   что эмулятор сохранился после окончания первой команды.
+3. Выполнить `android.ps1 run -Offline`, затем `test`, затем `stop`.
+4. Сообщить путь к APK, результат smoke e2e и запросы разрешений/ошибки доступа.
+   Не считать проверку успешной, если команды пришлось выполнять человеку вручную.
+
+В Bash Claude Code использовать полный вызов `powershell.exe -NoProfile
+-ExecutionPolicy Bypass -File scripts/android.ps1 <команда>`. Если политика Claude
+блокирует команду, показать точный отказ; не отключать проверки разрешений глобально.
+Авторизация в игре не требуется.
+
+Основания: [SDK CLI](https://developer.android.com/tools/sdkmanager),
+[ускорение эмулятора](https://developer.android.com/studio/run/emulator-acceleration),
+[Windows sandbox Codex](https://learn.chatgpt.com/docs/windows/windows-sandbox).
+
 ## Окружение Android
 
 - Android SDK Platform 37, Build Tools, Platform Tools (`adb`). Путь к SDK задаётся через `ANDROID_HOME` или локальный `local.properties` с `sdk.dir`; этот файл не коммитится. В Windows для `sdk.dir` удобно использовать прямые слеши.
@@ -91,18 +197,22 @@ Renovate использует semantic commit messages.
 
 ### Debug APK в PR
 
-После успешного Android job `check` CI обновляет комментарий `debug-apk`
-для PR из ветки этого репозитория. Ссылка ведёт на Actions artifact:
-нужен вход в GitHub; внутри ZIP — `sbg-scout-debug-<run_number>-<run_attempt>.apk`.
-Собирается результат слияния PR с базой; комментарий содержит фактический SHA,
-номер запуска, попытку и ссылку. Статусы e2e и остальных jobs проверяются отдельно.
-Для fork PR и push в `main` комментарий с APK не создаётся.
+После успешного Android job `check` CI сохраняет ровно
+`app/build/outputs/apk/debug/app-debug.apk` через actions/upload-artifact.
+Отдельный `preview-comment` добавляет ссылку на ZIP, SHA ветки и merge commit,
+run/attempt. Сборка имеет только contents: read; job комментария —
+pull-requests: write, без checkout, скачивания и исполнения кода PR.
+Для fork/Dependabot и push main preview не публикуется.
 
-При неудаче новой сборки остаётся предыдущая ссылка; rerun старого запуска
-может обновить комментарий старым APK. Ориентироваться на run/SHA.
-Артефакты хранятся по политике репозитория. Debug устанавливается рядом
-с release, но общий debug-keystore не используется: при несовпадении
-сертификатов разных CI-сборок потребуется переустановка debug-приложения.
+Имена artifact и message-id включают run/attempt: один комментарий на попытку,
+старые остаются историей. Сбой новой сборки не добавляет комментарий.
+Rerun старого run не заменяет ссылку нового. Artifact хранится 14 дней,
+если run/artifact не удалены раньше; для скачивания нужен вход в GitHub.
+
+Распаковать ZIP и установить app-debug.apk. Debug устанавливается рядом со stable.
+Общий debug-keystore не используется: при несовпадении сертификатов CI-сборок
+потребуется переустановка debug-приложения. Статусы e2e и других jobs
+смотреть отдельно.
 
 ### Подготовка и публикация
 
@@ -115,13 +225,15 @@ Renovate использует semantic commit messages.
 2. Вызвать `scout-release` для этого PR: сверить notes с итоговым кодом,
    записать русские `RELEASE_NOTES.md`, после bump версии сгенерировать три README-PNG
    и обновить visual regression baseline через `scout-visual-regression`,
-   проверить изображения и выполнить проверки. Служебную структуру тела PR,
+   проверить изображения и выполнить проверки. CI запускает
+   `node scripts/checkRelease.mjs`: заголовок notes должен совпадать с version.txt
+   и manifest. Это не проверка полноты текста; её обеспечивает review diff. Служебную структуру тела PR,
    заголовок и метки release-please сохранить. Перед merge повторить сверку,
    если бот изменил PR. Notes, версия и PNG входят в один итоговый squash.
 3. Вручную squash-merge подготовленный release PR. Workflow создаёт тег
    `vX.Y.Z` и draft GitHub Release, затем job `publish` проверяет наличие
    трёх signing secrets, делает checkout SHA релиза, собирает и проверяет
-   подпись через `apksigner verify`. APK загружается как `sbg-scout-vX.Y.Z.apk`.
+   подпись через `apksigner verify`, versionName и versionCode готового APK против тега. APK загружается как `sbg-scout-vX.Y.Z.apk`.
    Только после загрузки softprops v3 публикует draft с текстом из
    `RELEASE_NOTES.md` и помечает его latest. Отдельный push тега не запускает выпуск.
 
@@ -143,7 +255,7 @@ draft через GitHub UI/CLI; не удалять теги и не публи�
   pull requests**, сохранив default token permissions = read. Workflows выдают
   права записи только нужным jobs.
 - Первый release PR от `GITHUB_TOKEN` может потребовать **Approve workflows
-  to run**. Проверить появление всех required checks перед merge. Отдельный
+  to run**. Это возможно и после обновления ботом. Проверить появление всех required checks перед merge. Отдельный
   GitHub App/token для этого процесса пока не нужен.
 
 Начальная версия миграции — `1.2.0`, bootstrap — коммит тега `v1.2.0`

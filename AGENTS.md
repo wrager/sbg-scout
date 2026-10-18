@@ -7,6 +7,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 ## Окружение и скиллы
 
 - Подготовка окружения, команды для PowerShell и Bash: [docs/agent-setup.md](docs/agent-setup.md).
+- В Windows окружение устанавливает `scripts/setupAndroid.ps1`; общие команды человека и агентов — `scripts/android.ps1` (`doctor`, `build`, `run`, `test`, `verify`, `logs`, `stop`). Для автоматической проверки debug-запуска использовать `run -Offline`, для UI-flow — `test` с `FakeGameServer`. Запуск PowerShell и доступ из Codex/Claude описаны в `docs/agent-setup.md`.
 - Исходники приложения: `app/src/main/`; JVM-тесты: `app/src/test/`; e2e: `app/src/androidTest/`; тестовая конфигурация: `app/src/instr/`.
 - Общий источник скиллов — `.agents/skills/scout-*/SKILL.md`. Codex обнаруживает их напрямую; `.claude/skills/` содержит генерируемые копии для Claude Code. Менять только исходники, затем запускать `node scripts/syncAgentSkills.mjs`. Копии коммитятся вместе с исходниками; CI проверяет их актуальность через `node scripts/syncAgentSkills.mjs --check`.
 - При проверке приложения использовать `scout-verify`; для README-скриншотов — `scout-screenshots`; для visual regression — `scout-visual-regression`; для подготовки release PR от release-please — `scout-release`; для текста анонса — `scout-announce`. В Codex: `$scout-release`, в Claude: `/scout-release`.
@@ -23,7 +24,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 
 `./gradlew ktlintCheck detekt lintInstr testInstrUnitTest assembleDebug assembleInstr assembleRelease`
 
-В PowerShell использовать `./gradlew.bat` с теми же аргументами. Проверка скиллов: `node scripts/syncAgentSkills.mjs --check`; тесты синхронизации: `node --test scripts/syncAgentSkills.test.mjs`.
+В PowerShell использовать `./gradlew.bat` с теми же аргументами. Проверка релизных файлов: `node scripts/checkRelease.mjs`, тесты: `node --test scripts/checkRelease.test.mjs`. Проверка скиллов: `node scripts/syncAgentSkills.mjs --check`; тесты синхронизации: `node --test scripts/syncAgentSkills.test.mjs`.
 
 Если сборка падает — пофиксить и повторить.
 
@@ -109,6 +110,7 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 - Заголовки PR — Conventional Commits; merge в main — только squash с заголовком PR. Правила версий и настройки GitHub: [docs/agent-setup.md](docs/agent-setup.md#pr-и-релизы).
 - После внесения изменений в PR обновлять его описание, чтобы оно отражало итоговые изменения и фактические результаты проверок, включая ограничения и непройденные проверки. Перед завершением работы сверять описание с текущим diff; в PR ботов сохранять служебную структуру описания.
 - Не оставлять незакоммиченные изменения по завершении работы: любые внесённые правки должны быть закоммичены, запушены и находиться либо в `main`, либо в открытом PR.
+- После закрытия или вливания PR удалять его remote-ветку. Перед удалением проверять состояние PR и имя его head-ветки; `main` и другие защищённые ветки не удалять.
 - Версию предлагает release-please в отдельном PR. Готовить notes и скриншоты в его ветке; не создавать локальный тег. Выпуск происходит после ручного merge подготовленного release PR.
 - В release PR сохранять служебную структуру тела, заголовок и метки бота. После его обновлений повторно проверять версию, notes и PNG перед merge.
 
