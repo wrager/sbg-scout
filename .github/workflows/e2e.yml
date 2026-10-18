@@ -8,6 +8,7 @@ on:
       - 'app/src/instr/**'
       - 'app/build.gradle.kts'
       - 'gradle/libs.versions.toml'
+      - '.github/images/visual-regression/**'
       - '.github/workflows/e2e.yml'
   workflow_dispatch:
 
@@ -47,7 +48,7 @@ jobs:
           # Общий профиль Pixel 4; кешируем данные AVD, запускаем без snapshot.
           key: avd-pixel4-api33-default-x86_64-coldboot-v4
 
-      - name: Run connectedInstrAndroidTest
+      - name: Run connectedInstrAndroidTest + visualRegressionTest
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
@@ -61,7 +62,11 @@ jobs:
             -no-window -gpu swiftshader -feature -Vulkan -cores 2 -no-snapshot
             -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew connectedInstrAndroidTest --stacktrace --no-daemon
+          # Отдельные Gradle invocations сохраняют полный e2e-прогон:
+          # VR-фильтр применяется только ко второй команде, AVD общий.
+          script: |
+            ./gradlew connectedInstrAndroidTest --stacktrace --no-daemon
+            ./gradlew visualRegressionTest --stacktrace --no-daemon
 
       - name: Upload reports
         if: always()
@@ -71,5 +76,7 @@ jobs:
           path: |
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/
+            app/build/reports/visual-regression/
+            app/build/outputs/connected_android_test_additional_output/**/visual-regression/
           if-no-files-found: warn
           retention-days: 14

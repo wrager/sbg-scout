@@ -160,6 +160,7 @@ scripts/syncAgentSkills.mjs <- синхронизация и проверка к
 |---|---|---|
 | Сборка, lint, unit-тесты, e2e | `$scout-verify` | `/scout-verify` |
 | Три скриншота README | `$scout-screenshots` | `/scout-screenshots` |
+| Проверка UI по baseline | `$scout-visual-regression` | `/scout-visual-regression` |
 | Подготовка release PR без push | `$scout-release` | `/scout-release` |
 | Текст анонса с базовой версии | `$scout-announce 1.2.0` | `/scout-announce 1.2.0` |
 
@@ -222,21 +223,41 @@ Rerun старого run не заменяет ссылку нового. Artifa
    маркерам `x-release-please-major/minor/patch`. Формула Android `versionCode`
    прежняя: `major * 10000 + minor * 100 + patch`, minor и patch меньше 100.
    `CHANGELOG.md` не создаётся; автоматический черновик notes находится в теле PR.
-2. Вызвать `scout-release` для этого PR: сверить notes с итоговым кодом,
-   записать русские `RELEASE_NOTES.md`, после bump версии сгенерировать три PNG,
+2. Вызвать `scout-release` для этого PR: выполнить `node scripts/updateBundledSvp.mjs`
+   до тестов и скриншотов, включить обновлённый
+   `app/src/main/assets/scripts/sbg-vanilla-plus.user.js` в этот же PR; сверить notes с итоговым кодом,
+   записать русские `RELEASE_NOTES.md`, после bump версии сгенерировать три README-PNG
+   и обновить visual regression baseline через `scout-visual-regression`,
    проверить изображения и выполнить проверки. CI запускает
    `node scripts/checkRelease.mjs`: заголовок notes должен совпадать с version.txt
    и manifest. Это не проверка полноты текста; её обеспечивает review diff. Служебную структуру тела PR,
    заголовок и метки release-please сохранить. Перед merge повторить сверку,
-   если бот изменил PR. Notes, версия и PNG входят в один итоговый squash.
+   если бот изменил PR. Перед merge выполнить `node scripts/updateBundledSvp.mjs --check`:
+   даже при неизменном HEAD мог выйти новый SVP. Если бандл устарел — повторить
+   обновление, тесты и скриншоты. Notes, версия, PNG и бандл входят в один итоговый squash.
 3. Вручную squash-merge подготовленный release PR. Workflow создаёт тег
    `vX.Y.Z` и draft GitHub Release, затем job `publish` проверяет наличие
-   трёх signing secrets, делает checkout SHA релиза, собирает и проверяет
+   трёх signing secrets, делает checkout SHA релиза и проверяет актуальность бандла SVP
+   через `node scripts/updateBundledSvp.mjs --check` до сборки и перед публикацией.
+   Ошибка сети или несовпадение с последним стабильным релизным артефактом
+   останавливает выпуск без подмены закоммиченных файлов на runner. Job собирает и проверяет
    подпись через `apksigner verify`, versionName и versionCode готового APK против тега. APK загружается как `sbg-scout-vX.Y.Z.apk`.
    Только после загрузки softprops v3 публикует draft с текстом из
    `RELEASE_NOTES.md` и помечает его latest. Отдельный push тега не запускает выпуск.
 
-Если `publish` упал, выбрать **Re-run failed jobs** либо повторить именно
+Обновление SVP использует только GitHub Release asset: проверяет userscript-заголовок,
+версию против тега, размер и SHA-256 (если API возвращает digest). Команда не берёт
+исходники из соседнего checkout или `main`. Для API можно задать `GITHUB_TOKEN`;
+токен передаётся только в запрос метаданных, публичный asset скачивается без него.
+Тесты загрузчика без сети: `node --test scripts/updateBundledSvp.test.mjs`.
+
+Если SVP обновился после merge release PR и `publish` остановился на проверке
+актуальности, повтор job не исправит старый бандл. Подготовить следующий release PR
+со свежим SVP и полными проверками; прежний draft оставить неопубликованным.
+Тег и SHA уже созданного релиза не переписывать. Если устаревание обнаружено
+до merge, достаточно обновить текущий release PR.
+
+Если `publish` упал по другой причине, выбрать **Re-run failed jobs** либо повторить именно
 `publish` в исходном run. Не запускать весь workflow заново ради восстановления:
 успешный job release-please уже передал SHA и тег, повторный расчёт может не
 вернуть `release_created`. Уже загруженный APK не перезаписывается
