@@ -11,31 +11,32 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScriptSerializerTest {
-
     @Test
     fun `roundtrip serialization preserves all fields`() {
-        val script = UserScript(
-            identifier = ScriptIdentifier("test/script"),
-            header = ScriptHeader(
-                name = "Test Script",
-                version = "1.0.0",
-                description = "A test script",
-                author = "tester",
-                namespace = "https://example.com",
-                match = listOf("https://sbg-game.ru/app/*"),
-                grant = listOf("none"),
-                downloadUrl = "https://example.com/script.user.js",
+        val script =
+            UserScript(
+                identifier = ScriptIdentifier("test/script"),
+                header =
+                    ScriptHeader(
+                        name = "Test Script",
+                        version = "1.0.0",
+                        description = "A test script",
+                        author = "tester",
+                        namespace = "https://example.com",
+                        match = listOf("https://sbg-game.ru/app/*"),
+                        grant = listOf("none"),
+                        downloadUrl = "https://example.com/script.user.js",
+                        updateUrl = "https://example.com/script.meta.js",
+                        runAt = "document-idle",
+                        iconUrl = "https://example.com/icon.png",
+                    ),
+                sourceUrl = "https://example.com/script.user.js",
                 updateUrl = "https://example.com/script.meta.js",
-                runAt = "document-idle",
-                iconUrl = "https://example.com/icon.png",
-            ),
-            sourceUrl = "https://example.com/script.user.js",
-            updateUrl = "https://example.com/script.meta.js",
-            content = "console.log('test')",
-            enabled = true,
-            isPreset = true,
-            releaseTag = "v1.0.0",
-        )
+                content = "console.log('test')",
+                enabled = true,
+                isPreset = true,
+                releaseTag = "v1.0.0",
+            )
 
         val json = ScriptSerializer.toJson(script)
         val restored = ScriptSerializer.fromJson(json, script.content)
@@ -62,13 +63,14 @@ class ScriptSerializerTest {
 
     @Test
     fun `handles null optional fields`() {
-        val script = UserScript(
-            identifier = ScriptIdentifier("minimal/script"),
-            header = ScriptHeader(name = "Minimal"),
-            sourceUrl = null,
-            updateUrl = null,
-            content = "code",
-        )
+        val script =
+            UserScript(
+                identifier = ScriptIdentifier("minimal/script"),
+                header = ScriptHeader(name = "Minimal"),
+                sourceUrl = null,
+                updateUrl = null,
+                content = "code",
+            )
 
         val json = ScriptSerializer.toJson(script)
         val restored = ScriptSerializer.fromJson(json, script.content)
@@ -85,17 +87,19 @@ class ScriptSerializerTest {
 
     @Test
     fun `serializes multi-value fields as JSON arrays`() {
-        val script = UserScript(
-            identifier = ScriptIdentifier("multi/script"),
-            header = ScriptHeader(
-                name = "Multi Match",
-                match = listOf("https://a.com/*", "https://b.com/*"),
-                grant = listOf("GM_getValue", "GM_setValue"),
-            ),
-            sourceUrl = null,
-            updateUrl = null,
-            content = "code",
-        )
+        val script =
+            UserScript(
+                identifier = ScriptIdentifier("multi/script"),
+                header =
+                    ScriptHeader(
+                        name = "Multi Match",
+                        match = listOf("https://a.com/*", "https://b.com/*"),
+                        grant = listOf("GM_getValue", "GM_setValue"),
+                    ),
+                sourceUrl = null,
+                updateUrl = null,
+                content = "code",
+            )
 
         val json = ScriptSerializer.toJson(script)
         val headerJson = json.getJSONObject("header")
@@ -108,10 +112,11 @@ class ScriptSerializerTest {
 
     @Test
     fun `deserializes missing optional fields as defaults`() {
-        val json = JSONObject().apply {
-            put("identifier", "test/id")
-            put("header", JSONObject().apply { put("name", "Test") })
-        }
+        val json =
+            JSONObject().apply {
+                put("identifier", "test/id")
+                put("header", JSONObject().apply { put("name", "Test") })
+            }
 
         val restored = ScriptSerializer.fromJson(json, "content")
 
@@ -123,17 +128,19 @@ class ScriptSerializerTest {
 
     @Test
     fun `handles empty match and grant lists`() {
-        val script = UserScript(
-            identifier = ScriptIdentifier("empty/lists"),
-            header = ScriptHeader(
-                name = "Empty Lists",
-                match = emptyList(),
-                grant = emptyList(),
-            ),
-            sourceUrl = null,
-            updateUrl = null,
-            content = "code",
-        )
+        val script =
+            UserScript(
+                identifier = ScriptIdentifier("empty/lists"),
+                header =
+                    ScriptHeader(
+                        name = "Empty Lists",
+                        match = emptyList(),
+                        grant = emptyList(),
+                    ),
+                sourceUrl = null,
+                updateUrl = null,
+                content = "code",
+            )
 
         val json = ScriptSerializer.toJson(script)
         val restored = ScriptSerializer.fromJson(json, script.content)

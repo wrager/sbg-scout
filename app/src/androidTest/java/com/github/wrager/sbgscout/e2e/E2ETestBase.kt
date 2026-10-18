@@ -17,6 +17,7 @@ import com.github.wrager.sbgscout.e2e.infra.FakeGameServer
 import com.github.wrager.sbgscout.e2e.infra.HttpRewriterFixture
 import com.github.wrager.sbgscout.e2e.infra.WebViewIdlingResource
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
+import okhttp3.OkHttp
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -43,7 +44,6 @@ import org.junit.Rule
  * ```
  */
 abstract class E2ETestBase {
-
     protected val server = FakeGameServer()
     protected val idling = WebViewIdlingResource()
 
@@ -72,6 +72,8 @@ abstract class E2ETestBase {
 
     @Before
     fun setUpE2E() {
+        // Автоинициализация OkHttp отключена в androidTest/AndroidManifest.xml.
+        OkHttp.initialize(InstrumentationRegistry.getInstrumentation().targetContext)
         // Порядок важен: сначала старт сервера, потом чтение server.baseUrl
         // (оно же под капотом вызывает MockWebServer.hostName/port). Обратный
         // порядок триггерит ленивый MockWebServer.before() → start() на случайном
@@ -98,7 +100,8 @@ abstract class E2ETestBase {
      */
     private fun disableAutoUpdateCheck() {
         val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
-        PreferenceManager.getDefaultSharedPreferences(targetContext)
+        PreferenceManager
+            .getDefaultSharedPreferences(targetContext)
             .edit()
             .putBoolean("auto_check_updates", false)
             .putLong("last_update_check", System.currentTimeMillis())
@@ -156,9 +159,7 @@ abstract class E2ETestBase {
      * независимо от intent-filter манифеста (в instr-сборке host отличается
      * от прод-фильтра `sbg-game.ru`).
      */
-    protected fun launchGameActivityWithIntent(
-        intent: Intent,
-    ): ActivityScenario<GameActivity> {
+    protected fun launchGameActivityWithIntent(intent: Intent): ActivityScenario<GameActivity> {
         intent.setClass(
             InstrumentationRegistry.getInstrumentation().targetContext,
             GameActivity::class.java,

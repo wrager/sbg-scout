@@ -17,7 +17,6 @@ import org.junit.Before
 import org.junit.Test
 
 class BundledScriptInstallerTest {
-
     private lateinit var scriptInstaller: ScriptInstaller
     private lateinit var scriptStorage: ScriptStorage
     private lateinit var scriptProvisioner: DefaultScriptProvisioner
@@ -112,10 +111,11 @@ class BundledScriptInstallerTest {
 
     @Test
     fun `skips already installed script by sourceUrl`() {
-        val existingScript = svpScript().copy(
-            sourceUrl = PresetScripts.SVP.downloadUrl,
-            isPreset = true,
-        )
+        val existingScript =
+            svpScript().copy(
+                sourceUrl = PresetScripts.SVP.downloadUrl,
+                isPreset = true,
+            )
         every { scriptStorage.getAll() } returns listOf(existingScript)
         assetContents["scripts/sbg-vanilla-plus.user.js"] = SVP_CONTENT
 
@@ -154,9 +154,10 @@ class BundledScriptInstallerTest {
         every { scriptStorage.getAll() } returns emptyList()
 
         createInstaller(
-            assetMap = mapOf(
-                ScriptIdentifier("unknown/preset") to "scripts/unknown.user.js",
-            ),
+            assetMap =
+                mapOf(
+                    ScriptIdentifier("unknown/preset") to "scripts/unknown.user.js",
+                ),
         ).installBundled()
 
         verify(exactly = 0) { scriptInstaller.parse(any()) }
@@ -168,9 +169,10 @@ class BundledScriptInstallerTest {
         // Покрывает ветку `if (preset.enabledByDefault)` = false — EUI в
         // PresetScripts объявлен без enabledByDefault (дефолт = false).
         every { scriptStorage.getAll() } returns emptyList()
-        val euiScript = svpScript().copy(
-            identifier = PresetScripts.EUI.identifier,
-        )
+        val euiScript =
+            svpScript().copy(
+                identifier = PresetScripts.EUI.identifier,
+            )
         every { scriptInstaller.parse(EUI_CONTENT) } returns ScriptInstallResult.Parsed(euiScript)
         every { scriptInstaller.save(any()) } just Runs
         assetContents["scripts/eui.user.js"] = EUI_CONTENT
@@ -229,9 +231,10 @@ class BundledScriptInstallerTest {
     }
 
     private fun createInstaller(
-        assetMap: Map<ScriptIdentifier, String> = mapOf(
-            PresetScripts.SVP.identifier to "scripts/sbg-vanilla-plus.user.js",
-        ),
+        assetMap: Map<ScriptIdentifier, String> =
+            mapOf(
+                PresetScripts.SVP.identifier to "scripts/sbg-vanilla-plus.user.js",
+            ),
     ) = BundledScriptInstaller(
         scriptInstaller,
         scriptStorage,
@@ -243,17 +246,19 @@ class BundledScriptInstallerTest {
         assetMap = assetMap,
     )
 
-    private fun svpScript() = UserScript(
-        identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
-        header = ScriptHeader(
-            name = "SBG Vanilla+",
-            version = "6.0.0",
-            namespace = "https://github.com/wrager/sbg-vanilla-plus",
-        ),
-        sourceUrl = null,
-        updateUrl = null,
-        content = SVP_CONTENT,
-    )
+    private fun svpScript() =
+        UserScript(
+            identifier = ScriptIdentifier("github.com/wrager/sbg-vanilla-plus/SBG Vanilla+"),
+            header =
+                ScriptHeader(
+                    name = "SBG Vanilla+",
+                    version = "6.0.0",
+                    namespace = "https://github.com/wrager/sbg-vanilla-plus",
+                ),
+            sourceUrl = null,
+            updateUrl = null,
+            content = SVP_CONTENT,
+        )
 
     companion object {
         private const val SVP_CONTENT = "// ==UserScript==\n// @name SBG Vanilla+\n// ==/UserScript=="

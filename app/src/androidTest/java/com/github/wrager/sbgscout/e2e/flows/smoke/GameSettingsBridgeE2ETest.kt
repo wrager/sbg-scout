@@ -25,7 +25,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class GameSettingsBridgeE2ETest : E2ETestBase() {
-
     @Test
     fun settingsChange_inLocalStorage_updatesAppliedThemeAndLanguagePrefs() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -40,9 +39,10 @@ class GameSettingsBridgeE2ETest : E2ETestBase() {
             "localStorage.setItem('settings', JSON.stringify({theme:'dark', lang:'ru'}))",
         )
 
-        val prefs = PreferenceManager.getDefaultSharedPreferences(
-            InstrumentationRegistry.getInstrumentation().targetContext,
-        )
+        val prefs =
+            PreferenceManager.getDefaultSharedPreferences(
+                InstrumentationRegistry.getInstrumentation().targetContext,
+            )
         // applyGameSettings идёт через runOnUiThread → prefs обновляются
         // асинхронно. Опрос по 50ms до появления ожидаемого значения.
         val deadline = SystemClock.uptimeMillis() + TIMEOUT_MS

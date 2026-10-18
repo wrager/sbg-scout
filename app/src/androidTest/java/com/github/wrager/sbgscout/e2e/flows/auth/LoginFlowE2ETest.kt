@@ -30,7 +30,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class LoginFlowE2ETest : E2ETestBase() {
-
     @Test
     fun fakeTelegramAuth_redirectsUnauthorizedUserIntoGame() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
@@ -39,9 +38,10 @@ class LoginFlowE2ETest : E2ETestBase() {
 
         val scenario = launchGameActivity()
 
-        val unauthenticatedAppRequest = server.takeRequestMatching { request ->
-            request.method == "GET" && request.path == "/app"
-        }
+        val unauthenticatedAppRequest =
+            server.takeRequestMatching { request ->
+                request.method == "GET" && request.path == "/app"
+            }
         assertFalse(
             "На первом запросе /app не должно быть session-cookie",
             unauthenticatedAppRequest.getHeader("Cookie").orEmpty().contains(
@@ -58,20 +58,22 @@ class LoginFlowE2ETest : E2ETestBase() {
         val loginScreen = LoginScreen(scenario).waitUntilReady()
         loginScreen.submitFakeAuth()
 
-        val callbackRequest = server.takeRequestMatching { request ->
-            request.method == "POST" && request.path == "/login/callback"
-        }
+        val callbackRequest =
+            server.takeRequestMatching { request ->
+                request.method == "POST" && request.path == "/login/callback"
+            }
         assertEquals("POST", callbackRequest.method)
 
         // Dispatcher вернул 302 → /app + Set-Cookie. WebView сам перейдёт на /app
         // (см. submitTelegramStub.then → location.href = "/app").
-        val authenticatedAppRequest = server.takeRequestMatching { request ->
-            request.method == "GET" &&
-                request.path == "/app" &&
-                request.getHeader("Cookie").orEmpty().contains(
-                    "hittoken=${CookieFixtures.FAKE_SESSION_TOKEN}",
-                )
-        }
+        val authenticatedAppRequest =
+            server.takeRequestMatching { request ->
+                request.method == "GET" &&
+                    request.path == "/app" &&
+                    request.getHeader("Cookie").orEmpty().contains(
+                        "hittoken=${CookieFixtures.FAKE_SESSION_TOKEN}",
+                    )
+            }
         assertTrue(
             "Authenticated request должен содержать session-cookie",
             authenticatedAppRequest.getHeader("Cookie").orEmpty().contains(

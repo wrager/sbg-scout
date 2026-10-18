@@ -22,7 +22,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class KeepScreenOnModeE2ETest : E2ETestBase() {
-
     @Test
     fun changingKeepScreenOnPref_togglesWindowFlag() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")

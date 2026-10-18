@@ -13,7 +13,6 @@ import org.json.JSONObject
  * только для тестов, проверяющих, что prerelease игнорируется.
  */
 object GithubReleaseFixtures {
-
     data class ReleaseEntry(
         val tagName: String,
         val body: String = "",
@@ -45,20 +44,22 @@ object GithubReleaseFixtures {
         assetName: String = "sbg-scout.apk",
         owner: String = "wrager",
         repo: String = "sbg-scout",
-    ): String = releasesListJson(
-        listOf(
-            ReleaseEntry(
-                tagName = "v$version",
-                body = body,
-                assets = listOf(
-                    AssetEntry(
-                        name = assetName,
-                        downloadUrl = "https://github.com/$owner/$repo/releases/download/v$version/$assetName",
-                    ),
+    ): String =
+        releasesListJson(
+            listOf(
+                ReleaseEntry(
+                    tagName = "v$version",
+                    body = body,
+                    assets =
+                        listOf(
+                            AssetEntry(
+                                name = assetName,
+                                downloadUrl = "https://github.com/$owner/$repo/releases/download/v$version/$assetName",
+                            ),
+                        ),
                 ),
             ),
-        ),
-    )
+        )
 
     /**
      * Shortcut для Script version selection: список релизов скрипта с
@@ -69,33 +70,37 @@ object GithubReleaseFixtures {
         repo: String,
         versions: List<String>,
         assetName: String,
-    ): String = releasesListJson(
-        versions.map { version ->
-            ReleaseEntry(
-                tagName = "v$version",
-                body = "Release $version",
-                assets = listOf(
-                    AssetEntry(
-                        name = assetName,
-                        downloadUrl = "https://github.com/$owner/$repo/releases/download/v$version/$assetName",
-                    ),
-                ),
-            )
-        },
-    )
+    ): String =
+        releasesListJson(
+            versions.map { version ->
+                ReleaseEntry(
+                    tagName = "v$version",
+                    body = "Release $version",
+                    assets =
+                        listOf(
+                            AssetEntry(
+                                name = assetName,
+                                downloadUrl = "https://github.com/$owner/$repo/releases/download/v$version/$assetName",
+                            ),
+                        ),
+                )
+            },
+        )
 
-    private fun ReleaseEntry.toJson(): JSONObject = JSONObject().apply {
-        put("tag_name", tagName)
-        put("body", body)
-        put("prerelease", prerelease)
-        val assetsArray = JSONArray()
-        assets.forEach { asset ->
-            val obj = JSONObject().apply {
-                put("name", asset.name)
-                put("browser_download_url", asset.downloadUrl)
+    private fun ReleaseEntry.toJson(): JSONObject =
+        JSONObject().apply {
+            put("tag_name", tagName)
+            put("body", body)
+            put("prerelease", prerelease)
+            val assetsArray = JSONArray()
+            assets.forEach { asset ->
+                val obj =
+                    JSONObject().apply {
+                        put("name", asset.name)
+                        put("browser_download_url", asset.downloadUrl)
+                    }
+                assetsArray.put(obj)
             }
-            assetsArray.put(obj)
+            put("assets", assetsArray)
         }
-        put("assets", assetsArray)
-    }
 }

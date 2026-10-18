@@ -29,7 +29,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ScriptInjectionOrderE2ETest : E2ETestBase() {
-
     /**
      * Корневая причина: CUI не ставил глобалов синхронно → EUI'шный
      * CUI.Detected() возвращал false → EUI шёл по пути delay 500ms
@@ -201,7 +200,8 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
     }
 
     private fun fakeCuiScript(): UserScript {
-        val content = """
+        val content =
+            """
             // ==UserScript==
             // @name Fake CUI
             // @namespace e2e-tests
@@ -217,16 +217,17 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
             document.close();
             window.cuiStatus = 'loading';
             setTimeout(function() { window.cuiStatus = 'loaded'; }, 500);
-        """.trimIndent()
+            """.trimIndent()
         return UserScript(
             identifier = ScriptIdentifier("fake-cui"),
-            header = ScriptHeader(
-                name = "Fake CUI",
-                version = "1.0.0",
-                namespace = "e2e-tests",
-                match = listOf("https://sbg-game.ru/app/*"),
-                runAt = "document-idle",
-            ),
+            header =
+                ScriptHeader(
+                    name = "Fake CUI",
+                    version = "1.0.0",
+                    namespace = "e2e-tests",
+                    match = listOf("https://sbg-game.ru/app/*"),
+                    runAt = "document-idle",
+                ),
             sourceUrl = "https://example.com/fake-cui.user.js",
             updateUrl = null,
             content = content,
@@ -235,7 +236,8 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
     }
 
     private fun fakeEuiScript(): UserScript {
-        val content = """
+        val content =
+            """
             // ==UserScript==
             // @name Fake EUI
             // @namespace e2e-tests
@@ -246,15 +248,16 @@ class ScriptInjectionOrderE2ETest : E2ETestBase() {
             window.__e2e_eui_readyState = document.readyState;
             window.__e2e_eui_cuiStatus = window.cuiStatus;
             window.__e2e_eui_run_count = (window.__e2e_eui_run_count || 0) + 1;
-        """.trimIndent()
+            """.trimIndent()
         return UserScript(
             identifier = ScriptIdentifier("fake-eui"),
-            header = ScriptHeader(
-                name = "Fake EUI",
-                version = "1.0.0",
-                namespace = "e2e-tests",
-                match = listOf("https://sbg-game.ru/app/*"),
-            ),
+            header =
+                ScriptHeader(
+                    name = "Fake EUI",
+                    version = "1.0.0",
+                    namespace = "e2e-tests",
+                    match = listOf("https://sbg-game.ru/app/*"),
+                ),
             sourceUrl = "https://example.com/fake-eui.user.js",
             updateUrl = null,
             content = content,

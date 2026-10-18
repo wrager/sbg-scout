@@ -10,11 +10,11 @@ import android.webkit.WebView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
+import org.json.JSONObject
+import org.json.JSONTokener
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
-import org.json.JSONObject
-import org.json.JSONTokener
 
 /**
  * Маркер тестов, генерирующих README-скриншоты.
@@ -40,7 +40,6 @@ annotation class ReadmeScreenshot
  * оборачивается в CountDownLatch с timeout.
  */
 object ReadmeScreenshotCapture {
-
     /**
      * Целевая ширина PNG — 360 px (mdpi-эквивалент).
      * Текущие ручные скриншоты в README сделаны под эту ширину
@@ -84,17 +83,21 @@ object ReadmeScreenshotCapture {
         return context.getSystemService(Context.LOCALE_SERVICE) as? LocaleManager
     }
 
-    fun captureRegion(name: String, region: Rect) {
+    fun captureRegion(
+        name: String,
+        region: Rect,
+    ) {
         val full = takeScreenshot()
         try {
             val safeRegion = clamp(region, full.width, full.height)
-            val cropped = Bitmap.createBitmap(
-                full,
-                safeRegion.left,
-                safeRegion.top,
-                safeRegion.width(),
-                safeRegion.height(),
-            )
+            val cropped =
+                Bitmap.createBitmap(
+                    full,
+                    safeRegion.left,
+                    safeRegion.top,
+                    safeRegion.width(),
+                    safeRegion.height(),
+                )
             try {
                 writePng(name, scaleToTargetWidth(cropped))
             } finally {
@@ -117,7 +120,10 @@ object ReadmeScreenshotCapture {
      * она уже в физических пикселях (то же координатное пространство, что
      * у `UiAutomation.takeScreenshot()`).
      */
-    fun webBoundsInScreen(webView: WebView, scriptReturningRectJson: String): Rect {
+    fun webBoundsInScreen(
+        webView: WebView,
+        scriptReturningRectJson: String,
+    ): Rect {
         val raw = evaluateJavascript(webView, scriptReturningRectJson)
         // evaluateJavascript возвращает результат как JSON-литерал (если скрипт
         // вернул строку - это `"\"{...}\""`, т.е. экранированный JSON внутри
@@ -125,11 +131,12 @@ object ReadmeScreenshotCapture {
         // (string, object, number, boolean) и обрабатывает все escape-
         // последовательности, в т.ч. \n, \t, \uXXXX.
         val tokenized = JSONTokener(raw).nextValue()
-        val obj = when (tokenized) {
-            is String -> JSONObject(tokenized)
-            is JSONObject -> tokenized
-            else -> error("webBoundsInScreen: unexpected JSON type ${tokenized::class.simpleName}: $raw")
-        }
+        val obj =
+            when (tokenized) {
+                is String -> JSONObject(tokenized)
+                is JSONObject -> tokenized
+                else -> error("webBoundsInScreen: unexpected JSON type ${tokenized::class.simpleName}: $raw")
+            }
         if (obj.has("error")) {
             error("webBoundsInScreen: ${obj.getString("error")}")
         }
@@ -174,7 +181,10 @@ object ReadmeScreenshotCapture {
      * прокрутка не идентична scrollable native-view. Для веб-фрагментов
      * используйте [captureRegion] + [webBoundsInScreen].
      */
-    fun captureFullScreenWithScroll(name: String, scrollable: RecyclerView) {
+    fun captureFullScreenWithScroll(
+        name: String,
+        scrollable: RecyclerView,
+    ) {
         val instr = InstrumentationRegistry.getInstrumentation()
 
         // Скроллбар RecyclerView фейдит in/out при scroll; на разных
@@ -196,7 +206,10 @@ object ReadmeScreenshotCapture {
         }
     }
 
-    private fun captureFullScreenWithScrollInternal(name: String, scrollable: RecyclerView) {
+    private fun captureFullScreenWithScrollInternal(
+        name: String,
+        scrollable: RecyclerView,
+    ) {
         val instr = InstrumentationRegistry.getInstrumentation()
 
         var topY = 0
@@ -256,18 +269,20 @@ object ReadmeScreenshotCapture {
             val advances = IntArray(frames.size)
             advances[0] = viewportHeight
             for (i in 1 until frames.size) {
-                val overlap = findVerticalOverlap(
-                    frames[i - 1],
-                    frames[i],
-                    topY,
-                    bottomY,
-                    maxOverlap = viewportHeight - 1,
-                )
-                advances[i] = if (overlap > 0) {
-                    (viewportHeight - overlap).coerceAtLeast(0)
-                } else {
-                    scrollDiffs[i].coerceIn(0, viewportHeight)
-                }
+                val overlap =
+                    findVerticalOverlap(
+                        frames[i - 1],
+                        frames[i],
+                        topY,
+                        bottomY,
+                        maxOverlap = viewportHeight - 1,
+                    )
+                advances[i] =
+                    if (overlap > 0) {
+                        (viewportHeight - overlap).coerceAtLeast(0)
+                    } else {
+                        scrollDiffs[i].coerceIn(0, viewportHeight)
+                    }
             }
 
             val first = frames[0]
@@ -275,11 +290,12 @@ object ReadmeScreenshotCapture {
             val srcWidth = first.width
             val viewportsHeight = advances.sum()
             val totalHeight = topY + viewportsHeight + (last.height - bottomY)
-            val stitched = Bitmap.createBitmap(
-                srcWidth,
-                totalHeight.coerceAtLeast(1),
-                Bitmap.Config.ARGB_8888,
-            )
+            val stitched =
+                Bitmap.createBitmap(
+                    srcWidth,
+                    totalHeight.coerceAtLeast(1),
+                    Bitmap.Config.ARGB_8888,
+                )
             try {
                 val canvas = Canvas(stitched)
                 if (topY > 0) {
@@ -362,7 +378,10 @@ object ReadmeScreenshotCapture {
 
     private const val PIXEL_TOLERANCE_PER_CHANNEL = 8
 
-    private fun pixelsTolerantMatch(a: IntArray, b: IntArray): Boolean {
+    private fun pixelsTolerantMatch(
+        a: IntArray,
+        b: IntArray,
+    ): Boolean {
         if (a.size != b.size) return false
         for (i in a.indices) {
             val p1 = a[i]
@@ -389,12 +408,14 @@ object ReadmeScreenshotCapture {
     private const val SCROLL_SETTLE_MS = 200L
     private const val MAX_SCROLL_STEPS = 40
 
-    private fun takeScreenshot(): Bitmap {
-        return InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+    private fun takeScreenshot(): Bitmap =
+        InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
             ?: error("UiAutomation.takeScreenshot() вернул null")
-    }
 
-    private fun writePng(name: String, bitmap: Bitmap) {
+    private fun writePng(
+        name: String,
+        bitmap: Bitmap,
+    ) {
         val storage = PlatformTestStorageRegistry.getInstance()
         storage.openOutputFile("readme/$name.png").use { stream ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
@@ -408,7 +429,11 @@ object ReadmeScreenshotCapture {
         return Bitmap.createScaledBitmap(bitmap, TARGET_WIDTH_PX, targetHeight, true)
     }
 
-    private fun clamp(region: Rect, maxWidth: Int, maxHeight: Int): Rect {
+    private fun clamp(
+        region: Rect,
+        maxWidth: Int,
+        maxHeight: Int,
+    ): Rect {
         val left = region.left.coerceIn(0, maxWidth - 1)
         val top = region.top.coerceIn(0, maxHeight - 1)
         val right = region.right.coerceIn(left + 1, maxWidth)
@@ -416,7 +441,10 @@ object ReadmeScreenshotCapture {
         return Rect(left, top, right, bottom)
     }
 
-    private fun evaluateJavascript(webView: WebView, script: String): String {
+    private fun evaluateJavascript(
+        webView: WebView,
+        script: String,
+    ): String {
         val latch = CountDownLatch(1)
         val result = AtomicReference<String?>(null)
         runOnUi {

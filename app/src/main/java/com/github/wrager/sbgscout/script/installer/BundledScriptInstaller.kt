@@ -34,28 +34,38 @@ class BundledScriptInstaller(
      * помечает как provisioned (чтобы [DefaultScriptProvisioner] не пытался скачать из сети).
      */
     fun installBundled() {
-        val installedSourceUrls = scriptStorage.getAll()
-            .mapNotNull { it.sourceUrl }
-            .toSet()
+        val installedSourceUrls =
+            scriptStorage
+                .getAll()
+                .mapNotNull { it.sourceUrl }
+                .toSet()
 
         for ((presetIdentifier, assetPath) in assetMap) {
-            val preset = PresetScripts.ALL.find { it.identifier == presetIdentifier }
-                ?: continue
-            val alreadyHandled = scriptProvisioner.isProvisioned(preset.identifier) ||
-                preset.downloadUrl in installedSourceUrls
+            val preset =
+                PresetScripts.ALL.find { it.identifier == presetIdentifier }
+                    ?: continue
+            val alreadyHandled =
+                scriptProvisioner.isProvisioned(preset.identifier) ||
+                    preset.downloadUrl in installedSourceUrls
             if (!alreadyHandled) {
                 installPreset(preset, assetPath)
             }
         }
     }
 
-    private fun installPreset(preset: PresetScript, assetPath: String) {
-        val content = try {
-            assetReader(assetPath)
-        } catch (@Suppress("TooGenericExceptionCaught") exception: Exception) {
-            Log.w(LOG_TAG, "Не удалось прочитать бандлированный скрипт: $assetPath", exception)
-            return
-        }
+    private fun installPreset(
+        preset: PresetScript,
+        assetPath: String,
+    ) {
+        val content =
+            try {
+                assetReader(assetPath)
+            } catch (
+                @Suppress("TooGenericExceptionCaught") exception: Exception,
+            ) {
+                Log.w(LOG_TAG, "Не удалось прочитать бандлированный скрипт: $assetPath", exception)
+                return
+            }
 
         val parseResult = scriptInstaller.parse(content)
         if (parseResult !is ScriptInstallResult.Parsed) {
@@ -63,11 +73,12 @@ class BundledScriptInstaller(
             return
         }
 
-        val script = parseResult.script.copy(
-            sourceUrl = preset.downloadUrl,
-            updateUrl = preset.updateUrl,
-            isPreset = true,
-        )
+        val script =
+            parseResult.script.copy(
+                sourceUrl = preset.downloadUrl,
+                updateUrl = preset.updateUrl,
+                isPreset = true,
+            )
         scriptInstaller.save(script)
 
         if (preset.enabledByDefault) {
@@ -87,12 +98,16 @@ class BundledScriptInstaller(
      * через диалог обновления). Иначе — double counting: реальный download при
      * обновлении + ping beacon'а на ту же версию.
      */
-    private fun saveBundledVersion(identifier: ScriptIdentifier, version: String?) {
+    private fun saveBundledVersion(
+        identifier: ScriptIdentifier,
+        version: String?,
+    ) {
         if (version == null) return
         val current = preferences.getStringSet(KEY_BUNDLED_VERSIONS, emptySet()) ?: emptySet()
         val key = "${identifier.value}:$version"
         if (key !in current) {
-            preferences.edit()
+            preferences
+                .edit()
                 .putStringSet(KEY_BUNDLED_VERSIONS, current + key)
                 .apply()
         }
@@ -103,8 +118,9 @@ class BundledScriptInstaller(
         const val KEY_BUNDLED_VERSIONS = "bundled_script_versions"
 
         /** Маппинг идентификатор пресета → путь в assets. */
-        private val DEFAULT_ASSET_MAP: Map<ScriptIdentifier, String> = mapOf(
-            PresetScripts.SVP.identifier to "scripts/sbg-vanilla-plus.user.js",
-        )
+        private val DEFAULT_ASSET_MAP: Map<ScriptIdentifier, String> =
+            mapOf(
+                PresetScripts.SVP.identifier to "scripts/sbg-vanilla-plus.user.js",
+            )
     }
 }
