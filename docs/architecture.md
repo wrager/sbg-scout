@@ -391,6 +391,7 @@ WebView-экраны (`game-settings`, `login`) только в light: фикс�
 - [`ThemeOverride`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/ThemeOverride.kt) — записывает `KEY_APPLIED_GAME_THEME` в SharedPreferences до `launchGameActivity()` и вызывает `AppCompatDelegate.setDefaultNightMode`. Без этого тема осталась бы AUTO и тесты были бы недетерминированы по системной теме эмулятора.
 - [`StatusBarDemoMode`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/StatusBarDemoMode.kt) — через SystemUI demo mode broadcast'ы фиксирует часы (12:00), батарею (100%), иконки сети и скрывает notifications. Демо-режим стабилизирует исходные кадры; финальные полноэкранные и прокручиваемые PNG исключают системные панели по WindowInsets.
 - Локаль приложения — русская, через `LocaleManager.setApplicationLocales`.
+- Login-сценарий ждёт исчезновения панели буфера обмена SystemUI по resource ID `com.android.systemui:id/clipboard_preview`, независимо от текста и системной локали. Если панель не исчезла за 10 секунд, тест завершается до сохранения PNG.
 - Фиксированные stub'ы FakeGameServer для динамических данных (версии релизов, body release notes).
 
 ### Gradle-задачи
@@ -404,6 +405,8 @@ WebView-экраны (`game-settings`, `login`) только в light: фикс�
 ### CI
 
 `connectedInstrAndroidTest` и `visualRegressionTest` запускаются в `e2e.yml` отдельными командами Gradle в одном emulator-runner step (переиспользуют AVD). Так VR-фильтр configuration phase не ограничивает полный e2e-прогон. Ключ AVD-кэша включает профиль Pixel 4, чтобы baseline всегда сравнивались при разрешении 1080x2280 и density 440 dpi. Diff-картинки и actual.png попадают в `e2e-reports` artifact при падении.
+
+Path-filter workflow включает `.github/images/visual-regression/**`: PR с изменениями только baseline также запускает e2e и сравнение PNG.
 
 Генерация локального game snapshot предшествует сборке androidTest assets и моделям lint: совместный запуск полного CI и VR не зависит от порядка выполнения этих задач.
 
