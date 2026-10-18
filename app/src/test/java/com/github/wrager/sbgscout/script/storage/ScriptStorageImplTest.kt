@@ -16,22 +16,22 @@ import org.junit.Before
 import org.junit.Test
 
 class ScriptStorageImplTest {
-
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var editor: SharedPreferences.Editor
     private lateinit var fileStorage: ScriptFileStorage
     private lateinit var storage: ScriptStorageImpl
 
     private val testIdentifier = ScriptIdentifier("test/script")
-    private val testScript = UserScript(
-        identifier = testIdentifier,
-        header = ScriptHeader(name = "Test Script", version = "1.0.0"),
-        sourceUrl = "https://example.com/script.user.js",
-        updateUrl = "https://example.com/script.meta.js",
-        content = "console.log('test')",
-        enabled = true,
-        isPreset = false,
-    )
+    private val testScript =
+        UserScript(
+            identifier = testIdentifier,
+            header = ScriptHeader(name = "Test Script", version = "1.0.0"),
+            sourceUrl = "https://example.com/script.user.js",
+            updateUrl = "https://example.com/script.meta.js",
+            content = "console.log('test')",
+            enabled = true,
+            isPreset = false,
+        )
 
     @Before
     fun setUp() {
@@ -95,17 +95,19 @@ class ScriptStorageImplTest {
     @Test
     fun `getEnabled returns only enabled scripts`() {
         val enabledScript = testScript.copy(enabled = true)
-        val disabledScript = testScript.copy(
-            identifier = ScriptIdentifier("test/disabled"),
-            enabled = false,
-        )
+        val disabledScript =
+            testScript.copy(
+                identifier = ScriptIdentifier("test/disabled"),
+                enabled = false,
+            )
         val enabledJson = ScriptSerializer.toJson(enabledScript).toString()
         val disabledJson = ScriptSerializer.toJson(disabledScript).toString()
 
-        every { sharedPreferences.all } returns mapOf(
-            enabledScript.identifier.value to enabledJson,
-            disabledScript.identifier.value to disabledJson,
-        )
+        every { sharedPreferences.all } returns
+            mapOf(
+                enabledScript.identifier.value to enabledJson,
+                disabledScript.identifier.value to disabledJson,
+            )
         every { fileStorage.readContent(enabledScript.identifier) } returns "content1"
         every { fileStorage.readContent(disabledScript.identifier) } returns "content2"
 
@@ -138,10 +140,11 @@ class ScriptStorageImplTest {
     @Test
     fun `getAll skips scripts with corrupted JSON`() {
         val validJson = ScriptSerializer.toJson(testScript).toString()
-        every { sharedPreferences.all } returns mapOf(
-            "valid" to validJson,
-            "corrupted" to "not valid json",
-        )
+        every { sharedPreferences.all } returns
+            mapOf(
+                "valid" to validJson,
+                "corrupted" to "not valid json",
+            )
         every { fileStorage.readContent(ScriptIdentifier("valid")) } returns "content"
 
         val result = storage.getAll()
@@ -177,9 +180,10 @@ class ScriptStorageImplTest {
 
     @Test
     fun `save overwrites existing script`() {
-        val updatedScript = testScript.copy(
-            header = ScriptHeader(name = "Updated Script", version = "2.0.0"),
-        )
+        val updatedScript =
+            testScript.copy(
+                header = ScriptHeader(name = "Updated Script", version = "2.0.0"),
+            )
         every { fileStorage.writeContent(testIdentifier, updatedScript.content) } just Runs
 
         storage.save(updatedScript)
@@ -190,10 +194,11 @@ class ScriptStorageImplTest {
 
     @Test
     fun `getAll skips non-string entries`() {
-        every { sharedPreferences.all } returns mapOf(
-            "intValue" to 42,
-            "boolValue" to true,
-        )
+        every { sharedPreferences.all } returns
+            mapOf(
+                "intValue" to 42,
+                "boolValue" to true,
+            )
 
         val result = storage.getAll()
 

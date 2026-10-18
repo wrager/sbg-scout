@@ -5,7 +5,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PresetScriptsTest {
-
     @Test
     fun `ALL contains exactly three preset scripts`() {
         assertEquals(3, PresetScripts.ALL.size)

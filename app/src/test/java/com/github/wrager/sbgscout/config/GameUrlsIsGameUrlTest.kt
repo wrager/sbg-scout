@@ -20,7 +20,6 @@ import org.junit.Test
  * [com.github.wrager.sbgscout.bridge.ShareBridgeTest].
  */
 class GameUrlsIsGameUrlTest {
-
     @Before
     fun setUp() {
         mockkStatic(Uri::class)
@@ -32,7 +31,11 @@ class GameUrlsIsGameUrlTest {
         GameUrls.hostMatchOverride = null
     }
 
-    private fun stubUri(url: String, scheme: String?, host: String?) {
+    private fun stubUri(
+        url: String,
+        scheme: String?,
+        host: String?,
+    ) {
         val uri = mockk<Uri>()
         every { uri.scheme } returns scheme
         every { uri.host } returns host

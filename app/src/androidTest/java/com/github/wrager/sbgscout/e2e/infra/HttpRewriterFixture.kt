@@ -19,7 +19,6 @@ import com.github.wrager.sbgscout.script.updater.DefaultHttpFetcher
  * зарезервированы на будущее для прямых raw-загрузок / GitHub CDN.
  */
 object HttpRewriterFixture {
-
     fun install(baseUrl: String) {
         DefaultHttpFetcher.urlRewriter = { url ->
             when {

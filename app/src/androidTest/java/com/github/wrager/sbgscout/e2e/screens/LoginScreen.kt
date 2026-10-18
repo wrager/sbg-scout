@@ -3,10 +3,10 @@ package com.github.wrager.sbgscout.e2e.screens
 import android.os.SystemClock
 import androidx.test.core.app.ActivityScenario
 import com.github.wrager.sbgscout.GameActivity
+import org.junit.Assert.assertTrue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
-import org.junit.Assert.assertTrue
 
 /**
  * PageObject для fake-страницы логина.
@@ -23,7 +23,6 @@ import org.junit.Assert.assertTrue
 class LoginScreen(
     private val scenario: ActivityScenario<GameActivity>,
 ) : Screen {
-
     override fun assertDisplayed() = Unit
 
     /**

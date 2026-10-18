@@ -23,7 +23,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ScoutBridgeE2ETest : E2ETestBase() {
-
     @Test
     fun bootstrap_exposesBridgeMethodsAndMarksBootstrapDone() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")

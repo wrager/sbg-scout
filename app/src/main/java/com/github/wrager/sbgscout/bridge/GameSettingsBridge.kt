@@ -8,8 +8,9 @@ import android.webkit.JavascriptInterface
  * В WebView инжектируется обёртка над `localStorage.setItem`, которая
  * при записи ключа `'settings'` вызывает [onSettingsChanged] через этот бридж.
  */
-class GameSettingsBridge(private val listener: (String) -> Unit) {
-
+class GameSettingsBridge(
+    private val listener: (String) -> Unit,
+) {
     @JavascriptInterface
     fun onSettingsChanged(json: String) {
         listener(json)
@@ -25,7 +26,8 @@ class GameSettingsBridge(private val listener: (String) -> Unit) {
          * отловить все записи в ключ 'settings' (включая `initSettings()`
          * и пользовательские изменения через `changeSettings()`).
          */
-        val LOCAL_STORAGE_WRAPPER = """
+        val LOCAL_STORAGE_WRAPPER =
+            """
             (function() {
                 var orig = localStorage.setItem;
                 localStorage.setItem = function(key, value) {
@@ -35,6 +37,6 @@ class GameSettingsBridge(private val listener: (String) -> Unit) {
                     }
                 };
             })();
-        """.trimIndent()
+            """.trimIndent()
     }
 }

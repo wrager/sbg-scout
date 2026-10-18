@@ -11,7 +11,6 @@ class ScriptStorageImpl(
     private val sharedPreferences: SharedPreferences,
     private val fileStorage: ScriptFileStorage,
 ) : ScriptStorage {
-
     override fun getAll(): List<UserScript> {
         return sharedPreferences.all.mapNotNull { (key, value) ->
             try {
@@ -27,35 +26,37 @@ class ScriptStorageImpl(
         }
     }
 
-    override fun contains(identifier: ScriptIdentifier): Boolean {
-        return sharedPreferences.contains(identifier.value)
-    }
+    override fun contains(identifier: ScriptIdentifier): Boolean = sharedPreferences.contains(identifier.value)
 
     override fun save(script: UserScript) {
         val json = ScriptSerializer.toJson(script)
-        sharedPreferences.edit()
+        sharedPreferences
+            .edit()
             .putString(script.identifier.value, json.toString())
             .apply()
         fileStorage.writeContent(script.identifier, script.content)
     }
 
     override fun delete(identifier: ScriptIdentifier) {
-        sharedPreferences.edit()
+        sharedPreferences
+            .edit()
             .remove(identifier.value)
             .apply()
         fileStorage.deleteContent(identifier)
     }
 
-    override fun getEnabled(): List<UserScript> {
-        return getAll().filter { it.enabled }
-    }
+    override fun getEnabled(): List<UserScript> = getAll().filter { it.enabled }
 
-    override fun setEnabled(identifier: ScriptIdentifier, enabled: Boolean) {
+    override fun setEnabled(
+        identifier: ScriptIdentifier,
+        enabled: Boolean,
+    ) {
         val jsonString = sharedPreferences.getString(identifier.value, null) ?: return
         try {
             val json = JSONObject(jsonString)
             json.put("enabled", enabled)
-            sharedPreferences.edit()
+            sharedPreferences
+                .edit()
                 .putString(identifier.value, json.toString())
                 .apply()
         } catch (exception: JSONException) {
