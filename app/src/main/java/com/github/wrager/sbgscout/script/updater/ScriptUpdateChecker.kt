@@ -68,7 +68,7 @@ class ScriptUpdateChecker(
             return compareVersionsViaHttpFetcher(script, script.updateUrl!!)
         }
 
-        return if (latestVersion > current) {
+        return if (latestVersion.isUpdateFor(current)) {
             ScriptUpdateResult.UpdateAvailable(
                 identifier = script.identifier,
                 currentVersion = current,
@@ -108,7 +108,7 @@ class ScriptUpdateChecker(
         val current = ScriptVersion(currentVersionString)
         val latest = ScriptVersion(remoteVersionString)
 
-        return if (latest > current) {
+        return if (latest.isUpdateFor(current)) {
             ScriptUpdateResult.UpdateAvailable(
                 identifier = script.identifier,
                 currentVersion = current,

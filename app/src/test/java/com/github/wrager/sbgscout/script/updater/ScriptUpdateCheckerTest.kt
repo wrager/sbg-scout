@@ -70,6 +70,21 @@ class ScriptUpdateCheckerTest {
         }
 
     @Test
+    fun `returns UpToDate when metadata version including suffix is unchanged`() =
+        runTest {
+            val script = createScript(version = "1.2.3-custom.42")
+            coEvery { httpFetcher.fetch(any()) } returns
+                """
+                // ==UserScript==
+                // @name Test Script
+                // @version 1.2.3-custom.42
+                // ==/UserScript==
+                """.trimIndent()
+
+            assertEquals(ScriptUpdateResult.UpToDate(testIdentifier), checker.checkForUpdate(script))
+        }
+
+    @Test
     fun `returns UpToDate when current version is newer`() =
         runTest {
             val script = createScript(version = "3.0.0")

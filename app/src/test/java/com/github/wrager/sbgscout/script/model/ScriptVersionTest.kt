@@ -51,18 +51,25 @@ class ScriptVersionTest {
     }
 
     @Test
-    fun `handles non-numeric segments as zero`() {
+    fun `numeric comparison ignores suffix`() {
         assertEquals(0, ScriptVersion("1.0.0-beta").compareTo(ScriptVersion("1.0.0")))
     }
 
     @Test
-    fun `segment with trailing suffix takes leading digits`() {
+    fun `numeric comparison ignores app build type suffixes`() {
         // versionNameSuffix = "-debug" / "-instr" из buildType превращает
         // BuildConfig.VERSION_NAME в "0.15.4-debug". Без leading-digits парсинга
         // последний сегмент "4-debug" превращается в 0, и [0, 15, 0] < [0, 15, 4]
         // — AppUpdateChecker ложно находит обновление на ту же версию.
         assertEquals(0, ScriptVersion("0.15.4-debug").compareTo(ScriptVersion("0.15.4")))
         assertEquals(0, ScriptVersion("0.15.4-instr").compareTo(ScriptVersion("0.15.4")))
+    }
+
+    @Test
+    fun `numbers in suffix do not become version segments`() {
+        assertEquals(0, ScriptVersion("1.2.3-beta.42").compareTo(ScriptVersion("1.2.3")))
+        assertEquals(0, ScriptVersion("1.2.3+build.42").compareTo(ScriptVersion("1.2.3")))
+        assertTrue(ScriptVersion("1.2.3-custom.99") < ScriptVersion("1.2.4"))
     }
 
     @Test
@@ -105,17 +112,14 @@ class ScriptVersionTest {
 
     @Test
     fun `empty string version compared to numeric version`() {
-        // value.split(".") для "" даёт [""], leadingDigitsAsInt("") → 0.
-        // Левая сторона короче → getOrElse default срабатывает для левых segments.
+        // Пустой номер считается нулём.
         assertTrue(ScriptVersion("") < ScriptVersion("1.0.0"))
         assertTrue(ScriptVersion("1.0.0") > ScriptVersion(""))
     }
 
     @Test
     fun `difference at first segment short-circuits rest`() {
-        // this > other уже на index=0 — for-loop делает return до getOrElse на
-        // последующих индексах. Покрывает ветку, где правый getOrElse вообще не
-        // вызывается за отсутствием итераций.
+        // Разница major определяет результат независимо от остальных компонентов.
         assertTrue(ScriptVersion("2.0.0") > ScriptVersion("1.99.99"))
         assertTrue(ScriptVersion("1.0.0") < ScriptVersion("2.0.0"))
     }
