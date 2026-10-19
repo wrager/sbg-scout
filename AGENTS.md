@@ -20,19 +20,21 @@ SBG Scout — Android-клиент для SBG (мобильная браузер
 3. **Запрещён мультиаккаунт**
 4. **Запрещена модификация запросов** к серверу
 
-## CI (перед каждым коммитом)
+## Проверки перед коммитом и push
 
-`./gradlew ktlintCheck detekt lintInstr testInstrUnitTest assembleDebug assembleInstr assembleRelease`
+Выбирать проверки по **всему diff задачи**, а не запускать Android CI после любых правок:
 
-В PowerShell использовать `./gradlew.bat` с теми же аргументами. Проверка релизных файлов: `node scripts/checkRelease.mjs`, тесты: `node --test scripts/checkRelease.test.mjs scripts/updateBundledSvp.test.mjs`. Проверка скиллов: `node scripts/syncAgentSkills.mjs --check`; тесты синхронизации: `node --test scripts/syncAgentSkills.test.mjs`.
+`node scripts/planChecks.mjs --base origin/main`
 
-Если сборка падает — пофиксить и повторить.
+План включает коммиты ветки, staged/unstaged и новые неигнорируемые файлы. Выполнить команды из `commands`; в PowerShell заменить `./gradlew` на `./gradlew.bat`. Области проверок и исключения описаны в [docs/ci-checks.md](docs/ci-checks.md). Обычная документация не требует SDK, Android-сборок или эмулятора; `RELEASE_NOTES.md` проверяется как релизный файл. При изменении исходников скиллов сначала выполнить `node scripts/syncAgentSkills.mjs` и коммитить копии вместе с исходниками.
 
-**Это нижняя планка, не полная верификация.** Эта команда покрывает lint + JVM unit-тесты + сборку всех вариантов; e2e на эмуляторе сюда НЕ входят (отдельный workflow `.github/workflows/e2e.yml`, локально — `connectedInstrAndroidTest`). Если правка затрагивает `app/src/androidTest/` (новый тест, изменение POM, изменение E2ETestBase) или поведение, покрываемое существующим e2e, — обязательный локальный прогон `./gradlew connectedInstrAndroidTest` ДО push с подключённым эмулятором: API 33, Pixel 4, WebView 101, образ `default` без Google Play. Минимум — прогнать изменённый/новый класс через `./gradlew connectedInstrAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.github.wrager.sbgscout.e2e.flows.smoke.GameLoadsSmokeTest"`, подставив нужное полное имя класса. Флаг `--tests` используется только для JVM-тестов.
+Для явной полной проверки использовать `node scripts/planChecks.mjs --full`; при подготовке release PR — `--release-pr` (полный набор и актуальность SVP). Ошибка определения diff не означает, что проверок нет: исправить причину или выполнить полный набор. Неизвестные файлы включают полный набор без сетевой проверки SVP.
 
-Если JDK, SDK, зависимости или эмулятор недоступны, указать точную причину и непройденные проверки; не выдавать их за успешные. Инструкции по подготовке окружения должны храниться в репозитории, без зависимости от личной памяти конкретного агента.
+Android-набор: `./gradlew ktlintCheck detekt lintInstr testInstrUnitTest assembleDebug assembleInstr assembleRelease`. `testInstrUnitTest` — обычные JVM-тесты из `app/src/test/`, без эмулятора: из-за `testBuildType = "instr"` задачи `testDebugUnitTest` нет. Инструментальные тесты запускаются через `connectedInstrAndroidTest`; `--tests` применим только к JVM-тестам.
 
-**Почему `testInstrUnitTest`, а не `testDebugUnitTest`.** Из-за `testBuildType = "instr"` в `app/build.gradle.kts` AGP генерирует задачу unit-тестов только для instr-варианта. Это обычные JVM unit-тесты из `app/src/test/`, не требуют эмулятора — имя складывается по шаблону `test<BuildType>UnitTest` и не означает «instrumented». Сами инструментированные тесты живут в `app/src/androidTest/` и запускаются через `connectedInstrAndroidTest`. `assembleInstr` добавлен в CI, чтобы убедиться, что instr-сборка (для e2e-прогона) не сломана. `assembleRelease` — чтобы release-конфигурация (proguard/R8, signing-гейтинг через env) не уехала в красное незамеченной до момента релиза.
+Если план включает e2e или правка затрагивает поведение, покрываемое e2e, выполнить локальную проверку ДО push. Для изменения отдельного теста/flow минимум — соответствующий класс через `connectedInstrAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=полное.ИмяКласса"`; для общих POM, E2ETestBase и инфраструктуры прогнать полный затронутый набор. Эмулятор: API 33, Pixel 4, WebView 101, образ `default` без Google Play; тесты только через FakeGameServer. Visual regression проверять отдельно, если она выбрана планом. Параллельным worktree нужны отдельные AVD/порты: не переустанавливать test APK на эмуляторе другой задачи; подробности и обход длинных путей Windows — в docs/agent-setup.md.
+
+Если проверка падает — исправить причину и повторить затронутые проверки. Если JDK, SDK, зависимости или эмулятор недоступны, указать точную причину и непройденные проверки; не выдавать их за успешные. Инструкции подготовки окружения хранить в репозитории.
 
 ## Исследование
 

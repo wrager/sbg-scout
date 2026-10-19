@@ -130,8 +130,14 @@ class ExternalLinksE2ETest : E2ETestBase() {
         // Настоящий тап нужен для user activation: иначе WebView 101 помечает
         // предыдущую запись истории как пропускаемую и canGoBack() возвращает false.
         // Центр перекрывает нативная кнопка Scout на минимальной fake-странице.
+        // CENTER_LEFT даёт x=0: WebView может пропустить касание на границе.
+        // Тапаем на четверти ширины, внутри ссылки и в стороне от кнопки.
         onView(withId(R.id.gameWebView)).perform(
-            GeneralClickAction(Tap.SINGLE, GeneralLocation.CENTER_LEFT, Press.FINGER),
+            GeneralClickAction(
+                Tap.SINGLE,
+                GeneralLocation.translate(GeneralLocation.CENTER, -0.25f, 0f),
+                Press.FINGER,
+            ),
         )
         val request = server.takeRequestMatching { it.method == "GET" && it.path == "/store/" }
         assertTrue(
