@@ -159,6 +159,20 @@ class ScriptReleaseNotesProviderTest {
         assertEquals("v2.0.0\nMajor update\n\nv1.5.0\nMinor update", result)
     }
 
+    @Test
+    fun `includes same number stable release notes when current version has a suffix`() {
+        val releases =
+            listOf(
+                release("v1.2.4", "Next release"),
+                release("v1.2.3", "Stable release"),
+                release("v1.2.2", "Older release"),
+            )
+
+        val result = ScriptReleaseNotesProvider.aggregateNotes(releases, ScriptVersion("1.2.3-custom.42"))
+
+        assertEquals("v1.2.4\nNext release\n\nv1.2.3\nStable release", result)
+    }
+
     private fun release(
         tagName: String,
         body: String?,

@@ -3,7 +3,9 @@ package com.github.wrager.sbgscout.e2e.flows.scripts
 import android.os.SystemClock
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers.isDialog
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.R
@@ -17,6 +19,7 @@ import com.github.wrager.sbgscout.script.model.ScriptHeader
 import com.github.wrager.sbgscout.script.model.ScriptIdentifier
 import com.github.wrager.sbgscout.script.model.UserScript
 import com.github.wrager.sbgscout.script.preset.PresetScripts
+import org.hamcrest.Matchers.containsString
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -24,9 +27,9 @@ import org.junit.Test
  * Полный цикл check updates → update single script через embedded-менеджер.
  *
  * Flow:
- * 1. Sideload SVP v0.8.0 enabled (как preset через isPreset=true + preset.downloadUrl).
+ * 1. Sideload SVP v0.8.0 или v0.8.1 с суффиксом enabled (как preset).
  * 2. Stub `/gh-api/repos/wrager/sbg-vanilla-plus/releases` с v0.8.1 → ScriptUpdateChecker
- *    видит в `tag_name` более новую версию, возвращает UpdateAvailable.
+ *    видит более новый номер или тот же номер при установленном суффиксе.
  *    Этот же stub обслуживает ScriptReleaseNotesProvider.
  * 3. Stub `.user.js` с v0.8.1 — ScriptDownloader дёргает его при реальном
  *    скачивании обновления после клика Update all.
@@ -39,9 +42,23 @@ import org.junit.Test
 class ScriptManagerUpdateE2ETest : E2ETestBase() {
     @Test
     fun updateSingleScript_viaUpdateAllDialog_installsNewVersion() {
+        updateSvpFrom("0.8.0")
+    }
+
+    @Test
+    fun updateBetaScript_viaUpdateAllDialog_installsStableVersionWithSameNumber() {
+        updateSvpFrom("0.8.1-beta.2")
+    }
+
+    @Test
+    fun updateScriptWithCustomSuffix_viaUpdateAllDialog_installsStableVersionWithSameNumber() {
+        updateSvpFrom("0.8.1-custom.7")
+    }
+
+    private fun updateSvpFrom(currentVersion: String) {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
-        sideloadSvp("0.8.0")
+        sideloadSvp(currentVersion)
         val svp081 = AssetLoader.read("fixtures/scripts/svp-v0.8.1.user.js")
         server.stubScriptAsset(
             "wrager",
@@ -78,6 +95,7 @@ class ScriptManagerUpdateE2ETest : E2ETestBase() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val updateAllLabel = context.getString(R.string.update_all)
         waitForDialogButton(updateAllLabel)
+        onView(withText(containsString("Release 0.8.1"))).inRoot(isDialog()).check(matches(isDisplayed()))
         onView(withText(updateAllLabel)).inRoot(isDialog()).perform(click())
 
         waitForSvpVersion("0.8.1")

@@ -46,7 +46,7 @@ class ScriptReleaseNotesProvider(
                         val tagVersion = it.tagName.removePrefix("v")
                         // Пропускаем теги, не являющиеся семантическими версиями
                         tagVersion.firstOrNull()?.isDigit() == true &&
-                            ScriptVersion(tagVersion) > currentVersion
+                            ScriptVersion(tagVersion).isUpdateFor(currentVersion)
                     }.mapNotNull { release ->
                         val body = release.body?.trim()
                         if (body.isNullOrEmpty()) null else "${release.tagName}\n$body"
