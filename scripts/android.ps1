@@ -172,9 +172,11 @@ try {
         }
         'build' { Invoke-Gradle @('assembleDebug') }
         'verify' {
-            Invoke-Checked 'powershell.exe' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/android.test.ps1')
+            Invoke-Checked 'powershell.exe' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/checkPowerShell.ps1')
             Invoke-Checked 'node' @('scripts/syncAgentSkills.mjs', '--check')
-            Invoke-Checked 'node' @('--test', 'scripts/syncAgentSkills.test.mjs')
+            Invoke-Checked 'node' @('--test', 'scripts/syncAgentSkills.test.mjs', 'scripts/checkRelease.test.mjs', 'scripts/updateBundledSvp.test.mjs', 'scripts/planChecks.test.mjs')
+            Invoke-Checked 'node' @('scripts/checkRelease.mjs')
+            Invoke-Checked 'node' @('scripts/checkSyntax.mjs')
             Invoke-Gradle @('ktlintCheck', 'detekt', 'lintInstr', 'testInstrUnitTest', 'assembleDebug', 'assembleInstr', 'assembleRelease')
         }
         'emulator' { Start-ScoutEmulator }

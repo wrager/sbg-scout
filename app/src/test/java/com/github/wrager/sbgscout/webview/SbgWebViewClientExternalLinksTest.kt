@@ -58,7 +58,7 @@ class SbgWebViewClientExternalLinksTest {
         mockkStatic(Intent::class)
         mockkConstructor(Intent::class)
         mockkStatic(Toast::class)
-        client = SbgWebViewClient(mockk())
+        client = SbgWebViewClient(mockk(), PageLoadingTracker {})
     }
 
     @After

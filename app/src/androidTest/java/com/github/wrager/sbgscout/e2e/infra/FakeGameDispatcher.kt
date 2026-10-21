@@ -35,6 +35,7 @@ class FakeGameDispatcher(
     override fun dispatch(request: RecordedRequest): MockResponse {
         val path = request.path ?: return notFound("null path")
         val method = request.method ?: "GET"
+        server.responses[path.substringBefore('?')]?.let { return it() }
 
         return when {
             method == "GET" && path.startsWith("/app") -> authenticatedPage(request, server.gamePageBody)

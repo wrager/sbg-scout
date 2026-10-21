@@ -70,9 +70,11 @@ import com.github.wrager.sbgscout.settings.SettingsFragment
 import com.github.wrager.sbgscout.updater.AppUpdateChecker
 import com.github.wrager.sbgscout.updater.AppUpdateInstaller
 import com.github.wrager.sbgscout.updater.AppUpdateResult
+import com.github.wrager.sbgscout.webview.PageLoadingTracker
 import com.github.wrager.sbgscout.webview.SbgWebViewClient
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -291,6 +293,7 @@ class GameActivity : AppCompatActivity() {
      * «Scout»/«Reload»/«[x]» и текстовому label'у. Нужно после смены
      * uiMode (configChanges=uiMode), т.к. Activity не пересоздаётся и view'хи
      * держат значения цветов, разрезолвенные при инфляции.
+     * Индикатор загрузки страницы перекрашивается теми же цветами.
      */
     private fun refreshButtonColors() {
         val background = ContextCompat.getColor(this, R.color.scoutButtonBackground)
@@ -313,6 +316,10 @@ class GameActivity : AppCompatActivity() {
             button.strokeColor = strokeTint
         }
         findViewById<android.widget.TextView>(R.id.gameInitializingLabel).setTextColor(content)
+        findViewById<CircularProgressIndicator>(R.id.pageLoadingIndicator).apply {
+            setIndicatorColor(content)
+            backgroundTintList = backgroundTint
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -600,7 +607,8 @@ class GameActivity : AppCompatActivity() {
                 versionName = BuildConfig.VERSION_NAME,
                 injectionStateStorage = injectionStateStorage,
             )
-        sbgWebViewClient = SbgWebViewClient(scriptInjector)
+        val pageLoadingTracker = PageLoadingTracker(::updatePageLoadingIndicator)
+        sbgWebViewClient = SbgWebViewClient(scriptInjector, pageLoadingTracker)
         sbgWebViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
         sbgWebViewClient.onGamePageStarted = { runOnUiThread { handleGamePageStarted() } }
         sbgWebViewClient.onOtherPageStarted = { url -> runOnUiThread { handleOtherPageStarted(url) } }
@@ -608,6 +616,13 @@ class GameActivity : AppCompatActivity() {
 
         webView.webChromeClient =
             object : WebChromeClient() {
+                override fun onProgressChanged(
+                    view: WebView,
+                    newProgress: Int,
+                ) {
+                    pageLoadingTracker.onProgressChanged(newProgress)
+                }
+
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
                     consoleLogBuffer.add(consoleMessage)
                     val logLevel =
@@ -664,6 +679,11 @@ class GameActivity : AppCompatActivity() {
                     }
                 }
             }
+    }
+
+    private fun updatePageLoadingIndicator(loading: Boolean) {
+        findViewById<View>(R.id.pageLoadingIndicator).visibility =
+            if (loading) View.VISIBLE else View.GONE
     }
 
     private fun createDownloadBridge(): DownloadBridge =

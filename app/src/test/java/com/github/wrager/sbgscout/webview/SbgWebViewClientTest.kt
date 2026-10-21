@@ -41,6 +41,7 @@ import org.junit.Test
 class SbgWebViewClientTest {
     private lateinit var scriptInjector: ScriptInjector
     private lateinit var client: SbgWebViewClient
+    private lateinit var pageLoadingStates: MutableList<Boolean>
 
     @Before
     fun setUp() {
@@ -51,7 +52,8 @@ class SbgWebViewClientTest {
         scriptInjector = mockk()
         every { scriptInjector.inject(any(), any()) } just Runs
 
-        client = SbgWebViewClient(scriptInjector)
+        pageLoadingStates = mutableListOf()
+        client = SbgWebViewClient(scriptInjector, PageLoadingTracker(pageLoadingStates::add))
         mockkStatic(Toast::class)
     }
 
@@ -62,6 +64,33 @@ class SbgWebViewClientTest {
     }
 
     // --- onPageStarted ---
+
+    @Test
+    fun `page loading covers login store and game pages`() {
+        val webView = mockk<WebView>(relaxed = true)
+
+        for (url in listOf("http://test.host/login", "http://test.host/store/", "http://test.host/app")) {
+            every { webView.url } returns url
+            client.onPageStarted(webView, url, null)
+            client.onPageFinished(webView, url)
+        }
+
+        assertEquals(listOf(true, false, true, false, true, false), pageLoadingStates)
+    }
+
+    @Test
+    fun `page loading follows document URL from visited history`() {
+        val webView = mockk<WebView>(relaxed = true)
+
+        client.onPageStarted(webView, "http://test.host/app", null)
+        client.doUpdateVisitedHistory(webView, "http://test.host/app", false)
+        client.doUpdateVisitedHistory(webView, "http://test.host/app#_game", false)
+        client.onPageFinished(webView, "http://test.host/app#_game")
+        assertEquals(listOf(true), pageLoadingStates)
+
+        client.onPageFinished(webView, "http://test.host/app#_game")
+        assertEquals(listOf(true, false), pageLoadingStates)
+    }
 
     @Test
     fun `onPageStarted with game URL runs bootstrap scripts and injects`() {

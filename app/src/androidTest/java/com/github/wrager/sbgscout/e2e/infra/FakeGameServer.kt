@@ -1,5 +1,6 @@
 package com.github.wrager.sbgscout.e2e.infra
 
+import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import java.net.InetAddress
@@ -34,6 +35,16 @@ class FakeGameServer {
     @Volatile var rulesPageBody: String = "<html><body>fake rules (no body set)</body></html>"
 
     @Volatile var storePageBody: String = "<html><body>fake store (no body set)</body></html>"
+
+    /** Управляемые ответы страниц и ресурсов для тестов загрузки WebView. */
+    internal val responses = ConcurrentHashMap<String, () -> MockResponse>()
+
+    fun stubResponse(
+        path: String,
+        response: () -> MockResponse,
+    ) {
+        responses[path] = response
+    }
 
     /** Содержимое юзерскриптов: ключ = "<owner>/<repo>/<tag>/<filename>". */
     internal val scriptAssets = ConcurrentHashMap<String, String>()

@@ -140,6 +140,19 @@ class AppUpdateCheckerTest {
             assertEquals(null, (result as AppUpdateResult.UpdateAvailable).releaseNotes)
         }
 
+    @Test
+    fun `build type suffix does not offer the same app version as an update`() =
+        runTest {
+            coEvery { githubReleaseProvider.fetchReleases(any(), any()) } returns
+                listOf(release("v$CURRENT_VERSION", "sbg-scout.apk"))
+
+            for (suffix in listOf("-debug", "-instr")) {
+                val buildChecker = AppUpdateChecker(githubReleaseProvider, "$CURRENT_VERSION$suffix")
+
+                assertEquals(AppUpdateResult.UpToDate, buildChecker.check())
+            }
+        }
+
     private fun release(
         tagName: String,
         apkName: String,
