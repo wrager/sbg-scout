@@ -303,6 +303,8 @@ OkHttp 5 инициализируется явно в `E2ETestBase.setUpE2E` д�
 AndroidX Test падает с `ClassNotFoundException` при создании provider.
 
 `FakeGameDispatcher` маршрутизирует запросы по путям:
+- Путь, заданный через `server.stubResponse(path)`, проверяется раньше остальных маршрутов; ключ - путь без query. Заглушка `/app` отвечает без проверки cookie `hittoken`.
+  <!-- 🤖 Generated with Claude Opus 5.5 -->
 - `GET /app[*]` — при отсутствии cookie `hittoken=<fake>` отвечает `302 Location: /login`; иначе — HTML игровой страницы из `server.gamePageBody`.
 - `GET /login[*]` — HTML логина из `server.loginPageBody`.
 - `POST /login/callback` — `302 Location: /app` + `Set-Cookie` fake-сессии.
