@@ -76,7 +76,7 @@ class SbgWebViewClient(
         url: String?,
     ) {
         super.onPageFinished(view, url)
-        pageLoadingTracker.onPageFinished(url, view?.url, view?.originalUrl)
+        pageLoadingTracker.onPageFinished(url)
         if (GameUrls.isGameAppPage(url) && view != null) {
             onGameSettingsRead?.let { callback ->
                 view.evaluateJavascript("localStorage.getItem('settings')") { result ->
@@ -86,6 +86,15 @@ class SbgWebViewClient(
             gamePageFinishedAtLeastOnce = true
             onGamePageFinished?.invoke()
         }
+    }
+
+    override fun doUpdateVisitedHistory(
+        view: WebView?,
+        url: String?,
+        isReload: Boolean,
+    ) {
+        super.doUpdateVisitedHistory(view, url, isReload)
+        pageLoadingTracker.onVisitedHistoryUpdated(url)
     }
 
     private fun handleInjectionResults(

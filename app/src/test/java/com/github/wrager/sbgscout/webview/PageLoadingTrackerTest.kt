@@ -20,23 +20,23 @@ class PageLoadingTrackerTest {
     @Test
     fun `100 percent does not finish a document with pending resources`() {
         tracker.onProgressChanged(10)
-        tracker.onPageStarted(LOGIN)
+        startDocument(LOGIN)
         tracker.onProgressChanged(10)
         tracker.onProgressChanged(100)
         assertTrue(states.all { it })
-        tracker.onPageFinished(LOGIN, LOGIN, LOGIN)
+        tracker.onPageFinished(LOGIN)
         assertFalse(states.last())
     }
 
     @Test
     fun `old document finish does not hide indicator before next document response`() {
-        tracker.onPageStarted(LOGIN)
+        startDocument(LOGIN)
         tracker.onProgressChanged(100)
         tracker.onProgressChanged(10)
-        tracker.onPageFinished(LOGIN, LOGIN, LOGIN)
+        tracker.onPageFinished(LOGIN)
         assertTrue(states.all { it })
-        tracker.onPageStarted(STORE)
-        tracker.onPageFinished(STORE, STORE, STORE)
+        startDocument(STORE)
+        tracker.onPageFinished(STORE)
         assertFalse(states.last())
     }
 
@@ -44,27 +44,93 @@ class PageLoadingTrackerTest {
     fun `late finish of previous URL does not end current loading`() {
         tracker.onPageStarted(LOGIN)
         tracker.onPageStarted(STORE)
-        tracker.onPageFinished(LOGIN, STORE, STORE)
+        tracker.onPageFinished(LOGIN)
 
         assertEquals(listOf(true, true), states)
-        tracker.onPageFinished(STORE, STORE, STORE)
+        tracker.onPageFinished(STORE)
         assertEquals(listOf(true, true, false), states)
     }
 
     @Test
     fun `aborted navigation finishes before new URL commits`() {
         tracker.onPageStarted(STORE)
-        tracker.onPageFinished(STORE, APP, null)
+        tracker.onPageFinished(STORE)
 
         assertEquals(listOf(true, false), states)
     }
 
     @Test
-    fun `redirect finishes for original navigation URL`() {
+    fun `redirect committed after onPageStarted finishes for committed URL`() {
         tracker.onPageStarted(APP)
-        tracker.onPageFinished(LOGIN, LOGIN, APP)
+        tracker.onProgressChanged(50)
+        tracker.onVisitedHistoryUpdated(LOGIN)
+        tracker.onProgressChanged(100)
+        tracker.onPageFinished(LOGIN)
 
-        assertEquals(listOf(true, false), states)
+        assertEquals(listOf(true, true, false), states)
+    }
+
+    @Test
+    fun `pushState during loading moves finish to the new document URL`() {
+        assertSameDocumentNavigationDuringLoading(startUrl = APP, newUrl = "$APP#_game")
+    }
+
+    @Test
+    fun `hash change during loading keeps indicator until document finishes`() {
+        assertSameDocumentNavigationDuringLoading(startUrl = APP, newUrl = "$APP#point")
+    }
+
+    @Test
+    fun `hash removal during loading keeps indicator until document finishes`() {
+        assertSameDocumentNavigationDuringLoading(startUrl = "$APP#svp-settings", newUrl = APP)
+    }
+
+    @Test
+    fun `replaceState with the same URL during loading keeps indicator until document finishes`() {
+        assertSameDocumentNavigationDuringLoading(startUrl = APP, newUrl = APP)
+    }
+
+    @Test
+    fun `query change during loading finishes with the next onPageFinished`() {
+        startDocument("$APP?point=abc")
+        tracker.onProgressChanged(50)
+        tracker.onVisitedHistoryUpdated(APP)
+        tracker.onPageFinished(APP)
+
+        assertFalse(states.last())
+    }
+
+    @Test
+    fun `same-document navigation after loading does not change indicator`() {
+        startDocument(APP)
+        tracker.onProgressChanged(100)
+        tracker.onPageFinished(APP)
+        val finishedStates = states.toList()
+
+        tracker.onVisitedHistoryUpdated("$APP#point")
+        tracker.onPageFinished("$APP#point")
+
+        assertEquals(finishedStates, states)
+    }
+
+    private fun startDocument(url: String) {
+        tracker.onPageStarted(url)
+        tracker.onVisitedHistoryUpdated(url)
+    }
+
+    private fun assertSameDocumentNavigationDuringLoading(
+        startUrl: String,
+        newUrl: String,
+    ) {
+        startDocument(startUrl)
+        tracker.onProgressChanged(50)
+        tracker.onVisitedHistoryUpdated(newUrl)
+        tracker.onPageFinished(newUrl)
+        assertTrue(states.all { it })
+
+        tracker.onProgressChanged(100)
+        tracker.onPageFinished(newUrl)
+        assertFalse(states.last())
     }
 
     private companion object {

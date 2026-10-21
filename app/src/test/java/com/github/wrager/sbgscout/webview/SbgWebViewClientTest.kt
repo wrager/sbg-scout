@@ -79,14 +79,16 @@ class SbgWebViewClientTest {
     }
 
     @Test
-    fun `page loading finishes for redirected navigation`() {
+    fun `page loading follows document URL from visited history`() {
         val webView = mockk<WebView>(relaxed = true)
-        every { webView.url } returns "http://test.host/login"
-        every { webView.originalUrl } returns "http://test.host/app"
 
         client.onPageStarted(webView, "http://test.host/app", null)
-        client.onPageFinished(webView, "http://test.host/login")
+        client.doUpdateVisitedHistory(webView, "http://test.host/app", false)
+        client.doUpdateVisitedHistory(webView, "http://test.host/app#_game", false)
+        client.onPageFinished(webView, "http://test.host/app#_game")
+        assertEquals(listOf(true), pageLoadingStates)
 
+        client.onPageFinished(webView, "http://test.host/app#_game")
         assertEquals(listOf(true, false), pageLoadingStates)
     }
 

@@ -216,6 +216,30 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     }
 
     @Test
+    fun pushStateBeforeLoad_hidesIndicatorAfterResources() {
+        assertSameDocumentNavigationDuringLoad(
+            script = "history.pushState({page: '1'}, 'game', '#_game')",
+            expectedPath = "/app#_game",
+        ) { it.webView.reload() }
+    }
+
+    @Test
+    fun hashChangeBeforeLoad_keepsIndicatorUntilResources() {
+        assertSameDocumentNavigationDuringLoad(
+            script = "location.hash = 'point'",
+            expectedPath = "/app#point",
+        ) { it.webView.reload() }
+    }
+
+    @Test
+    fun hashRemovedAfterReload_keepsIndicatorUntilResources() {
+        assertSameDocumentNavigationDuringLoad(
+            script = "history.replaceState(null, '', location.pathname + location.search)",
+            expectedPath = "/app",
+        ) { it.webView.evaluateJavascript("location.hash = 'svp-settings'; location.reload();", null) }
+    }
+
+    @Test
     fun backgroundFetchAndSameDocumentNavigation_doNotShowIndicator() {
         val scenario = launchReadyGame()
         val game = GameScreen(scenario, idling)
@@ -272,6 +296,31 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
         }
     }
 
+    private fun assertSameDocumentNavigationDuringLoad(
+        script: String,
+        expectedPath: String,
+        navigate: (GameActivity) -> Unit,
+    ) {
+        val scenario = launchReadyGame()
+        ResponseGate().use { gate ->
+            server.stubResponse("/app") {
+                html(
+                    page(
+                        "<script>document.addEventListener('DOMContentLoaded', () => { $script })</script>" +
+                            "<img src='/loading/pending'>",
+                    ),
+                )
+            }
+            server.stubResponse("/loading/pending") { gate.respond(resource("image/svg+xml", IMAGE)) }
+            scenario.onActivity(navigate)
+            gate.awaitRequest()
+            waitForWebViewUrl(scenario, "${server.baseUrl}$expectedPath")
+            assertIndicatorStays(scenario, visible = true)
+            gate.close()
+            waitForIndicator(scenario, visible = false)
+        }
+    }
+
     private fun launchReadyGame(): ActivityScenario<GameActivity> {
         server.gamePageBody = page()
         server.storePageBody = page()
@@ -319,6 +368,20 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     }
 
     private fun indicatorVisibility(visible: Boolean): Int = if (visible) View.VISIBLE else View.GONE
+
+    private fun waitForWebViewUrl(
+        scenario: ActivityScenario<GameActivity>,
+        expected: String,
+    ) {
+        val deadline = System.currentTimeMillis() + TIMEOUT_MS
+        var actual: String? = null
+        while (System.currentTimeMillis() < deadline) {
+            scenario.onActivity { actual = it.webView.url }
+            if (actual == expected) return
+            Thread.sleep(POLL_INTERVAL_MS)
+        }
+        assertEquals("WebView URL", expected, actual)
+    }
 
     private fun waitForViewVisibility(
         scenario: ActivityScenario<GameActivity>,
