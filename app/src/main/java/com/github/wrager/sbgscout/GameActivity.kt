@@ -105,23 +105,11 @@ class GameActivity : AppCompatActivity() {
     private var lastAppliedTheme: GameSettingsReader.ThemeMode? = null
     private var lastAppliedLanguage: String? = null
 
-    /** true после полной загрузки игры (см. ScoutBridge) или на странице вне игры. */
-    private var gameReady = false
+    /** Текущая страница WebView: по ней [renderTopButtons] показывает подложку и блок кнопок. */
+    private var pageLoadState = PageLoadState.GAME_LOADING
 
     /** true если HTML-кнопка в `.settings-content` успешно инжектирована (нативную «Scout» можно скрыть). */
     private var scoutButtonReplaced = false
-
-    /**
-     * false на страницах вне игры, кроме входа: там нативная «Scout» только
-     * перекрывала бы контент, а вернуться в игру можно «Назад».
-     */
-    private var scoutButtonAllowed = true
-
-    /**
-     * true на странице входа: блок кнопок прижат к верхнему краю, по центру
-     * он закрывал бы кнопку входа через Telegram посередине страницы.
-     */
-    private var topButtonsAtTop = false
 
     /**
      * Высота зоны сверху окна, которую закрывают статус-бар (в том числе скрытый:
@@ -376,7 +364,7 @@ class GameActivity : AppCompatActivity() {
                     .getInsetsIgnoringVisibility(
                         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
                     ).top
-            updateTopButtonsPosition()
+            updateTopButtonsPosition(currentTopButtonsState().atTop)
             windowInsets
         }
     }
@@ -503,15 +491,14 @@ class GameActivity : AppCompatActivity() {
         ScoutBridge(
             onReady = {
                 runOnUiThread {
-                    gameReady = true
-                    hideLoadingOverlay()
-                    hideLabelAndReload()
+                    pageLoadState = PageLoadState.GAME_READY
+                    renderTopButtons()
                 }
             },
             onHtmlInjected = {
                 runOnUiThread {
                     scoutButtonReplaced = true
-                    hideScoutButton()
+                    renderTopButtons()
                 }
             },
             onOpenSettings = { runOnUiThread { openSettings() } },
@@ -519,30 +506,16 @@ class GameActivity : AppCompatActivity() {
 
     /** Старт загрузки страницы игры (в т.ч. reload): индикатор загрузки до сигнала готовности. */
     private fun handleGamePageStarted() {
-        gameReady = false
+        pageLoadState = PageLoadState.GAME_LOADING
         scoutButtonReplaced = false
-        scoutButtonAllowed = true
-        topButtonsAtTop = false
-        updateTopButtonsPosition()
-        showLoadingButtons()
-        showLoadingOverlay()
+        renderTopButtons()
     }
 
-    /** Старт загрузки страницы вне игры: входа, правил и т.п. */
+    /** Старт загрузки страницы вне игры: входа, правил и т.п. Сигнала готовности игры от неё не будет. */
     private fun handleOtherPageStarted(url: String?) {
-        // Сигнала готовности игры от этих страниц не будет, поэтому индикатор
-        // загрузки игры там не показываем.
-        gameReady = true
-        hideLoadingOverlay()
-        hideLabelAndReload()
-        // HTML-кнопки на этих страницах нет. «Scout» нужна только на странице
-        // входа: до входа это единственный путь к настройкам приложения.
-        val loginPage = GameUrls.isGameLoginPage(url)
+        pageLoadState = if (GameUrls.isGameLoginPage(url)) PageLoadState.LOGIN else PageLoadState.OTHER_PAGE
         scoutButtonReplaced = false
-        scoutButtonAllowed = loginPage
-        updateScoutButtonVisibility()
-        topButtonsAtTop = loginPage
-        updateTopButtonsPosition()
+        renderTopButtons()
     }
 
     private fun configureCookies() {
@@ -799,39 +772,36 @@ class GameActivity : AppCompatActivity() {
         settingsContainer.isClickable = true
     }
 
-    /** Показать «Инициализация игры…» + «Scout» + «Reload» (на старте загрузки). */
-    private fun showLoadingButtons() {
-        if (isSettingsOpen()) return
-        findViewById<View>(R.id.gameInitializingLabel).visibility = View.VISIBLE
-        findViewById<MaterialButton>(R.id.settingsButton).visibility = View.VISIBLE
-        findViewById<MaterialButton>(R.id.reloadButton).visibility = View.VISIBLE
-    }
-
-    /** Скрыть label + «Reload» (когда игра загрузилась). «Scout» остаётся до onHtmlButtonInjected. */
-    private fun hideLabelAndReload() {
-        findViewById<View>(R.id.gameInitializingLabel).visibility = View.GONE
-        findViewById<MaterialButton>(R.id.reloadButton).visibility = View.GONE
-    }
-
-    /** Скрыть «Scout» (когда HTML-кнопка инжектирована в игровую панель настроек). */
-    private fun hideScoutButton() {
-        findViewById<MaterialButton>(R.id.settingsButton).visibility = View.GONE
-    }
-
-    /** «Scout» видна, если она разрешена на текущей странице и её не заменила HTML-кнопка. */
-    private fun updateScoutButtonVisibility() {
-        findViewById<MaterialButton>(R.id.settingsButton).visibility =
-            if (scoutButtonAllowed && !scoutButtonReplaced) View.VISIBLE else View.GONE
-    }
+    private fun currentTopButtonsState(): TopButtonsState =
+        topButtonsState(pageLoadState, scoutButtonReplaced, webView.canGoBack())
 
     /**
-     * Блок кнопок стоит по центру экрана, а на странице входа ([topButtonsAtTop]) —
-     * у верхнего края, ниже статус-бара и выреза экрана (см. [topButtonsTopMargin]).
+     * Показывает подложку и элементы блока кнопок по [pageLoadState]. Видимость
+     * самого блока не трогает: его скрывают экран настроек и provisioning.
+     *
+     * 🤖 Generated with Claude Opus 5.5
      */
-    private fun updateTopButtonsPosition() {
+    private fun renderTopButtons() {
+        val state = currentTopButtonsState()
+        setViewVisible(R.id.loadingOverlay, state.loadingOverlay)
+        setViewVisible(R.id.gameInitializingLabel, state.initializingLabel)
+        setViewVisible(R.id.reloadButton, state.reloadButton)
+        setViewVisible(R.id.settingsButton, state.scoutButton)
+        updateTopButtonsPosition(state.atTop)
+    }
+
+    private fun setViewVisible(
+        id: Int,
+        visible: Boolean,
+    ) {
+        findViewById<View>(id).visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
+    /** Блок кнопок у верхнего края ([atTop]) встаёт ниже статус-бара и выреза экрана (см. [topButtonsTopMargin]). */
+    private fun updateTopButtonsPosition(atTop: Boolean) {
         val container = findViewById<View>(R.id.topButtonsContainer)
         val params = container.layoutParams as? FrameLayout.LayoutParams ?: return
-        if (topButtonsAtTop) {
+        if (atTop) {
             params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             params.topMargin =
                 topButtonsTopMargin(
@@ -844,16 +814,6 @@ class GameActivity : AppCompatActivity() {
             params.topMargin = 0
         }
         container.layoutParams = params
-    }
-
-    /** Показать белую подложку 50 % — на старте загрузки страницы игры. */
-    private fun showLoadingOverlay() {
-        findViewById<View>(R.id.loadingOverlay).visibility = View.VISIBLE
-    }
-
-    /** Скрыть белую подложку — когда игра загрузилась или открыта страница вне игры. */
-    private fun hideLoadingOverlay() {
-        findViewById<View>(R.id.loadingOverlay).visibility = View.GONE
     }
 
     private fun openSettings() {
@@ -913,16 +873,7 @@ class GameActivity : AppCompatActivity() {
         findViewById<View>(R.id.settingsContainer).visibility = View.GONE
         findViewById<View>(R.id.topButtonsContainer).visibility = View.VISIBLE
         findViewById<View>(R.id.closeSettingsFooter).visibility = View.GONE
-        // Восстановить видимость loading-элементов по текущему состоянию:
-        // — label и «Reload» скрываются, когда игра загрузилась;
-        // — «Scout» скрывается, если HTML-кнопка успешно инжектирована или
-        //   открыта страница вне игры, кроме входа (scoutButtonAllowed).
-        //   При включённом CUI `.settings-content` отсутствует, HTML-кнопка не
-        //   инжектируется, и «Scout» остаётся единственным способом открыть настройки.
-        val loadingVisibility = if (gameReady) View.GONE else View.VISIBLE
-        findViewById<View>(R.id.gameInitializingLabel).visibility = loadingVisibility
-        findViewById<MaterialButton>(R.id.reloadButton).visibility = loadingVisibility
-        updateScoutButtonVisibility()
+        renderTopButtons()
         applySettingsAfterClose()
     }
 

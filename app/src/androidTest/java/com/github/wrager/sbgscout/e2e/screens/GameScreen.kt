@@ -267,6 +267,16 @@ class GameScreen(
     }
 
     /**
+     * Нажимает нативную "Reload" без Espresso: вне игры idling не срабатывает,
+     * и Espresso ждал бы его до таймаута.
+     */
+    fun pressReload() {
+        scenario.onActivity { activity ->
+            activity.findViewById<View>(R.id.reloadButton).performClick()
+        }
+    }
+
+    /**
      * Возвращает WebView из GameActivity. Нужен скриншот-тестам для прямой
      * работы с DOM (запросы bounding rects, invalidate перед takeScreenshot).
      */

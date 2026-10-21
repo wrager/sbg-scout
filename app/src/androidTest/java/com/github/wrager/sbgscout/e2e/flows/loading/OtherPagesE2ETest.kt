@@ -1,5 +1,7 @@
 package com.github.wrager.sbgscout.e2e.flows.loading
 
+import android.content.Intent
+import android.net.Uri
 import android.view.View
 import androidx.preference.PreferenceManager
 import androidx.test.espresso.Espresso
@@ -19,14 +21,17 @@ import org.junit.runner.RunWith
 
 /**
  * Страницы вне игры (вход, правила): сигнала готовности игры на них не будет,
- * поэтому подложка, «Инициализация игры…» и «Reload» там скрыты. Нативная
- * «Scout» остаётся только на странице входа — до входа это единственный путь
- * к настройкам приложения; на других страницах она перекрывала бы контент.
- * На странице входа блок кнопок прижат к верхнему краю: по центру «Scout»
- * закрывала бы кнопку входа через Telegram. На остальных страницах — по центру.
+ * поэтому подложки и надписи "Инициализация игры..." там нет. На странице входа
+ * остаются "Scout" (до входа это единственный путь к настройкам приложения) и
+ * "Reload". На других страницах нативные кнопки перекрывали бы контент, поэтому
+ * остаётся только "Reload" и только тогда, когда "Назад" не вернёт в игру.
+ * Вне игры блок кнопок прижат к верхнему краю: по центру "Scout" закрывала бы
+ * кнопку входа через Telegram.
  *
  * Пока не загрузилась страница игры, idling не срабатывает: такие проверки
  * не используют Espresso и ждут страницу по маркеру `window.__sbgFakePage`.
+ *
+ * 🤖 Generated with Claude Opus 5.5
  */
 @RunWith(AndroidJUnit4::class)
 class OtherPagesE2ETest : E2ETestBase() {
@@ -34,22 +39,21 @@ class OtherPagesE2ETest : E2ETestBase() {
         InstrumentationRegistry.getInstrumentation().targetContext
 
     @Test
-    fun loginPageAfterRedirect_hidesLoadingUi_andKeepsScout() {
+    fun loginPageAfterRedirect_keepsScoutAndReload() {
         // Без session-cookie: /app отвечает 302 на /login, игра не грузится.
         server.loginPageBody = AssetLoader.read(LOGIN_FIXTURE)
         val game = GameScreen(launchGameActivity(), idling)
 
         game
             .waitForFakePage("login")
-            .waitForLoadingUi(LoadingUiState.hidden(scout = true))
-            .assertLoadingUiStays(LoadingUiState.hidden(scout = true))
+            .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
+            .assertLoadingUiStays(LoadingUiState.LOGIN_PAGE)
     }
 
     @Test
     fun loginPageAfterGame_showsScout_evenAfterHtmlButtonReplacedIt() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-with-settings-content.html")
         server.loginPageBody = AssetLoader.read(LOGIN_FIXTURE)
-        server.rulesPageBody = AssetLoader.read(RULES_FIXTURE)
         CookieFixtures.injectFakeAuth(server.baseUrl)
         val game = GameScreen(launchGameActivity(), idling).waitForLoaded()
         // В игре нативную «Scout» заменила HTML-кнопка в настройках игры.
@@ -60,21 +64,15 @@ class OtherPagesE2ETest : E2ETestBase() {
         game.navigateByScript("/login/")
         game
             .waitForFakePage("login")
-            .waitForLoadingUi(LoadingUiState.hidden(scout = true))
+            .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
             .waitForTopButtonsAtTop()
 
         // Закрытие настроек восстанавливает «Scout» по текущей странице.
         game.openSettings().close()
         game
-            .waitForLoadingUi(LoadingUiState.hidden(scout = true))
-            .assertLoadingUiStays(LoadingUiState.hidden(scout = true))
+            .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
+            .assertLoadingUiStays(LoadingUiState.LOGIN_PAGE)
             .waitForTopButtonsAtTop()
-
-        game.navigateByScript("/rules/game/")
-        game
-            .waitForFakePage("rules")
-            .waitForLoadingUi(LoadingUiState.hidden(scout = false))
-            .waitForTopButtonsCentered()
     }
 
     @Test
@@ -86,7 +84,7 @@ class OtherPagesE2ETest : E2ETestBase() {
         val game = GameScreen(scenario, idling)
         game
             .waitForFakePage("login")
-            .waitForLoadingUi(LoadingUiState.hidden(scout = true))
+            .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
             .waitForTopButtonsAtTop()
 
         LoginScreen(scenario).waitUntilReady().submitFakeAuth()
@@ -113,7 +111,7 @@ class OtherPagesE2ETest : E2ETestBase() {
 
         game
             .waitForFakePage("login")
-            .waitForLoadingUi(LoadingUiState.hidden(scout = true))
+            .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
             .waitForTopButtonsAtTop()
         scenario.onActivity { activity ->
             assertTrue("Ожидался полноэкранный режим", activity.isFullscreen)
@@ -160,7 +158,7 @@ class OtherPagesE2ETest : E2ETestBase() {
         CookieFixtures.injectFakeAuth(server.baseUrl)
         val scenario = launchGameActivity()
         val game = GameScreen(scenario, idling).waitForLoaded()
-        game.navigateByScript("/rules/game/")
+        game.tapElement("fake-rules-link")
         game
             .waitForFakePage("rules")
             .waitForLoadingUi(LoadingUiState.hidden(scout = false))
@@ -173,6 +171,28 @@ class OtherPagesE2ETest : E2ETestBase() {
             .waitForFakePage("rules")
             .waitForLoadingUi(LoadingUiState.hidden(scout = false))
             .assertLoadingUiStays(LoadingUiState.hidden(scout = false))
+    }
+
+    @Test
+    fun deepLinkToOtherPage_keepsReload_thatOpensGame() {
+        // Ссылка открыта из другого приложения при закрытом Scout: истории у WebView нет.
+        server.gamePageBody = AssetLoader.read(GAME_WITH_RULES_LINK_FIXTURE)
+        server.rulesPageBody = AssetLoader.read(RULES_FIXTURE)
+        CookieFixtures.injectFakeAuth(server.baseUrl)
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("${server.baseUrl}/rules/game/"))
+        val game = GameScreen(launchGameActivityWithIntent(intent), idling)
+
+        game
+            .waitForFakePage("rules")
+            .waitForLoadingUi(LoadingUiState.OTHER_PAGE_WITHOUT_HISTORY)
+            .assertLoadingUiStays(LoadingUiState.OTHER_PAGE_WITHOUT_HISTORY)
+            .waitForTopButtonsAtTop()
+
+        game.pressReload()
+        game
+            .waitForLoaded()
+            .waitForFakePage("app")
+            .waitForLoadingUi(LoadingUiState.hidden(scout = true))
     }
 
     private companion object {
