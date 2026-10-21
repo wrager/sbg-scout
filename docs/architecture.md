@@ -16,6 +16,8 @@ Android-приложение с WebView, загружающее игру SBG (`s
 ### GameActivity
 
 - WebView заполняет экран в immersive-режиме
+- В правом верхнем углу WebView — компактная нативная крутилка загрузки страницы (`pageLoadingIndicator`), не перехватывающая касания. Она находится под экраном настроек и provisioning-overlay. Состояние считает `PageLoadingTracker`, события ему передают `SbgWebViewClient` и `WebChromeClient`: `onProgressChanged` начинает индикацию ещё до получения ответа сервера; `onPageStarted` отмечает начало основного документа, `onPageFinished` текущей навигации скрывает после завершения документа и его load-blocking ресурсов (CSS, JS, изображения, iframe). Запоздалое завершение другого URL игнорируется. Если документ меняет свой URL через pushState, replaceState или hash до окончания загрузки, `doUpdateVisitedHistory` переносит ожидание на новый URL; `onPageFinished`, который WebView присылает сразу после такой навигации с изменением только fragment, индикатор не скрывает. Механизм работает на любой странице, включая login и магазин, при редиректах, reload, истории, ошибках и отмене. 100% не скрывают индикатор начавшегося документа: Chromium может выдать их после разбора/первого отображения страницы, пока низкоприоритетные ресурсы ещё грузятся. Снижение прогресса обозначает новую навигацию и сбрасывает прежний URL; завершение старого документа до ответа нового игнорируется. Ошибка/отмена до `onPageStarted` завершается по 100% прогресса. Готовность i18next не скрывает крутилку. Фоновые fetch/XHR, тайлы карты после загрузки и переходы внутри документа не включают её. Подготовка скриптов перед открытием страницы использует отдельный provisioning-progress.
+  <!-- 🤖 Generated with Claude Opus 5.5 -->
 - Белая подложка 50 % opacity над WebView, пока интерфейс игры не инициализировался (сигнал — i18next применил переводы, `#settings` получил локализованный текст)
 - Сверху по центру — текст «Инициализация игры…» и компактные кнопки «⚙ Scout» (настройки SBG Scout), «⟳ Reload» (перезагрузка WebView); цвета кнопок зависят от темы (в светлой — светло-серый фон с тонким чёрным бордером, в тёмной — тёмно-серый без бордера)
 - Двухрежимная кнопка настроек:
@@ -267,6 +269,7 @@ app/src/main/java/com/github/wrager/sbgscout/
 │   ├── AppUpdateInstaller.kt   Скачивание и установка APK с прогрессом
 │   └── AppUpdateResult.kt      UpdateAvailable | UpToDate | CheckFailed
 └── webview/
+    ├── PageLoadingTracker.kt  Состояние индикатора загрузки основного документа
     └── SbgWebViewClient.kt  Загрузка страниц, инжекция, чтение настроек, close(), внешние ссылки
 ```
 
@@ -301,6 +304,8 @@ OkHttp 5 инициализируется явно в `E2ETestBase.setUpE2E` д�
 AndroidX Test падает с `ClassNotFoundException` при создании provider.
 
 `FakeGameDispatcher` маршрутизирует запросы по путям:
+- Путь, заданный через `server.stubResponse(path)`, проверяется раньше остальных маршрутов; ключ - путь без query. Заглушка `/app` отвечает без проверки cookie `hittoken`.
+  <!-- 🤖 Generated with Claude Opus 5.5 -->
 - `GET /app[*]` — при отсутствии cookie `hittoken=<fake>` отвечает `302 Location: /login`; иначе — HTML игровой страницы из `server.gamePageBody`.
 - `GET /login[*]` — HTML логина из `server.loginPageBody`.
 - `POST /login/callback` — `302 Location: /app` + `Set-Cookie` fake-сессии.

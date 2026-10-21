@@ -24,6 +24,7 @@ import java.net.URISyntaxException
 
 class SbgWebViewClient(
     private val scriptInjector: ScriptInjector,
+    private val pageLoadingTracker: PageLoadingTracker,
 ) : WebViewClient() {
     /** Вызывается после загрузки страницы игры с текущим значением настроек. */
     var onGameSettingsRead: ((String?) -> Unit)? = null
@@ -57,6 +58,7 @@ class SbgWebViewClient(
         favicon: Bitmap?,
     ) {
         super.onPageStarted(view, url, favicon)
+        pageLoadingTracker.onPageStarted(url)
         if (GameUrls.isGameAppPage(url) && view != null) {
             view.evaluateJavascript(UserAgentOverride.BOOTSTRAP_SCRIPT) {}
             view.evaluateJavascript(DownloadBridge.BOOTSTRAP_SCRIPT) {}
@@ -74,6 +76,7 @@ class SbgWebViewClient(
         url: String?,
     ) {
         super.onPageFinished(view, url)
+        pageLoadingTracker.onPageFinished(url)
         if (GameUrls.isGameAppPage(url) && view != null) {
             onGameSettingsRead?.let { callback ->
                 view.evaluateJavascript("localStorage.getItem('settings')") { result ->
@@ -83,6 +86,15 @@ class SbgWebViewClient(
             gamePageFinishedAtLeastOnce = true
             onGamePageFinished?.invoke()
         }
+    }
+
+    override fun doUpdateVisitedHistory(
+        view: WebView?,
+        url: String?,
+        isReload: Boolean,
+    ) {
+        super.doUpdateVisitedHistory(view, url, isReload)
+        pageLoadingTracker.onVisitedHistoryUpdated(url)
     }
 
     private fun handleInjectionResults(
