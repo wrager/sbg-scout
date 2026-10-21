@@ -39,20 +39,21 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     fun image_keepsIndicatorVisibleAfterGameReady() {
         assertResourceLoading("<img src='/loading/resource'>", "image/svg+xml", IMAGE) { scenario ->
             waitForViewVisibility(scenario, R.id.gameInitializingLabel, View.GONE)
-            waitForIndicator(scenario, visible = true)
+            assertIndicatorStays(scenario, visible = true)
         }
     }
 
     @Test
     fun slowResponseBody_keepsIndicatorVisibleAfterHeaders() {
         ResponseGate().use { gate ->
-            server.stubResponse("/app") { gate.respond(html(page()).setBodyDelay(2, TimeUnit.SECONDS)) }
+            server.stubResponse("/app") {
+                gate.respond(html(page()).setBodyDelay(SLOW_BODY_DELAY_MS, TimeUnit.MILLISECONDS))
+            }
             val scenario = launchGameActivity()
             gate.awaitRequest()
             waitForIndicator(scenario, visible = true)
             gate.close()
-            Thread.sleep(500)
-            waitForIndicator(scenario, visible = true)
+            assertIndicatorStays(scenario, visible = true, durationMs = SLOW_BODY_DELAY_MS - HOLD_INTERVAL_MS)
             waitForIndicator(scenario, visible = false)
         }
     }
@@ -207,8 +208,7 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
                 scenario.onActivity { it.webView.reload() }
                 replacement.awaitRequest()
                 first.close()
-                Thread.sleep(200)
-                waitForIndicator(scenario, visible = true)
+                assertIndicatorStays(scenario, visible = true)
                 replacement.close()
                 waitForIndicator(scenario, visible = false)
             }
@@ -225,13 +225,7 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
                 "fetch('/loading/background'); location.hash = 'point'; history.pushState({}, '', '#next');",
             )
             gate.awaitRequest()
-            // Проверяем весь интервал, пока фоновый запрос остаётся незавершённым.
-            repeat(10) {
-                scenario.onActivity {
-                    assertEquals(View.GONE, it.findViewById<View>(R.id.pageLoadingIndicator).visibility)
-                }
-                Thread.sleep(POLL_INTERVAL_MS)
-            }
+            assertIndicatorStays(scenario, visible = false)
         }
     }
 
@@ -307,7 +301,24 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     private fun waitForIndicator(
         scenario: ActivityScenario<GameActivity>,
         visible: Boolean,
-    ) = waitForViewVisibility(scenario, R.id.pageLoadingIndicator, if (visible) View.VISIBLE else View.GONE)
+    ) = waitForViewVisibility(scenario, R.id.pageLoadingIndicator, indicatorVisibility(visible))
+
+    private fun assertIndicatorStays(
+        scenario: ActivityScenario<GameActivity>,
+        visible: Boolean,
+        durationMs: Long = HOLD_INTERVAL_MS,
+    ) {
+        val deadline = System.currentTimeMillis() + durationMs
+        while (System.currentTimeMillis() < deadline) {
+            scenario.onActivity {
+                val actual = it.findViewById<View>(R.id.pageLoadingIndicator).visibility
+                assertEquals("Indicator visibility", indicatorVisibility(visible), actual)
+            }
+            Thread.sleep(POLL_INTERVAL_MS)
+        }
+    }
+
+    private fun indicatorVisibility(visible: Boolean): Int = if (visible) View.VISIBLE else View.GONE
 
     private fun waitForViewVisibility(
         scenario: ActivityScenario<GameActivity>,
@@ -356,6 +367,8 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     private companion object {
         const val TIMEOUT_MS = 15_000L
         const val POLL_INTERVAL_MS = 50L
+        const val HOLD_INTERVAL_MS = 500L
+        const val SLOW_BODY_DELAY_MS = 2_000L
         const val IMAGE =
             "<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'><rect width='1' height='1'/></svg>"
     }
