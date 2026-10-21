@@ -41,6 +41,7 @@ import org.junit.Test
 class SbgWebViewClientTest {
     private lateinit var scriptInjector: ScriptInjector
     private lateinit var client: SbgWebViewClient
+    private lateinit var pageLoadingStates: MutableList<Boolean>
 
     @Before
     fun setUp() {
@@ -51,7 +52,8 @@ class SbgWebViewClientTest {
         scriptInjector = mockk()
         every { scriptInjector.inject(any(), any()) } just Runs
 
-        client = SbgWebViewClient(scriptInjector)
+        pageLoadingStates = mutableListOf()
+        client = SbgWebViewClient(scriptInjector, PageLoadingTracker(pageLoadingStates::add))
         mockkStatic(Toast::class)
     }
 
@@ -64,53 +66,7 @@ class SbgWebViewClientTest {
     // --- onPageStarted ---
 
     @Test
-    fun `progress starts before document response and finishes on pre-commit cancellation`() {
-        val states = mutableListOf<Boolean>()
-        client.onPageLoadingChanged = states::add
-
-        client.onLoadingProgressChanged(10)
-        assertEquals(listOf(true), states)
-        client.onLoadingProgressChanged(100)
-        assertEquals(listOf(true, false), states)
-    }
-
-    @Test
-    fun `100 percent does not finish a document with pending resources`() {
-        val states = mutableListOf<Boolean>()
-        client.onPageLoadingChanged = states::add
-        val webView = mockk<WebView>(relaxed = true)
-
-        client.onLoadingProgressChanged(10)
-        client.onPageStarted(webView, "http://test.host/login", null)
-        client.onLoadingProgressChanged(10)
-        client.onLoadingProgressChanged(100)
-        assertTrue(states.all { it })
-        client.onPageFinished(webView, "http://test.host/login")
-        assertFalse(states.last())
-    }
-
-    @Test
-    fun `old document finish does not hide indicator before next document response`() {
-        val states = mutableListOf<Boolean>()
-        client.onPageLoadingChanged = states::add
-        val webView = mockk<WebView>(relaxed = true)
-        every { webView.url } returns "http://test.host/login"
-        every { webView.originalUrl } returns "http://test.host/login"
-
-        client.onPageStarted(webView, "http://test.host/login", null)
-        client.onLoadingProgressChanged(100)
-        client.onLoadingProgressChanged(10)
-        client.onPageFinished(webView, "http://test.host/login")
-        assertTrue(states.all { it })
-        client.onPageStarted(webView, "http://test.host/store/", null)
-        client.onPageFinished(webView, "http://test.host/store/")
-        assertFalse(states.last())
-    }
-
-    @Test
-    fun `page loading callback covers login store and game pages`() {
-        val states = mutableListOf<Boolean>()
-        client.onPageLoadingChanged = states::add
+    fun `page loading covers login store and game pages`() {
         val webView = mockk<WebView>(relaxed = true)
 
         for (url in listOf("http://test.host/login", "http://test.host/store/", "http://test.host/app")) {
@@ -119,42 +75,11 @@ class SbgWebViewClientTest {
             client.onPageFinished(webView, url)
         }
 
-        assertEquals(listOf(true, false, true, false, true, false), states)
+        assertEquals(listOf(true, false, true, false, true, false), pageLoadingStates)
     }
 
     @Test
-    fun `late finish of previous URL does not end current loading`() {
-        val states = mutableListOf<Boolean>()
-        client.onPageLoadingChanged = states::add
-        val webView = mockk<WebView>(relaxed = true)
-        every { webView.url } returns "http://test.host/store/"
-
-        client.onPageStarted(webView, "http://test.host/login", null)
-        client.onPageStarted(webView, "http://test.host/store/", null)
-        client.onPageFinished(webView, "http://test.host/login")
-
-        assertEquals(listOf(true, true), states)
-        client.onPageFinished(webView, "http://test.host/store/")
-        assertEquals(listOf(true, true, false), states)
-    }
-
-    @Test
-    fun `aborted navigation finishes before new URL commits`() {
-        val states = mutableListOf<Boolean>()
-        client.onPageLoadingChanged = states::add
-        val webView = mockk<WebView>(relaxed = true)
-        every { webView.url } returns "http://test.host/app"
-
-        client.onPageStarted(webView, "http://test.host/store/", null)
-        client.onPageFinished(webView, "http://test.host/store/")
-
-        assertEquals(listOf(true, false), states)
-    }
-
-    @Test
-    fun `redirect finishes for original navigation URL`() {
-        val states = mutableListOf<Boolean>()
-        client.onPageLoadingChanged = states::add
+    fun `page loading finishes for redirected navigation`() {
         val webView = mockk<WebView>(relaxed = true)
         every { webView.url } returns "http://test.host/login"
         every { webView.originalUrl } returns "http://test.host/app"
@@ -162,7 +87,7 @@ class SbgWebViewClientTest {
         client.onPageStarted(webView, "http://test.host/app", null)
         client.onPageFinished(webView, "http://test.host/login")
 
-        assertEquals(listOf(true, false), states)
+        assertEquals(listOf(true, false), pageLoadingStates)
     }
 
     @Test

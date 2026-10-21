@@ -69,6 +69,7 @@ import com.github.wrager.sbgscout.settings.SettingsFragment
 import com.github.wrager.sbgscout.updater.AppUpdateChecker
 import com.github.wrager.sbgscout.updater.AppUpdateInstaller
 import com.github.wrager.sbgscout.updater.AppUpdateResult
+import com.github.wrager.sbgscout.webview.PageLoadingTracker
 import com.github.wrager.sbgscout.webview.SbgWebViewClient
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -552,8 +553,8 @@ class GameActivity : AppCompatActivity() {
                 versionName = BuildConfig.VERSION_NAME,
                 injectionStateStorage = injectionStateStorage,
             )
-        sbgWebViewClient = SbgWebViewClient(scriptInjector)
-        sbgWebViewClient.onPageLoadingChanged = ::updatePageLoadingIndicator
+        val pageLoadingTracker = PageLoadingTracker(::updatePageLoadingIndicator)
+        sbgWebViewClient = SbgWebViewClient(scriptInjector, pageLoadingTracker)
         sbgWebViewClient.onGameSettingsRead = { json -> applyGameSettings(json) }
         sbgWebViewClient.onGamePageStarted = {
             runOnUiThread {
@@ -571,7 +572,7 @@ class GameActivity : AppCompatActivity() {
                     view: WebView,
                     newProgress: Int,
                 ) {
-                    sbgWebViewClient.onLoadingProgressChanged(newProgress)
+                    pageLoadingTracker.onProgressChanged(newProgress)
                 }
 
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
