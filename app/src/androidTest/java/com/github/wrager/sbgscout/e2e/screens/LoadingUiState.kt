@@ -14,6 +14,9 @@ data class LoadingUiState(
         /** Страница игры грузится: видно всё. */
         val LOADING = LoadingUiState(overlay = true, label = true, reload = true, scout = true)
 
+        /** Игра заменила страницу сообщением `.fatal-error`: загрузки больше не будет, надпись скрыта. */
+        val FAILED = LoadingUiState(overlay = true, label = false, reload = true, scout = true)
+
         /** Страница входа: "Scout" ведёт в настройки, "Reload" перезагружает вход. */
         val LOGIN_PAGE = LoadingUiState(overlay = false, label = false, reload = true, scout = true)
 

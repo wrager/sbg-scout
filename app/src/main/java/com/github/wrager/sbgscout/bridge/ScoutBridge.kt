@@ -14,15 +14,24 @@ import android.webkit.JavascriptInterface
  *    `.settings-content` может отсутствовать — инжекция пропускается, нативная
  *    кнопка остаётся.
  * 3. Клик по HTML-кнопке вызывает [openScoutSettings] — открыть экран настроек.
+ *
+ * Если вместо загрузки игра показала `.fatal-error`, bootstrap вызывает
+ * [onGameFailed] и больше ничего не ждёт: игра уже не загрузится.
  */
 class ScoutBridge(
     private val onReady: () -> Unit,
+    private val onFailed: () -> Unit,
     private val onHtmlInjected: () -> Unit,
     private val onOpenSettings: () -> Unit,
 ) {
     @JavascriptInterface
     fun onGameReady() {
         onReady()
+    }
+
+    @JavascriptInterface
+    fun onGameFailed() {
+        onFailed()
     }
 
     @JavascriptInterface
@@ -48,9 +57,11 @@ class ScoutBridge(
          *   инвентарь, интерфейс, геолокация) прошли успешно или игрок нажал
          *   «Хочу», не дожидаясь геолокации. При ошибке этапа экран остаётся —
          *   остаются и подложка с «Reload»;
-         * - нет `.fatal-error`: при фатальной ошибке (например, отказе
+         * - нет `.fatal-error`. При фатальной ошибке (например, отказе
          *   в геолокации) игра заменяет страницу сообщением, и экран загрузки
-         *   пропадает вместе с ней.
+         *   пропадает вместе с ней: вместо onGameReady вызывается onGameFailed.
+         *   `.fatal-error` проверяется первым: игра показывает его и до
+         *   инициализации i18next, если не загрузилась одна из её библиотек.
          *
          * i18next инициализируется на втором этапе загрузки, поэтому раньше
          * подложка снималась, даже если игра потом падала на входе в аккаунт.
@@ -69,9 +80,9 @@ class ScoutBridge(
          * — так же, как делает сама игра в `script.js` через `getLanguage()`.
          * Если итоговый язык начинается с "ru" — русские строки, иначе английские.
          *
-         * Нет таймаута: polling продолжается, пока игра не загрузится.
-         * Если этого не случится (нет сети, ошибка этапа) — подложка загрузки
-         * не снимается, нативные «Scout» и «Reload» остаются доступны.
+         * Нет таймаута: polling продолжается, пока игра не загрузится или не
+         * покажет `.fatal-error`. Если этого не случится (нет сети, ошибка этапа),
+         * подложка загрузки не снимается, нативные "Scout" и "Reload" остаются доступны.
          */
         val BOOTSTRAP_SCRIPT =
             """
@@ -119,10 +130,11 @@ class ScoutBridge(
                     return true;
                 }
 
-                function checkReady() {
-                    if (!(window.i18next && window.i18next.isInitialized)) return false;
-                    if (document.querySelector('.loading-screen')) return false;
-                    return !document.querySelector('.fatal-error');
+                function loadState() {
+                    if (document.querySelector('.fatal-error')) return 'failed';
+                    if (!(window.i18next && window.i18next.isInitialized)) return 'loading';
+                    if (document.querySelector('.loading-screen')) return 'loading';
+                    return 'ready';
                 }
 
                 function onReady() {
@@ -132,18 +144,23 @@ class ScoutBridge(
                     }
                 }
 
+                function onFailed() {
+                    if (window.__sbg_scout) window.__sbg_scout.onGameFailed();
+                }
+
+                function settleLoadState() {
+                    var state = loadState();
+                    if (state === 'ready') onReady();
+                    else if (state === 'failed') onFailed();
+                    return state !== 'loading';
+                }
+
                 function start() {
                     if (window.__sbg_scout_bootstrapped) return;
                     window.__sbg_scout_bootstrapped = true;
-                    if (checkReady()) {
-                        onReady();
-                        return;
-                    }
+                    if (settleLoadState()) return;
                     var interval = setInterval(function() {
-                        if (checkReady()) {
-                            clearInterval(interval);
-                            onReady();
-                        }
+                        if (settleLoadState()) clearInterval(interval);
                     }, 100);
                 }
 

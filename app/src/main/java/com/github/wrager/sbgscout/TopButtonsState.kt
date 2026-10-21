@@ -8,6 +8,9 @@ internal enum class PageLoadState {
     /** Игра убрала свой экран загрузки. */
     GAME_READY,
 
+    /** Игра заменила страницу сообщением `.fatal-error`, например при отказе в геолокации. */
+    GAME_FAILED,
+
     /** Страница входа. */
     LOGIN,
 
@@ -40,10 +43,12 @@ internal data class TopButtonsState(
  * загрузилась, и в её настройки вставлена HTML-кнопка вместо "Scout";
  * [canGoBack] - "Назад" вернёт на предыдущую страницу WebView.
  *
- * Вне игры блок у верхнего края: по центру "Scout" закрывала бы кнопку входа
- * через Telegram. Вне игры, кроме входа, "Reload" нужна, только когда "Назад"
- * не вернёт в игру, например на странице, открытой по ссылке из другого
- * приложения: иначе кнопки перекрывали бы страницу.
+ * По центру экрана блок стоит только в загруженной игре. Пока игра грузится,
+ * по центру "Reload" ложилась бы на кнопку игры "Хочу" в её экране загрузки,
+ * текст `.fatal-error` игра выводит по центру экрана, а на странице входа
+ * "Scout" закрывала бы кнопку входа через Telegram. Вне игры, кроме входа,
+ * "Reload" нужна, только когда "Назад" не вернёт в игру, например на странице,
+ * открытой по ссылке из другого приложения: иначе кнопки перекрывали бы страницу.
  *
  * 🤖 Generated with Claude Opus 5.5
  */
@@ -59,7 +64,15 @@ internal fun topButtonsState(
                 initializingLabel = true,
                 reloadButton = true,
                 scoutButton = true,
-                atTop = false,
+                atTop = true,
+            )
+        PageLoadState.GAME_FAILED ->
+            TopButtonsState(
+                loadingOverlay = true,
+                initializingLabel = false,
+                reloadButton = true,
+                scoutButton = true,
+                atTop = true,
             )
         PageLoadState.GAME_READY ->
             TopButtonsState(

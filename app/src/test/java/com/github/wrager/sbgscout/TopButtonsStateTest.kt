@@ -5,16 +5,30 @@ import org.junit.Test
 
 class TopButtonsStateTest {
     @Test
-    fun `game loading shows overlay label reload and scout in the center`() {
+    fun `game loading shows overlay label reload and scout at the top`() {
         assertEquals(
             TopButtonsState(
                 loadingOverlay = true,
                 initializingLabel = true,
                 reloadButton = true,
                 scoutButton = true,
-                atTop = false,
+                atTop = true,
             ),
             topButtonsState(PageLoadState.GAME_LOADING, scoutButtonReplaced = false, canGoBack = true),
+        )
+    }
+
+    @Test
+    fun `fatal error keeps overlay reload and scout at the top without label`() {
+        assertEquals(
+            TopButtonsState(
+                loadingOverlay = true,
+                initializingLabel = false,
+                reloadButton = true,
+                scoutButton = true,
+                atTop = true,
+            ),
+            topButtonsState(PageLoadState.GAME_FAILED, scoutButtonReplaced = false, canGoBack = true),
         )
     }
 

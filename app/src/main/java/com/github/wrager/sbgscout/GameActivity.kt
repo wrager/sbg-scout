@@ -495,6 +495,12 @@ class GameActivity : AppCompatActivity() {
                     renderTopButtons()
                 }
             },
+            onFailed = {
+                runOnUiThread {
+                    pageLoadState = PageLoadState.GAME_FAILED
+                    renderTopButtons()
+                }
+            },
             onHtmlInjected = {
                 runOnUiThread {
                     scoutButtonReplaced = true
