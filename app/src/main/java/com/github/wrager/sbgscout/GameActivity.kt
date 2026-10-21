@@ -274,6 +274,7 @@ class GameActivity : AppCompatActivity() {
      * «Scout»/«Reload»/«[x]» и текстовому label'у. Нужно после смены
      * uiMode (configChanges=uiMode), т.к. Activity не пересоздаётся и view'хи
      * держат значения цветов, разрезолвенные при инфляции.
+     * Индикатор загрузки страницы перекрашивается теми же цветами.
      */
     private fun refreshButtonColors() {
         val background = ContextCompat.getColor(this, R.color.scoutButtonBackground)
