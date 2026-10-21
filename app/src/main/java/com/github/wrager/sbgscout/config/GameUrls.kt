@@ -31,6 +31,7 @@ object GameUrls {
     var betaServerEnabled: Boolean = false
 
     private const val BETA_HOST = "beta.sbg-game.ru"
+    private const val LOGIN_PATH = "/login"
 
     val appUrl: String
         get() = appUrlOverride ?: if (betaServerEnabled) "https://$BETA_HOST/app" else BuildConfig.GAME_APP_URL
@@ -63,17 +64,14 @@ object GameUrls {
         return uri.host == host
     }
 
-    /** Страница входа (`/login/`); до входа только с неё доступны настройки Scout. */
-    fun isGameLoginPage(url: String?): Boolean = isGamePageUnder(url, "/login")
-
     /**
-     * Страница игрового хоста (основного или текущего из [appUrl], например
-     * бета-сервера) с путём [pathPrefix] или вложенным в него.
+     * Страница входа (`/login` и вложенные пути) на игровом хосте: основном
+     * или текущем из [appUrl], например бета-сервере. До входа только с неё
+     * доступны настройки Scout.
+     *
+     * 🤖 Generated with Claude Opus 5.5
      */
-    private fun isGamePageUnder(
-        url: String?,
-        pathPrefix: String,
-    ): Boolean {
+    fun isGameLoginPage(url: String?): Boolean {
         if (url.isNullOrEmpty()) return false
         val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
         val scheme = uri.scheme?.lowercase()
@@ -81,6 +79,6 @@ object GameUrls {
         val path = uri.path.orEmpty()
         return (scheme == "http" || scheme == "https") &&
             uri.host in gameHosts &&
-            (path == pathPrefix || path.startsWith("$pathPrefix/"))
+            (path == LOGIN_PATH || path.startsWith("$LOGIN_PATH/"))
     }
 }
