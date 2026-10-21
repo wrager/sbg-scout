@@ -1,6 +1,5 @@
 package com.github.wrager.sbgscout.e2e.flows.smoke
 
-import android.graphics.Rect
 import android.view.View
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -10,7 +9,6 @@ import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
-import com.github.wrager.sbgscout.e2e.screenshots.ReadmeScreenshotCapture
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.SocketPolicy
 import org.junit.Assert.assertEquals
@@ -39,7 +37,10 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
 
     @Test
     fun image_keepsIndicatorVisibleAfterGameReady() {
-        assertResourceLoading("<img src='/loading/resource'>", "image/svg+xml", IMAGE)
+        assertResourceLoading("<img src='/loading/resource'>", "image/svg+xml", IMAGE) { scenario ->
+            waitForViewVisibility(scenario, R.id.gameInitializingLabel, View.GONE)
+            waitForIndicator(scenario, visible = true)
+        }
     }
 
     @Test
@@ -262,6 +263,7 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
         element: String,
         contentType: String,
         body: String,
+        whileResourcePending: (ActivityScenario<GameActivity>) -> Unit = {},
     ) {
         ResponseGate().use { gate ->
             server.gamePageBody = page(element)
@@ -270,13 +272,7 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
             val scenario = launchGameActivity()
             gate.awaitRequest()
             waitForIndicator(scenario, visible = true)
-            if (contentType == "image/svg+xml") {
-                waitForViewVisibility(scenario, R.id.gameInitializingLabel, View.GONE)
-                waitForIndicator(scenario, visible = true)
-                val region = Rect()
-                scenario.onActivity { it.findViewById<View>(R.id.rootLayout).getGlobalVisibleRect(region) }
-                ReadmeScreenshotCapture.captureRegion("page-loading.png", region)
-            }
+            whileResourcePending(scenario)
             gate.close()
             waitForIndicator(scenario, visible = false)
         }
