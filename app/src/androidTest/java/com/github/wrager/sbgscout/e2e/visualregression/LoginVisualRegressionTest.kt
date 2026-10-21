@@ -1,14 +1,14 @@
 package com.github.wrager.sbgscout.e2e.visualregression
 
-import android.view.View
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
-import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
+import com.github.wrager.sbgscout.e2e.screens.GameScreen
+import com.github.wrager.sbgscout.e2e.screens.LoadingUiState
 import com.github.wrager.sbgscout.e2e.screens.LoginScreen
 import com.github.wrager.sbgscout.e2e.screenshots.ReadmeScreenshotCapture
 import org.junit.After
@@ -58,16 +58,10 @@ class LoginVisualRegressionTest : E2ETestBase() {
         val scenario = launchGameActivity()
         LoginScreen(scenario).waitUntilReady()
 
-        // GameActivity накладывает на login WebView loadingOverlay с
-        // "Инициализация игры..." и нативными кнопками Settings/Reload -
-        // обычно убираются JS-callback'ами, но на /login страница не
-        // вызывает game-bridge'ы. Скрываем вручную.
-        scenario.onActivity { activity ->
-            activity.findViewById<View>(R.id.loadingOverlay)?.visibility = View.GONE
-            activity.findViewById<View>(R.id.gameInitializingLabel)?.visibility = View.GONE
-            activity.findViewById<View>(R.id.reloadButton)?.visibility = View.GONE
-            activity.findViewById<View>(R.id.settingsButton)?.visibility = View.GONE
-        }
+        // "Scout" и "Reload" у верхнего края - часть экрана входа и входят в снимок.
+        GameScreen(scenario, idling)
+            .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
+            .waitForTopButtonsAtTop()
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
 
         // restoreClipboard предыдущего теста может оставить панель SystemUI.
