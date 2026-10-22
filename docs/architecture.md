@@ -16,11 +16,11 @@ Android-приложение с WebView, загружающее игру SBG (`s
 ### GameActivity
 
 - WebView заполняет экран в immersive-режиме
-- В правом верхнем углу WebView — компактная нативная крутилка загрузки страницы (`pageLoadingIndicator`), не перехватывающая касания. Она находится под экраном настроек и provisioning-overlay. Состояние считает `PageLoadingTracker`, события ему передают `SbgWebViewClient` и `WebChromeClient`: `onProgressChanged` начинает индикацию ещё до получения ответа сервера; `onPageStarted` отмечает начало основного документа, `onPageFinished` текущей навигации скрывает после завершения документа и его load-blocking ресурсов (CSS, JS, изображения, iframe). Запоздалое завершение другого URL игнорируется. Если документ меняет свой URL через pushState, replaceState или hash до окончания загрузки, `doUpdateVisitedHistory` переносит ожидание на новый URL; `onPageFinished`, который WebView присылает сразу после такой навигации с изменением только fragment, индикатор не скрывает. Механизм работает на любой странице, включая login и магазин, при редиректах, reload, истории, ошибках и отмене. 100% не скрывают индикатор начавшегося документа: Chromium может выдать их после разбора/первого отображения страницы, пока низкоприоритетные ресурсы ещё грузятся. Снижение прогресса обозначает новую навигацию и сбрасывает прежний URL; завершение старого документа до ответа нового игнорируется. Ошибка/отмена до `onPageStarted` завершается по 100% прогресса. Готовность i18next не скрывает крутилку. Фоновые fetch/XHR, тайлы карты после загрузки и переходы внутри документа не включают её. Подготовка скриптов перед открытием страницы использует отдельный provisioning-progress.
+- В правом нижнем углу WebView - компактная нативная крутилка загрузки страницы (`pageLoadingIndicator`), не перехватывающая касания. Она находится под экраном настроек и provisioning-overlay. Состояние считает `PageLoadingTracker`, события ему передают `SbgWebViewClient` и `WebChromeClient`: `onProgressChanged` начинает индикацию ещё до получения ответа сервера; `onPageStarted` отмечает начало основного документа, `onPageFinished` текущей навигации скрывает после завершения документа и его load-blocking ресурсов (CSS, JS, изображения, iframe). Запоздалое завершение другого URL игнорируется. Если документ меняет свой URL через pushState, replaceState или hash до окончания загрузки, `doUpdateVisitedHistory` переносит ожидание на новый URL; `onPageFinished`, который WebView присылает сразу после такой навигации с изменением только fragment, индикатор не скрывает. Механизм работает на любой странице, включая login и магазин, при редиректах, reload, истории, ошибках и отмене. 100% не скрывают индикатор начавшегося документа: Chromium может выдать их после разбора/первого отображения страницы, пока низкоприоритетные ресурсы ещё грузятся. Снижение прогресса обозначает новую навигацию и сбрасывает прежний URL; завершение старого документа до ответа нового игнорируется. Ошибка/отмена до `onPageStarted` завершается по 100% прогресса. Готовность i18next не скрывает крутилку. Фоновые fetch/XHR, тайлы карты после загрузки и переходы внутри документа не включают её. Подготовка скриптов перед открытием страницы использует отдельный provisioning-progress.
   <!-- 🤖 Generated with Claude Opus 5.5 -->
-- Крутилка стоит на `@dimen/page_loading_indicator_margin` (12dp) от правого края и на столько же ниже зоны статус-бара и выреза экрана (`topCornerMargin`, пересчёт при изменении отступов окна), в том числе в полноэкранном режиме: там у `rootLayout` нет отступа сверху, а статус-бар выезжает по свайпу поверх контента
-- По центру экрана - блок `topButtonsContainer`: надпись "Загрузка..." и компактные кнопки "Настройки SBG Scout" и "Reload" (перезагрузка WebView) с иконками и обводкой; цвета надписи и кнопок берутся из `scoutButton*` текущей темы. Скрытые элементы убираются из разметки (`GONE`), и блок центрируется по оставшимся. Экран настроек и provisioning-overlay скрывают блок целиком
-- Видимость надписи и кнопок задаёт `topButtonsState` (`TopButtonsState.kt`) по состоянию страницы `PageLoadState`; `GameActivity.renderTopButtons` применяет его при старте загрузки страницы (`handleGamePageStarted`, `handleOtherPageStarted`), по сигналам bootstrap'а и при закрытии настроек. Надпись видна, только пока грузится игра: загрузку других страниц показывает крутилка
+- Внизу по центру экрана - блок `nativeButtonsContainer`: надпись "Загрузка..." и компактные кнопки "Настройки SBG Scout" и "Reload" (перезагрузка WebView) с иконками и обводкой; цвета надписи и кнопок берутся из `scoutButton*` текущей темы. Скрытые элементы убираются из разметки (`GONE`), и блок сжимается к нижнему краю. Экран настроек и provisioning-overlay скрывают блок целиком
+- Блок и крутилка стоят на `@dimen/native_controls_margin` (12dp) от краёв экрана и на столько же выше зоны навигационной панели и выреза экрана (`edgeMargin`, пересчёт при изменении отступов окна), в том числе в полноэкранном режиме: там у `rootLayout` нет отступа снизу, а навигационная панель выезжает по свайпу поверх контента. Открытая клавиатура поднимает их над собой
+- Видимость надписи и кнопок задаёт `nativeButtonsState` (`NativeButtonsState.kt`) по состоянию страницы `PageLoadState`; `GameActivity.renderNativeButtons` применяет его при старте загрузки страницы (`handleGamePageStarted`, `handleOtherPageStarted`), по сигналам bootstrap'а и при закрытии настроек. Надпись видна, только пока грузится игра: загрузку других страниц показывает крутилка
   <!-- 🤖 Generated with Claude Opus 5.5 -->
 - Двухрежимная кнопка настроек:
   - **Режим загрузки** — нативная «⚙ Scout» видна
@@ -209,7 +209,7 @@ app/src/main/java/com/github/wrager/sbgscout/
 ├── SbgScoutApplication.kt   Применяет сохранённые тему/язык до создания Activity (холодный старт)
 ├── GameActivity.kt          LAUNCHER. WebView, immersive, geolocation, экран настроек, provisioning, автообновления
 ├── MainActivity.kt          Legacy-shim v0.1 → перенаправляет в GameActivity
-├── TopButtonsState.kt       Надпись и кнопки поверх WebView по состоянию страницы
+├── NativeButtonsState.kt    Надпись и кнопки поверх WebView по состоянию страницы
 ├── bridge/
 │   ├── ClipboardBridge.kt     Полифил navigator.clipboard
 │   ├── DownloadBridge.kt      Сохранение blob-файлов из WebView в Downloads
@@ -342,7 +342,7 @@ app/src/androidTest/java/com/github/wrager/sbgscout/e2e/
 ├── screens/
 │   ├── Screen.kt, GameScreen.kt, SettingsScreen.kt, LoginScreen.kt
 │   ├── LoadingUiState.kt             Видимость надписи о загрузке и нативных "Reload" и "Scout" для проверок
-│   └── PageLoadingIndicatorGeometry.kt  Положение индикатора загрузки страницы в правом верхнем углу
+│   └── ViewPlacement.kt              Положение блока кнопок и индикатора загрузки у нижнего края экрана
 └── flows/
     ├── smoke/GameLoadsSmokeTest.kt, ClipboardBridgeE2ETest.kt
     ├── settings/SettingsScreenE2ETest.kt
@@ -426,7 +426,7 @@ Pixel-by-pixel сравнение скриншотов UI с зафиксиро�
 - `dialog-app-update-{light,dark}.png` — диалог проверки обновления приложения в фазе UpdateAvailable.
 - `dialog-script-update-{light,dark}.png` — диалог release-notes после auto-check скриптов.
 - `game-settings-light.png` — popup игровых настроек в WebView с инжектированной кнопкой "SBG Scout".
-- `login-light.png` — fake-страница авторизации с нативными кнопками "Настройки SBG Scout" и "Reload" по центру.
+- `login-light.png` — fake-страница авторизации с нативными кнопками "Настройки SBG Scout" и "Reload" внизу экрана.
 
 WebView-экраны (`game-settings`, `login`) только в light: фикстуры без dark CSS, dark-вариант потребовал бы отдельной dark-фикстуры.
 

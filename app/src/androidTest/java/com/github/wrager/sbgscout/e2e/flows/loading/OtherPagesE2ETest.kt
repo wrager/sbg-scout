@@ -38,6 +38,7 @@ class OtherPagesE2ETest : E2ETestBase() {
             .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
             .assertLoadingUiStays(LoadingUiState.LOGIN_PAGE)
+            .waitForNativeButtonsInPlace()
     }
 
     @Test

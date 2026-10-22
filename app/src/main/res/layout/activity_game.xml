@@ -11,10 +11,11 @@
         android:layout_height="match_parent" />
 
     <LinearLayout
-        android:id="@+id/topButtonsContainer"
+        android:id="@+id/nativeButtonsContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_margin="@dimen/native_controls_margin"
         android:gravity="center_horizontal"
         android:orientation="vertical">
 
@@ -81,8 +82,8 @@
         style="@style/Widget.MaterialComponents.CircularProgressIndicator"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:layout_gravity="top|end"
-        android:layout_margin="@dimen/page_loading_indicator_margin"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="@dimen/native_controls_margin"
         android:background="@drawable/page_loading_background"
         android:clickable="false"
         android:contentDescription="@string/page_loading"

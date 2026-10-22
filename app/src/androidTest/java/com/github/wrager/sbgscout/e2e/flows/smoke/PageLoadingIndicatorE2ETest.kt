@@ -38,7 +38,7 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     }
 
     @Test
-    fun indicator_standsInTopEndCornerBelowStatusBar() {
+    fun indicator_standsInBottomEndCornerAboveNavigationBar() {
         ResponseGate().use { gate ->
             server.stubResponse("/app") { gate.respond(html(page())) }
             val scenario = launchGameActivity()
@@ -48,8 +48,8 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     }
 
     @Test
-    fun indicatorInFullscreen_standsBelowStatusBarArea() {
-        // В полноэкранном режиме статус-бар выезжает по свайпу поверх контента и не должен закрыть индикатор.
+    fun indicatorInFullscreen_standsAboveNavigationBarArea() {
+        // Навигационная панель в полноэкранном режиме выезжает поверх контента и не должна закрыть индикатор.
         PreferenceManager
             .getDefaultSharedPreferences(InstrumentationRegistry.getInstrumentation().targetContext)
             .edit()
@@ -59,8 +59,9 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
             server.stubResponse("/app") { gate.respond(html(page())) }
             val scenario = launchGameActivity()
             gate.awaitRequest()
-            waitForFullscreenWithoutTopPadding(scenario)
-            GameScreen(scenario, idling).waitForPageLoadingIndicatorInPlace()
+            GameScreen(scenario, idling)
+                .waitForFullscreen()
+                .waitForPageLoadingIndicatorInPlace()
         }
     }
 
@@ -397,19 +398,6 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     }
 
     private fun indicatorVisibility(visible: Boolean): Int = if (visible) View.VISIBLE else View.GONE
-
-    private fun waitForFullscreenWithoutTopPadding(scenario: ActivityScenario<GameActivity>) {
-        val deadline = System.currentTimeMillis() + TIMEOUT_MS
-        var fullscreen = false
-        while (System.currentTimeMillis() < deadline) {
-            scenario.onActivity {
-                fullscreen = it.isFullscreen && it.findViewById<View>(R.id.rootLayout).paddingTop == 0
-            }
-            if (fullscreen) return
-            Thread.sleep(POLL_INTERVAL_MS)
-        }
-        assertTrue("Полноэкранный режим без отступа rootLayout сверху", fullscreen)
-    }
 
     private fun waitForWebViewUrl(
         scenario: ActivityScenario<GameActivity>,

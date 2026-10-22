@@ -1,6 +1,8 @@
 package com.github.wrager.sbgscout.e2e.flows.loading
 
+import androidx.preference.PreferenceManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
@@ -17,7 +19,8 @@ import org.junit.runner.RunWith
  * полной загрузки игры: bootstrap ScoutBridge ждёт, пока игра уберёт свой экран
  * загрузки `.loading-screen`. При ошибке этапа и при `.fatal-error` надпись,
  * "Reload" и "Scout" остаются. До загрузки HTML-кнопка Scout в настройки игры
- * не вставляется.
+ * не вставляется. Блок кнопок стоит внизу экрана выше навигационной панели,
+ * в том числе в полноэкранном режиме.
  *
  * Исходы загрузки изображает фикстура `app-page-loading-screen.html`
  * (`window.__sbgFakeLoading`). Отрицательные проверки идут окном
@@ -55,12 +58,29 @@ class GameLoadingE2ETest : E2ETestBase() {
         game
             .waitForLoadingUi(LoadingUiState.LOADING)
             .assertLoadingUiStays(LoadingUiState.LOADING)
+            .waitForNativeButtonsInPlace()
         assertFalse("HTML-кнопка вставлена до загрузки игры", game.isHtmlButtonInjected())
 
         game.evaluateJs("__sbgFakeLoading.finish()")
 
         game.waitForLoadingUi(LoadingUiState.hidden(scout = false))
         assertTrue("HTML-кнопка должна быть вставлена", game.isHtmlButtonInjected())
+    }
+
+    @Test
+    fun loadingUiInFullscreen_standsAboveNavigationBarArea() {
+        // Навигационная панель в полноэкранном режиме выезжает поверх контента и не должна закрыть кнопки.
+        PreferenceManager
+            .getDefaultSharedPreferences(InstrumentationRegistry.getInstrumentation().targetContext)
+            .edit()
+            .putBoolean(KEY_FULLSCREEN, true)
+            .commit()
+        val game = launchGame(LOADING_SCREEN_FIXTURE)
+
+        game
+            .waitForLoadingUi(LoadingUiState.LOADING)
+            .waitForFullscreen()
+            .waitForNativeButtonsInPlace()
     }
 
     @Test
@@ -109,6 +129,7 @@ class GameLoadingE2ETest : E2ETestBase() {
     }
 
     private companion object {
+        const val KEY_FULLSCREEN = "fullscreen_mode"
         const val LOADING_SCREEN_FIXTURE = "fixtures/app-page-loading-screen.html"
     }
 }

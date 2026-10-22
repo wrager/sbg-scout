@@ -105,7 +105,7 @@ class GameActivity : AppCompatActivity() {
     private var lastAppliedTheme: GameSettingsReader.ThemeMode? = null
     private var lastAppliedLanguage: String? = null
 
-    /** Текущая страница WebView: по ней [renderTopButtons] показывает блок кнопок. */
+    /** Текущая страница WebView: по ней [renderNativeButtons] показывает блок кнопок. */
     private var pageLoadState = PageLoadState.GAME_LOADING
 
     /** true если HTML-кнопка в `.settings-content` успешно инжектирована (нативную «Scout» можно скрыть). */
@@ -353,11 +353,11 @@ class GameActivity : AppCompatActivity() {
                     maxOf(barInsets.bottom, imeInsets.bottom),
                 )
             }
-            updatePageLoadingIndicatorTopMargin(
+            updateBottomMargins(
                 windowInsets
                     .getInsetsIgnoringVisibility(
                         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
-                    ).top,
+                    ).bottom,
             )
             windowInsets
         }
@@ -486,13 +486,13 @@ class GameActivity : AppCompatActivity() {
             onReady = {
                 runOnUiThread {
                     pageLoadState = PageLoadState.GAME_READY
-                    renderTopButtons()
+                    renderNativeButtons()
                 }
             },
             onHtmlInjected = {
                 runOnUiThread {
                     scoutButtonReplaced = true
-                    renderTopButtons()
+                    renderNativeButtons()
                 }
             },
             onOpenSettings = { runOnUiThread { openSettings() } },
@@ -502,14 +502,14 @@ class GameActivity : AppCompatActivity() {
     private fun handleGamePageStarted() {
         pageLoadState = PageLoadState.GAME_LOADING
         scoutButtonReplaced = false
-        renderTopButtons()
+        renderNativeButtons()
     }
 
     /** Старт загрузки страницы вне игры: входа, правил и т.п. Сигнала готовности игры от неё не будет. */
     private fun handleOtherPageStarted(url: String?) {
         pageLoadState = if (GameUrls.isGameLoginPage(url)) PageLoadState.LOGIN else PageLoadState.OTHER_PAGE
         scoutButtonReplaced = false
-        renderTopButtons()
+        renderNativeButtons()
     }
 
     private fun configureCookies() {
@@ -771,8 +771,8 @@ class GameActivity : AppCompatActivity() {
      *
      * 🤖 Generated with Claude Opus 5.5
      */
-    private fun renderTopButtons() {
-        val state = topButtonsState(pageLoadState, scoutButtonReplaced, webView.canGoBack())
+    private fun renderNativeButtons() {
+        val state = nativeButtonsState(pageLoadState, scoutButtonReplaced, webView.canGoBack())
         setViewVisible(R.id.gameInitializingLabel, state.loadingLabel)
         setViewVisible(R.id.reloadButton, state.reloadButton)
         setViewVisible(R.id.settingsButton, state.scoutButton)
@@ -786,24 +786,26 @@ class GameActivity : AppCompatActivity() {
     }
 
     /**
-     * Индикатор загрузки страницы в правом верхнем углу встаёт ниже зоны
-     * статус-бара и выреза экрана [safeTopInset] (см. [topCornerMargin]).
+     * Блок нативных кнопок и индикатор загрузки страницы встают выше зоны
+     * навигационной панели и выреза экрана [safeBottomInset] (см. [edgeMargin]).
      */
-    private fun updatePageLoadingIndicatorTopMargin(safeTopInset: Int) {
-        val topMargin =
-            topCornerMargin(
-                safeTopInset = safeTopInset,
-                rootPaddingTop = rootLayout.paddingTop,
-                margin = resources.getDimensionPixelSize(R.dimen.page_loading_indicator_margin),
+    private fun updateBottomMargins(safeBottomInset: Int) {
+        val bottomMargin =
+            edgeMargin(
+                safeInset = safeBottomInset,
+                rootPadding = rootLayout.paddingBottom,
+                margin = resources.getDimensionPixelSize(R.dimen.native_controls_margin),
             )
-        findViewById<View>(R.id.pageLoadingIndicator).updateLayoutParams<FrameLayout.LayoutParams> {
-            this.topMargin = topMargin
+        for (id in intArrayOf(R.id.nativeButtonsContainer, R.id.pageLoadingIndicator)) {
+            findViewById<View>(id).updateLayoutParams<FrameLayout.LayoutParams> {
+                this.bottomMargin = bottomMargin
+            }
         }
     }
 
     private fun openSettings() {
         findViewById<View>(R.id.settingsContainer).visibility = View.VISIBLE
-        findViewById<View>(R.id.topButtonsContainer).visibility = View.GONE
+        findViewById<View>(R.id.nativeButtonsContainer).visibility = View.GONE
         findViewById<View>(R.id.closeSettingsFooter).visibility = View.VISIBLE
         // Скрыть клавиатуру, если была активна в WebView
         val imm = getSystemService(InputMethodManager::class.java)
@@ -856,9 +858,9 @@ class GameActivity : AppCompatActivity() {
             )
         }
         findViewById<View>(R.id.settingsContainer).visibility = View.GONE
-        findViewById<View>(R.id.topButtonsContainer).visibility = View.VISIBLE
+        findViewById<View>(R.id.nativeButtonsContainer).visibility = View.VISIBLE
         findViewById<View>(R.id.closeSettingsFooter).visibility = View.GONE
-        renderTopButtons()
+        renderNativeButtons()
         applySettingsAfterClose()
     }
 
@@ -885,10 +887,10 @@ class GameActivity : AppCompatActivity() {
         val error = findViewById<TextView>(R.id.provisioningError)
         val retryButton = findViewById<Button>(R.id.provisioningRetryButton)
         val skipButton = findViewById<Button>(R.id.provisioningSkipButton)
-        val topButtons = findViewById<View>(R.id.topButtonsContainer)
+        val nativeButtons = findViewById<View>(R.id.nativeButtonsContainer)
 
         overlay.visibility = View.VISIBLE
-        topButtons.visibility = View.GONE
+        nativeButtons.visibility = View.GONE
         isProvisioning = true
 
         // Сброс в состояние загрузки (актуально при повторных попытках)
@@ -963,10 +965,10 @@ class GameActivity : AppCompatActivity() {
 
     private fun finishProvisioning() {
         val overlay = findViewById<LinearLayout>(R.id.provisioningOverlay)
-        val topButtons = findViewById<View>(R.id.topButtonsContainer)
+        val nativeButtons = findViewById<View>(R.id.nativeButtonsContainer)
 
         overlay.visibility = View.GONE
-        topButtons.visibility = View.VISIBLE
+        nativeButtons.visibility = View.VISIBLE
         isProvisioning = false
         val startUrl = pendingDeepLinkUrl ?: GameUrls.appUrl
         pendingDeepLinkUrl = null
@@ -1445,15 +1447,15 @@ internal fun configureWebViewPerformance(webView: WebView) {
 }
 
 /**
- * Отступ индикатора загрузки страницы в правом верхнем углу от верха содержимого
- * `rootLayout`: индикатор встаёт на [margin] ниже зоны статус-бара и выреза экрана
- * [safeTopInset]. В обычном режиме эту зону уже покрывает отступ `rootLayout` сверху
- * [rootPaddingTop]; в полноэкранном отступа нет, и зону обходит сам индикатор.
+ * Отступ элемента от края содержимого `rootLayout`, при котором элемент стоит на [margin]
+ * дальше зоны системных панелей и выреза экрана [safeInset] у этого края. В обычном режиме
+ * эту зону уже покрывает отступ `rootLayout` [rootPadding]; в полноэкранном отступа нет,
+ * и зону обходит сам элемент.
  *
  * 🤖 Generated with Claude Opus 5.5
  */
-internal fun topCornerMargin(
-    safeTopInset: Int,
-    rootPaddingTop: Int,
+internal fun edgeMargin(
+    safeInset: Int,
+    rootPadding: Int,
     margin: Int,
-): Int = maxOf(safeTopInset - rootPaddingTop, 0) + margin
+): Int = maxOf(safeInset - rootPadding, 0) + margin

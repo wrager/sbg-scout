@@ -144,44 +144,83 @@ class GameScreen(
         }
     }
 
-    fun pageLoadingIndicatorGeometry(): PageLoadingIndicatorGeometry {
-        var geometry: PageLoadingIndicatorGeometry? = null
+    /**
+     * Ждёт, пока индикатор загрузки страницы появится в правом нижнем углу
+     * выше навигационной панели и выреза экрана. Страница должна ещё грузиться.
+     */
+    fun waitForPageLoadingIndicatorInPlace(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen =
+        waitForPlacement(R.id.pageLoadingIndicator, "Индикатор загрузки страницы", timeoutMs) {
+            it.isAboveNavigationBar && it.isAtEnd
+        }
+
+    /** Ждёт, пока блок нативных кнопок встанет внизу по центру выше навигационной панели и выреза экрана. */
+    fun waitForNativeButtonsInPlace(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen =
+        waitForPlacement(R.id.nativeButtonsContainer, "Блок нативных кнопок", timeoutMs) {
+            it.isAboveNavigationBar && it.isCentered
+        }
+
+    /** Ждёт полноэкранного режима, в котором у `rootLayout` нет отступа снизу. */
+    fun waitForFullscreen(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen {
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
+        var fullscreen = isFullscreenWithoutBottomPadding()
+        while (!fullscreen && SystemClock.uptimeMillis() < deadline) {
+            Thread.sleep(POLL_INTERVAL_MS)
+            fullscreen = isFullscreenWithoutBottomPadding()
+        }
+        assertTrue("Полноэкранный режим без отступа rootLayout снизу за ${timeoutMs}ms", fullscreen)
+        return this
+    }
+
+    private fun isFullscreenWithoutBottomPadding(): Boolean {
+        var fullscreen = false
+        scenario.onActivity {
+            fullscreen = it.isFullscreen && it.findViewById<View>(R.id.rootLayout).paddingBottom == 0
+        }
+        return fullscreen
+    }
+
+    private fun waitForPlacement(
+        viewId: Int,
+        name: String,
+        timeoutMs: Long,
+        inPlace: (ViewPlacement) -> Boolean,
+    ): GameScreen {
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
+        var placement = viewPlacement(viewId)
+        while (!inPlace(placement) && SystemClock.uptimeMillis() < deadline) {
+            Thread.sleep(POLL_INTERVAL_MS)
+            placement = viewPlacement(viewId)
+        }
+        assertTrue("$name не на своём месте за ${timeoutMs}ms: $placement", inPlace(placement))
+        return this
+    }
+
+    private fun viewPlacement(viewId: Int): ViewPlacement {
+        var placement: ViewPlacement? = null
         scenario.onActivity { activity ->
             val root = activity.findViewById<View>(R.id.rootLayout)
-            val indicator = activity.findViewById<View>(R.id.pageLoadingIndicator)
+            val view = activity.findViewById<View>(viewId)
             val rootLocation = IntArray(2).also { root.getLocationOnScreen(it) }
-            val indicatorLocation = IntArray(2).also { indicator.getLocationOnScreen(it) }
-            val safeTopInset =
+            val viewLocation = IntArray(2).also { view.getLocationOnScreen(it) }
+            val safeBottomInset =
                 ViewCompat
                     .getRootWindowInsets(root)
                     ?.getInsetsIgnoringVisibility(
                         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
-                    )?.top ?: 0
-            geometry =
-                PageLoadingIndicatorGeometry(
-                    shown = indicator.isShown,
-                    screenTop = indicatorLocation[1],
-                    safeTop = rootLocation[1] + safeTopInset,
-                    end = rootLocation[0] + root.width - root.paddingRight - indicatorLocation[0] - indicator.width,
-                    margin = activity.resources.getDimensionPixelSize(R.dimen.page_loading_indicator_margin),
+                    )?.bottom ?: 0
+            placement =
+                ViewPlacement(
+                    shown = view.isShown,
+                    left = viewLocation[0],
+                    right = viewLocation[0] + view.width,
+                    bottom = viewLocation[1] + view.height,
+                    contentLeft = rootLocation[0] + root.paddingLeft,
+                    contentRight = rootLocation[0] + root.width - root.paddingRight,
+                    safeBottom = rootLocation[1] + root.height - safeBottomInset,
+                    margin = activity.resources.getDimensionPixelSize(R.dimen.native_controls_margin),
                 )
         }
-        return checkNotNull(geometry) { "GameActivity недоступна" }
-    }
-
-    /**
-     * Ждёт, пока индикатор загрузки страницы появится в правом верхнем углу
-     * ниже статус-бара и выреза экрана. Страница должна ещё грузиться.
-     */
-    fun waitForPageLoadingIndicatorInPlace(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen {
-        val deadline = SystemClock.uptimeMillis() + timeoutMs
-        var geometry = pageLoadingIndicatorGeometry()
-        while (!geometry.isInPlace && SystemClock.uptimeMillis() < deadline) {
-            Thread.sleep(POLL_INTERVAL_MS)
-            geometry = pageLoadingIndicatorGeometry()
-        }
-        assertTrue("Индикатор загрузки страницы не на своём месте за ${timeoutMs}ms: $geometry", geometry.isInPlace)
-        return this
+        return checkNotNull(placement) { "GameActivity недоступна" }
     }
 
     /** Вставил ли bootstrap ScoutBridge HTML-кнопку в `.settings-content` игры. */
@@ -224,7 +263,7 @@ class GameScreen(
      * Касание элемента страницы с id [elementId] настоящим касанием экрана
      * (Espresso в экранных координатах), а не JS `click()`: переход по такому
      * касанию идёт с действием пользователя и остаётся в истории для «Назад».
-     * Элемент не должен быть под нативными кнопками по центру экрана.
+     * Элемент не должен быть под нативными кнопками внизу экрана.
      */
     fun tapElement(elementId: String) {
         val raw =

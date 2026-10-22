@@ -19,13 +19,13 @@ internal enum class PageLoadState {
 }
 
 /**
- * Надпись и кнопки блока `topButtonsContainer` по центру поверх WebView.
+ * Надпись и кнопки блока `nativeButtonsContainer` внизу экрана поверх WebView.
  *
  * @property loadingLabel надпись о загрузке игры.
  * @property reloadButton "Reload": загрузка страницы игры.
  * @property scoutButton нативная "Scout": экран настроек приложения.
  */
-internal data class TopButtonsState(
+internal data class NativeButtonsState(
     val loadingLabel: Boolean,
     val reloadButton: Boolean,
     val scoutButton: Boolean,
@@ -37,7 +37,7 @@ internal data class TopButtonsState(
  * на предыдущую страницу WebView.
  *
  * Надпись видна только на странице игры, пока игра грузится: вне игры загрузку
- * страницы показывает индикатор в правом верхнем углу.
+ * страницы показывает индикатор в правом нижнем углу.
  *
  * Вне игры, кроме входа, "Reload" нужна, только когда "Назад" не вернёт в игру,
  * например на странице, открытой по ссылке из другого приложения: иначе кнопки
@@ -45,18 +45,18 @@ internal data class TopButtonsState(
  *
  * 🤖 Generated with Claude Opus 5.5
  */
-internal fun topButtonsState(
+internal fun nativeButtonsState(
     page: PageLoadState,
     scoutButtonReplaced: Boolean,
     canGoBack: Boolean,
-): TopButtonsState =
+): NativeButtonsState =
     when (page) {
         PageLoadState.GAME_LOADING ->
-            TopButtonsState(loadingLabel = true, reloadButton = true, scoutButton = true)
+            NativeButtonsState(loadingLabel = true, reloadButton = true, scoutButton = true)
         PageLoadState.GAME_READY ->
-            TopButtonsState(loadingLabel = false, reloadButton = false, scoutButton = !scoutButtonReplaced)
+            NativeButtonsState(loadingLabel = false, reloadButton = false, scoutButton = !scoutButtonReplaced)
         PageLoadState.LOGIN ->
-            TopButtonsState(loadingLabel = false, reloadButton = true, scoutButton = true)
+            NativeButtonsState(loadingLabel = false, reloadButton = true, scoutButton = true)
         PageLoadState.OTHER_PAGE ->
-            TopButtonsState(loadingLabel = false, reloadButton = !canGoBack, scoutButton = false)
+            NativeButtonsState(loadingLabel = false, reloadButton = !canGoBack, scoutButton = false)
     }
