@@ -1,8 +1,10 @@
 package com.github.wrager.sbgscout.e2e.flows.smoke
 
 import android.view.View
+import androidx.preference.PreferenceManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
@@ -36,9 +38,36 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     }
 
     @Test
+    fun indicator_standsInTopEndCornerBelowStatusBar() {
+        ResponseGate().use { gate ->
+            server.stubResponse("/app") { gate.respond(html(page())) }
+            val scenario = launchGameActivity()
+            gate.awaitRequest()
+            GameScreen(scenario, idling).waitForPageLoadingIndicatorInPlace()
+        }
+    }
+
+    @Test
+    fun indicatorInFullscreen_standsBelowStatusBarArea() {
+        // В полноэкранном режиме статус-бар выезжает по свайпу поверх контента и не должен закрыть индикатор.
+        PreferenceManager
+            .getDefaultSharedPreferences(InstrumentationRegistry.getInstrumentation().targetContext)
+            .edit()
+            .putBoolean(KEY_FULLSCREEN, true)
+            .commit()
+        ResponseGate().use { gate ->
+            server.stubResponse("/app") { gate.respond(html(page())) }
+            val scenario = launchGameActivity()
+            gate.awaitRequest()
+            waitForFullscreenWithoutTopPadding(scenario)
+            GameScreen(scenario, idling).waitForPageLoadingIndicatorInPlace()
+        }
+    }
+
+    @Test
     fun image_keepsIndicatorVisibleAfterGameReady() {
         assertResourceLoading("<img src='/loading/resource'>", "image/svg+xml", IMAGE) { scenario ->
-            waitForViewVisibility(scenario, R.id.reloadButton, View.INVISIBLE)
+            waitForViewVisibility(scenario, R.id.gameInitializingLabel, View.GONE)
             assertIndicatorStays(scenario, visible = true)
         }
     }
@@ -265,12 +294,9 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
                 it.findViewById<View>(R.id.settingsButton).performClick()
                 assertEquals(View.VISIBLE, it.findViewById<View>(R.id.settingsContainer).visibility)
                 val indicator = it.findViewById<View>(R.id.pageLoadingIndicator)
-                val column = it.findViewById<View>(R.id.topButtonsContainer)
                 val settings = it.findViewById<View>(R.id.settingsContainer)
                 val root = it.findViewById<android.view.ViewGroup>(R.id.rootLayout)
-                // Индикатор стоит в столбце кнопок, а столбец - под экраном настроек.
-                assertTrue(indicator.parent === column)
-                assertTrue(root.indexOfChild(column) < root.indexOfChild(settings))
+                assertTrue(root.indexOfChild(indicator) < root.indexOfChild(settings))
                 assertTrue(!indicator.isClickable && !indicator.isFocusable)
                 it.findViewById<View>(R.id.closeSettingsButton).performClick()
             }
@@ -370,7 +396,20 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
         }
     }
 
-    private fun indicatorVisibility(visible: Boolean): Int = if (visible) View.VISIBLE else View.INVISIBLE
+    private fun indicatorVisibility(visible: Boolean): Int = if (visible) View.VISIBLE else View.GONE
+
+    private fun waitForFullscreenWithoutTopPadding(scenario: ActivityScenario<GameActivity>) {
+        val deadline = System.currentTimeMillis() + TIMEOUT_MS
+        var fullscreen = false
+        while (System.currentTimeMillis() < deadline) {
+            scenario.onActivity {
+                fullscreen = it.isFullscreen && it.findViewById<View>(R.id.rootLayout).paddingTop == 0
+            }
+            if (fullscreen) return
+            Thread.sleep(POLL_INTERVAL_MS)
+        }
+        assertTrue("Полноэкранный режим без отступа rootLayout сверху", fullscreen)
+    }
 
     private fun waitForWebViewUrl(
         scenario: ActivityScenario<GameActivity>,
@@ -431,6 +470,7 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     }
 
     private companion object {
+        const val KEY_FULLSCREEN = "fullscreen_mode"
         const val TIMEOUT_MS = 15_000L
         const val POLL_INTERVAL_MS = 50L
         const val HOLD_INTERVAL_MS = 500L

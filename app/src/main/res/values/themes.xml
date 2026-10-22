@@ -2,8 +2,4 @@
 <resources>
 
     <style name="Theme.SBGScout" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
-
-    <style name="ShapeAppearanceOverlay.SBGScout.Circle" parent="">
-        <item name="cornerSize">50%</item>
-    </style>
 </resources>

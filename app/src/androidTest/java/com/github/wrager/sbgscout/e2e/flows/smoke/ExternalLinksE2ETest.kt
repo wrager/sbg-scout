@@ -129,9 +129,9 @@ class ExternalLinksE2ETest : E2ETestBase() {
     private fun openStore(game: GameScreen) {
         // Настоящий тап нужен для user activation: иначе WebView 101 помечает
         // предыдущую запись истории как пропускаемую и canGoBack() возвращает false.
+        // Центр перекрывает нативная кнопка Scout на минимальной fake-странице.
         // CENTER_LEFT даёт x=0: WebView может пропустить касание на границе.
-        // Тапаем на четверти ширины, внутри ссылки и в стороне от нативных
-        // кнопок в правом верхнем углу.
+        // Тапаем на четверти ширины, внутри ссылки и в стороне от кнопки.
         onView(withId(R.id.gameWebView)).perform(
             GeneralClickAction(
                 Tap.SINGLE,

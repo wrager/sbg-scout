@@ -4,8 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Unit-тесты [topCornerMargin] - отступа столбца кнопок в правом верхнем углу
- * от верха содержимого `rootLayout` в GameActivity.
+ * Unit-тесты [topCornerMargin] - отступа индикатора загрузки страницы в правом
+ * верхнем углу от верха содержимого `rootLayout` в GameActivity.
  */
 class TopCornerMarginTest {
     @Test

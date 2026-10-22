@@ -93,7 +93,7 @@ class GameScreen(
     }
 
     /**
-     * Текущая видимость нативных кнопок с учётом родителей ([View.isShown]):
+     * Текущая видимость надписи и нативных кнопок с учётом родителей ([View.isShown]):
      * так, как её видит пользователь.
      */
     fun loadingUiState(): LoadingUiState {
@@ -101,6 +101,7 @@ class GameScreen(
         scenario.onActivity { activity ->
             state =
                 LoadingUiState(
+                    label = activity.findViewById<View>(R.id.gameInitializingLabel).isShown,
                     reload = activity.findViewById<View>(R.id.reloadButton).isShown,
                     scout = activity.findViewById<View>(R.id.settingsButton).isShown,
                 )
@@ -109,7 +110,7 @@ class GameScreen(
     }
 
     /**
-     * Ждёт видимости нативных кнопок [expected]: колбэки моста и
+     * Ждёт видимости надписи и нативных кнопок [expected]: колбэки моста и
      * WebViewClient доходят до UI-потока асинхронно.
      */
     fun waitForLoadingUi(
@@ -122,12 +123,12 @@ class GameScreen(
             Thread.sleep(POLL_INTERVAL_MS)
             actual = loadingUiState()
         }
-        assertEquals("Нативные кнопки за ${timeoutMs}ms", expected, actual)
+        assertEquals("Надпись и нативные кнопки за ${timeoutMs}ms", expected, actual)
         return this
     }
 
     /**
-     * Проверяет, что нативные кнопки держатся в состоянии [expected] всё
+     * Проверяет, что надпись и нативные кнопки держатся в состоянии [expected] всё
      * окно [durationMs]. Окно много длиннее интервала опроса bootstrap-скрипта
      * ScoutBridge (100 мс): сработай сигнал готовности, изменение успело бы прийти.
      */
@@ -137,59 +138,49 @@ class GameScreen(
     ): GameScreen {
         val deadline = SystemClock.uptimeMillis() + durationMs
         while (true) {
-            assertEquals("Нативные кнопки в окне ${durationMs}ms", expected, loadingUiState())
+            assertEquals("Надпись и нативные кнопки в окне ${durationMs}ms", expected, loadingUiState())
             if (SystemClock.uptimeMillis() >= deadline) return this
             Thread.sleep(POLL_INTERVAL_MS)
         }
     }
 
-    /** Столбец кнопок в правом верхнем углу и места его элементов. */
-    fun topButtonsColumnGeometry(): TopButtonsColumnGeometry {
-        var geometry: TopButtonsColumnGeometry? = null
+    fun pageLoadingIndicatorGeometry(): PageLoadingIndicatorGeometry {
+        var geometry: PageLoadingIndicatorGeometry? = null
         scenario.onActivity { activity ->
             val root = activity.findViewById<View>(R.id.rootLayout)
-            val column = activity.findViewById<View>(R.id.topButtonsContainer)
-            val items =
-                listOf(R.id.settingsButton, R.id.reloadButton, R.id.pageLoadingIndicator)
-                    .map { activity.findViewById<View>(it) }
+            val indicator = activity.findViewById<View>(R.id.pageLoadingIndicator)
             val rootLocation = IntArray(2).also { root.getLocationOnScreen(it) }
-            val columnLocation = IntArray(2).also { column.getLocationOnScreen(it) }
+            val indicatorLocation = IntArray(2).also { indicator.getLocationOnScreen(it) }
             val safeTopInset =
                 ViewCompat
                     .getRootWindowInsets(root)
                     ?.getInsetsIgnoringVisibility(
                         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
                     )?.top ?: 0
-            val size = activity.resources.getDimensionPixelSize(R.dimen.top_corner_size)
             geometry =
-                TopButtonsColumnGeometry(
-                    columnScreenTop = columnLocation[1],
+                PageLoadingIndicatorGeometry(
+                    shown = indicator.isShown,
+                    screenTop = indicatorLocation[1],
                     safeTop = rootLocation[1] + safeTopInset,
-                    columnEnd = rootLocation[0] + root.width - root.paddingRight - columnLocation[0] - column.width,
-                    margin = activity.resources.getDimensionPixelSize(R.dimen.top_corner_margin),
-                    itemTops = items.map { it.top },
-                    itemSizes = items.map { it.width to it.height },
-                    itemsLaidOut = items.none { it.visibility == View.GONE },
-                    size = size,
-                    step = size + activity.resources.getDimensionPixelSize(R.dimen.top_buttons_gap),
+                    end = rootLocation[0] + root.width - root.paddingRight - indicatorLocation[0] - indicator.width,
+                    margin = activity.resources.getDimensionPixelSize(R.dimen.page_loading_indicator_margin),
                 )
         }
         return checkNotNull(geometry) { "GameActivity недоступна" }
     }
 
     /**
-     * Ждёт, пока столбец встанет в правый верхний угол ниже статус-бара и выреза
-     * экрана, а "Scout", "Reload" и индикатор загрузки страницы - на свои места
-     * под пустым первым местом, видимы они или нет.
+     * Ждёт, пока индикатор загрузки страницы появится в правом верхнем углу
+     * ниже статус-бара и выреза экрана. Страница должна ещё грузиться.
      */
-    fun waitForTopButtonsInPlace(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen {
+    fun waitForPageLoadingIndicatorInPlace(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen {
         val deadline = SystemClock.uptimeMillis() + timeoutMs
-        var geometry = topButtonsColumnGeometry()
+        var geometry = pageLoadingIndicatorGeometry()
         while (!geometry.isInPlace && SystemClock.uptimeMillis() < deadline) {
             Thread.sleep(POLL_INTERVAL_MS)
-            geometry = topButtonsColumnGeometry()
+            geometry = pageLoadingIndicatorGeometry()
         }
-        assertTrue("Столбец кнопок не на своих местах за ${timeoutMs}ms: $geometry", geometry.isInPlace)
+        assertTrue("Индикатор загрузки страницы не на своём месте за ${timeoutMs}ms: $geometry", geometry.isInPlace)
         return this
     }
 
@@ -233,7 +224,7 @@ class GameScreen(
      * Касание элемента страницы с id [elementId] настоящим касанием экрана
      * (Espresso в экранных координатах), а не JS `click()`: переход по такому
      * касанию идёт с действием пользователя и остаётся в истории для «Назад».
-     * Элемент не должен быть под нативными кнопками в правом верхнем углу.
+     * Элемент не должен быть под нативными кнопками по центру экрана.
      */
     fun tapElement(elementId: String) {
         val raw =
@@ -292,6 +283,7 @@ class GameScreen(
      */
     fun hideTransientChromeForScreenshot() {
         scenario.onActivity { activity ->
+            activity.findViewById<View>(R.id.gameInitializingLabel)?.visibility = View.GONE
             activity.findViewById<View>(R.id.reloadButton)?.visibility = View.GONE
             activity.findViewById<View>(R.id.settingsButton)?.visibility = View.GONE
             activity.webView.invalidate()

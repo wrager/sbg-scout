@@ -272,7 +272,7 @@ class GameActivity : AppCompatActivity() {
 
     /**
      * Применяет цвета `scoutButton*` из текущей темы к кнопкам
-     * «Scout»/«Reload»/«[x]». Нужно после смены
+     * «Scout»/«Reload»/«[x]» и текстовому label'у. Нужно после смены
      * uiMode (configChanges=uiMode), т.к. Activity не пересоздаётся и view'хи
      * держат значения цветов, разрезолвенные при инфляции.
      * Индикатор загрузки страницы перекрашивается теми же цветами.
@@ -297,6 +297,7 @@ class GameActivity : AppCompatActivity() {
             button.iconTint = contentTint
             button.strokeColor = strokeTint
         }
+        findViewById<android.widget.TextView>(R.id.gameInitializingLabel).setTextColor(content)
         findViewById<CircularProgressIndicator>(R.id.pageLoadingIndicator).apply {
             setIndicatorColor(content)
             backgroundTintList = backgroundTint
@@ -352,7 +353,7 @@ class GameActivity : AppCompatActivity() {
                     maxOf(barInsets.bottom, imeInsets.bottom),
                 )
             }
-            updateTopButtonsTopMargin(
+            updatePageLoadingIndicatorTopMargin(
                 windowInsets
                     .getInsetsIgnoringVisibility(
                         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
@@ -765,37 +766,37 @@ class GameActivity : AppCompatActivity() {
     }
 
     /**
-     * Показывает кнопки блока по [pageLoadState]. Видимость самого блока
+     * Показывает надпись и кнопки блока по [pageLoadState]. Видимость самого блока
      * не трогает: его скрывают экран настроек и provisioning.
      *
      * 🤖 Generated with Claude Opus 5.5
      */
     private fun renderTopButtons() {
         val state = topButtonsState(pageLoadState, scoutButtonReplaced, webView.canGoBack())
+        setViewVisible(R.id.gameInitializingLabel, state.loadingLabel)
         setViewVisible(R.id.reloadButton, state.reloadButton)
         setViewVisible(R.id.settingsButton, state.scoutButton)
     }
 
-    /** Скрытый элемент столбца `topButtonsContainer` оставляет своё место, чтобы остальные не сдвигались. */
     private fun setViewVisible(
         id: Int,
         visible: Boolean,
     ) {
-        findViewById<View>(id).visibility = if (visible) View.VISIBLE else View.INVISIBLE
+        findViewById<View>(id).visibility = if (visible) View.VISIBLE else View.GONE
     }
 
     /**
-     * Столбец кнопок в правом верхнем углу встаёт ниже зоны статус-бара и выреза
-     * экрана [safeTopInset] (см. [topCornerMargin]).
+     * Индикатор загрузки страницы в правом верхнем углу встаёт ниже зоны
+     * статус-бара и выреза экрана [safeTopInset] (см. [topCornerMargin]).
      */
-    private fun updateTopButtonsTopMargin(safeTopInset: Int) {
+    private fun updatePageLoadingIndicatorTopMargin(safeTopInset: Int) {
         val topMargin =
             topCornerMargin(
                 safeTopInset = safeTopInset,
                 rootPaddingTop = rootLayout.paddingTop,
-                margin = resources.getDimensionPixelSize(R.dimen.top_corner_margin),
+                margin = resources.getDimensionPixelSize(R.dimen.page_loading_indicator_margin),
             )
-        findViewById<View>(R.id.topButtonsContainer).updateLayoutParams<FrameLayout.LayoutParams> {
+        findViewById<View>(R.id.pageLoadingIndicator).updateLayoutParams<FrameLayout.LayoutParams> {
             this.topMargin = topMargin
         }
     }
@@ -1444,10 +1445,10 @@ internal fun configureWebViewPerformance(webView: WebView) {
 }
 
 /**
- * Отступ столбца кнопок в правом верхнем углу от верха содержимого `rootLayout`:
- * столбец встаёт на [margin] ниже зоны статус-бара и выреза экрана [safeTopInset].
- * В обычном режиме эту зону уже покрывает отступ `rootLayout` сверху
- * [rootPaddingTop]; в полноэкранном отступа нет, и зону обходит сам столбец.
+ * Отступ индикатора загрузки страницы в правом верхнем углу от верха содержимого
+ * `rootLayout`: индикатор встаёт на [margin] ниже зоны статус-бара и выреза экрана
+ * [safeTopInset]. В обычном режиме эту зону уже покрывает отступ `rootLayout` сверху
+ * [rootPaddingTop]; в полноэкранном отступа нет, и зону обходит сам индикатор.
  *
  * 🤖 Generated with Claude Opus 5.5
  */

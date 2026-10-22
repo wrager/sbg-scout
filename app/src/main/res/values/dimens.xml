@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Столбец кнопок и индикатора загрузки страницы в правом верхнем углу. -->
-    <dimen name="top_corner_size">40dp</dimen>
-    <dimen name="top_corner_margin">12dp</dimen>
-    <dimen name="top_buttons_gap">8dp</dimen>
+    <!-- Отступ индикатора загрузки страницы от правого края. Сверху GameActivity отсчитывает его от зоны статус-бара и выреза экрана. -->
+    <dimen name="page_loading_indicator_margin">12dp</dimen>
 </resources>

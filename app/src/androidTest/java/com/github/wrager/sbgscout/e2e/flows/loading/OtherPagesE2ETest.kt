@@ -2,30 +2,24 @@ package com.github.wrager.sbgscout.e2e.flows.loading
 
 import android.content.Intent
 import android.net.Uri
-import android.view.View
-import androidx.preference.PreferenceManager
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import com.github.wrager.sbgscout.e2e.screens.LoadingUiState
 import com.github.wrager.sbgscout.e2e.screens.LoginScreen
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Страницы вне игры (вход, правила): сигнала готовности игры на них не будет.
+ * Страницы вне игры (вход, правила): сигнала готовности игры на них не будет,
+ * а надпись о загрузке игры на них не показывается.
  * На странице входа видны "Scout" (до входа это единственный путь к настройкам
  * приложения) и "Reload". На других страницах нативные кнопки перекрывали бы
  * контент, поэтому остаётся только "Reload" и только тогда, когда "Назад"
- * не вернёт в игру. Кнопки стоят в столбце в правом верхнем углу, скрытая
- * кнопка оставляет своё место пустым.
+ * не вернёт в игру.
  *
  * Пока не загрузилась страница игры, idling не срабатывает: такие проверки
  * не используют Espresso и ждут страницу по маркеру `window.__sbgFakePage`.
@@ -34,9 +28,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class OtherPagesE2ETest : E2ETestBase() {
-    private val targetContext get() =
-        InstrumentationRegistry.getInstrumentation().targetContext
-
     @Test
     fun loginPageAfterRedirect_keepsScoutAndReload() {
         // Без session-cookie: /app отвечает 302 на /login, игра не грузится.
@@ -62,18 +53,16 @@ class OtherPagesE2ETest : E2ETestBase() {
         game
             .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsInPlace()
 
         // Закрытие настроек восстанавливает «Scout» по текущей странице.
         game.openSettings().close()
         game
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
             .assertLoadingUiStays(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsInPlace()
     }
 
     @Test
-    fun loginPage_thenGame_keepsScoutInTopLeftCorner() {
+    fun loginPage_thenGame_keepsScout() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         server.loginPageBody = AssetLoader.read(LOGIN_FIXTURE)
         val scenario = launchGameActivity()
@@ -81,7 +70,6 @@ class OtherPagesE2ETest : E2ETestBase() {
         game
             .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsInPlace()
 
         LoginScreen(scenario).waitUntilReady().submitFakeAuth()
 
@@ -90,35 +78,6 @@ class OtherPagesE2ETest : E2ETestBase() {
             .waitForLoaded()
             .waitForFakePage("app")
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
-            .waitForTopButtonsInPlace()
-    }
-
-    @Test
-    fun loginPageInFullscreen_keepsCornersBelowStatusBarArea() {
-        // В полноэкранном режиме у rootLayout нет отступа сверху, а статус-бар
-        // выезжает по свайпу поверх контента: кнопки и индикатор загрузки
-        // всё равно встают ниже его зоны.
-        PreferenceManager
-            .getDefaultSharedPreferences(targetContext)
-            .edit()
-            .putBoolean(KEY_FULLSCREEN, true)
-            .commit()
-        server.loginPageBody = AssetLoader.read(LOGIN_FIXTURE)
-        val scenario = launchGameActivity()
-        val game = GameScreen(scenario, idling)
-
-        game
-            .waitForFakePage("login")
-            .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsInPlace()
-        scenario.onActivity { activity ->
-            assertTrue("Ожидался полноэкранный режим", activity.isFullscreen)
-            assertEquals(
-                "В полноэкранном режиме у rootLayout нет отступа сверху",
-                0,
-                activity.findViewById<View>(R.id.rootLayout).paddingTop,
-            )
-        }
     }
 
     @Test
@@ -184,7 +143,6 @@ class OtherPagesE2ETest : E2ETestBase() {
             .waitForFakePage("rules")
             .waitForLoadingUi(LoadingUiState.OTHER_PAGE_WITHOUT_HISTORY)
             .assertLoadingUiStays(LoadingUiState.OTHER_PAGE_WITHOUT_HISTORY)
-            .waitForTopButtonsInPlace()
 
         game.pressReload()
         game
@@ -194,7 +152,6 @@ class OtherPagesE2ETest : E2ETestBase() {
     }
 
     private companion object {
-        const val KEY_FULLSCREEN = "fullscreen_mode"
         const val LOGIN_FIXTURE = "fixtures/login-page-minimal.html"
         const val RULES_FIXTURE = "fixtures/rules-page-minimal.html"
         const val GAME_WITH_RULES_LINK_FIXTURE = "fixtures/app-page-with-rules-link.html"

@@ -13,11 +13,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Нативная "Reload" на странице игры скрывается только после полной загрузки
- * игры: bootstrap ScoutBridge ждёт, пока игра уберёт свой экран загрузки
- * `.loading-screen`. При ошибке этапа и при `.fatal-error` "Reload" и "Scout"
- * остаются. До загрузки HTML-кнопка Scout в настройки игры не вставляется.
- * Кнопки стоят в столбце в правом верхнем углу над индикатором загрузки страницы.
+ * Надпись о загрузке и нативная "Reload" на странице игры скрываются только после
+ * полной загрузки игры: bootstrap ScoutBridge ждёт, пока игра уберёт свой экран
+ * загрузки `.loading-screen`. При ошибке этапа и при `.fatal-error` надпись,
+ * "Reload" и "Scout" остаются. До загрузки HTML-кнопка Scout в настройки игры
+ * не вставляется.
  *
  * Исходы загрузки изображает фикстура `app-page-loading-screen.html`
  * (`window.__sbgFakeLoading`). Отрицательные проверки идут окном
@@ -32,10 +32,7 @@ class GameLoadingE2ETest : E2ETestBase() {
         // Страница без .loading-screen (как прежние фикстуры) готова сразу.
         val game = launchGame("fixtures/app-page-with-settings-content.html")
 
-        // Скрытые "Scout", "Reload" и индикатор оставляют свои места в столбце пустыми.
-        game
-            .waitForLoadingUi(LoadingUiState.hidden(scout = false))
-            .waitForTopButtonsInPlace()
+        game.waitForLoadingUi(LoadingUiState.hidden(scout = false))
         assertTrue("HTML-кнопка должна быть вставлена", game.isHtmlButtonInjected())
     }
 
@@ -48,7 +45,6 @@ class GameLoadingE2ETest : E2ETestBase() {
         game
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
             .assertLoadingUiStays(LoadingUiState.hidden(scout = true))
-            .waitForTopButtonsInPlace()
         assertFalse("HTML-кнопке некуда вставляться", game.isHtmlButtonInjected())
     }
 
@@ -59,7 +55,6 @@ class GameLoadingE2ETest : E2ETestBase() {
         game
             .waitForLoadingUi(LoadingUiState.LOADING)
             .assertLoadingUiStays(LoadingUiState.LOADING)
-            .waitForTopButtonsInPlace()
         assertFalse("HTML-кнопка вставлена до загрузки игры", game.isHtmlButtonInjected())
 
         game.evaluateJs("__sbgFakeLoading.finish()")
@@ -87,7 +82,7 @@ class GameLoadingE2ETest : E2ETestBase() {
     }
 
     @Test
-    fun fatalError_keepsReloadAndScoutInCorner() {
+    fun fatalError_keepsLoadingUi() {
         val game = launchGame(LOADING_SCREEN_FIXTURE)
         game.waitForLoadingUi(LoadingUiState.LOADING)
 
@@ -104,7 +99,6 @@ class GameLoadingE2ETest : E2ETestBase() {
         game
             .waitForLoadingUi(LoadingUiState.LOADING)
             .assertLoadingUiStays(LoadingUiState.LOADING)
-            .waitForTopButtonsInPlace()
         assertFalse("HTML-кнопка вставлена при фатальной ошибке", game.isHtmlButtonInjected())
     }
 
