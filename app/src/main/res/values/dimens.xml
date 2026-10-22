@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Отступ блока нативных кнопок и индикатора загрузки страницы от краёв экрана. Снизу GameActivity отсчитывает его от зоны навигационной панели и выреза экрана. -->
-    <dimen name="native_controls_margin">12dp</dimen>
+    <!-- Отступы снизу GameActivity отсчитывает от зоны навигационной панели и выреза экрана. -->
+    <dimen name="native_buttons_bottom_margin">48dp</dimen>
+    <dimen name="page_loading_indicator_margin">12dp</dimen>
 </resources>

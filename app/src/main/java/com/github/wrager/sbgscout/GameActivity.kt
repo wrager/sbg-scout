@@ -790,14 +790,19 @@ class GameActivity : AppCompatActivity() {
      * навигационной панели и выреза экрана [safeBottomInset] (см. [edgeMargin]).
      */
     private fun updateBottomMargins(safeBottomInset: Int) {
-        val bottomMargin =
-            edgeMargin(
-                safeInset = safeBottomInset,
-                rootPadding = rootLayout.paddingBottom,
-                margin = resources.getDimensionPixelSize(R.dimen.native_controls_margin),
+        val margins =
+            listOf(
+                R.id.nativeButtonsContainer to R.dimen.native_buttons_bottom_margin,
+                R.id.pageLoadingIndicator to R.dimen.page_loading_indicator_margin,
             )
-        for (id in intArrayOf(R.id.nativeButtonsContainer, R.id.pageLoadingIndicator)) {
-            findViewById<View>(id).updateLayoutParams<FrameLayout.LayoutParams> {
+        for ((viewId, marginId) in margins) {
+            val bottomMargin =
+                edgeMargin(
+                    safeInset = safeBottomInset,
+                    rootPadding = rootLayout.paddingBottom,
+                    margin = resources.getDimensionPixelSize(marginId),
+                )
+            findViewById<View>(viewId).updateLayoutParams<FrameLayout.LayoutParams> {
                 this.bottomMargin = bottomMargin
             }
         }

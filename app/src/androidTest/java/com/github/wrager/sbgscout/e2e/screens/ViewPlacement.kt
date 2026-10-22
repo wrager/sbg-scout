@@ -14,7 +14,8 @@ import kotlin.math.abs
  * @property contentRight правая граница содержимого `rootLayout`.
  * @property safeBottom верхняя граница зоны навигационной панели и выреза экрана, в том числе
  *   скрытой панели в полноэкранном режиме.
- * @property margin отступ от края экрана и от зоны навигационной панели (`native_controls_margin`).
+ * @property margin ожидаемый отступ элемента от зоны навигационной панели; у индикатора загрузки
+ *   страницы он же отступ от правого края.
  *
  * 🤖 Generated with Claude Opus 5.5
  */

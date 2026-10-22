@@ -149,15 +149,21 @@ class GameScreen(
      * выше навигационной панели и выреза экрана. Страница должна ещё грузиться.
      */
     fun waitForPageLoadingIndicatorInPlace(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen =
-        waitForPlacement(R.id.pageLoadingIndicator, "Индикатор загрузки страницы", timeoutMs) {
-            it.isAboveNavigationBar && it.isAtEnd
-        }
+        waitForPlacement(
+            R.id.pageLoadingIndicator,
+            R.dimen.page_loading_indicator_margin,
+            "Индикатор загрузки страницы",
+            timeoutMs,
+        ) { it.isAboveNavigationBar && it.isAtEnd }
 
     /** Ждёт, пока блок нативных кнопок встанет внизу по центру выше навигационной панели и выреза экрана. */
     fun waitForNativeButtonsInPlace(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen =
-        waitForPlacement(R.id.nativeButtonsContainer, "Блок нативных кнопок", timeoutMs) {
-            it.isAboveNavigationBar && it.isCentered
-        }
+        waitForPlacement(
+            R.id.nativeButtonsContainer,
+            R.dimen.native_buttons_bottom_margin,
+            "Блок нативных кнопок",
+            timeoutMs,
+        ) { it.isAboveNavigationBar && it.isCentered }
 
     /** Ждёт полноэкранного режима, в котором у `rootLayout` нет отступа снизу. */
     fun waitForFullscreen(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen {
@@ -181,21 +187,25 @@ class GameScreen(
 
     private fun waitForPlacement(
         viewId: Int,
+        marginId: Int,
         name: String,
         timeoutMs: Long,
         inPlace: (ViewPlacement) -> Boolean,
     ): GameScreen {
         val deadline = SystemClock.uptimeMillis() + timeoutMs
-        var placement = viewPlacement(viewId)
+        var placement = viewPlacement(viewId, marginId)
         while (!inPlace(placement) && SystemClock.uptimeMillis() < deadline) {
             Thread.sleep(POLL_INTERVAL_MS)
-            placement = viewPlacement(viewId)
+            placement = viewPlacement(viewId, marginId)
         }
         assertTrue("$name не на своём месте за ${timeoutMs}ms: $placement", inPlace(placement))
         return this
     }
 
-    private fun viewPlacement(viewId: Int): ViewPlacement {
+    private fun viewPlacement(
+        viewId: Int,
+        marginId: Int,
+    ): ViewPlacement {
         var placement: ViewPlacement? = null
         scenario.onActivity { activity ->
             val root = activity.findViewById<View>(R.id.rootLayout)
@@ -217,7 +227,7 @@ class GameScreen(
                     contentLeft = rootLocation[0] + root.paddingLeft,
                     contentRight = rootLocation[0] + root.width - root.paddingRight,
                     safeBottom = rootLocation[1] + root.height - safeBottomInset,
-                    margin = activity.resources.getDimensionPixelSize(R.dimen.native_controls_margin),
+                    margin = activity.resources.getDimensionPixelSize(marginId),
                 )
         }
         return checkNotNull(placement) { "GameActivity недоступна" }
