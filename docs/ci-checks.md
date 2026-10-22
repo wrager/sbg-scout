@@ -11,6 +11,11 @@ node scripts/planChecks.mjs --base origin/main
 unstaged и новые неигнорируемые файлы. После изменения исходников скиллов сначала
 выполнить `node scripts/syncAgentSkills.mjs`, затем получить план.
 
+Функциональный e2e в Windows выполнять через `scripts/android.ps1 test -AllTests`, а не
+командой `connectedInstrAndroidTest` из плана: на одном эмуляторе QEMU не освобождает
+память после тестов и исчерпывает память Windows (подробности в `agent-setup.md`).
+<!-- 🤖 Generated with Claude Opus 5.5 -->
+
 | Изменения | Проверки |
 |---|---|
 | `README.md`, `docs/**`, `AGENTS.md`, `CLAUDE.md`, README-PNG, issue templates | Нет исполняемых проверок; проверить смысл и diff |
