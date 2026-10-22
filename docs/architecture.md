@@ -330,6 +330,7 @@ app/src/androidTest/java/com/github/wrager/sbgscout/e2e/
 │   ├── WebViewIdlingResource.kt      IdlingResource, становится idle по markLoaded
 │   ├── GameUrlsOverrideRule.kt       TestRule для runtime-override GameUrls
 │   ├── CookieFixtures.kt             Инъекция fake session-cookie через CookieManager
+│   ├── SelectedTestsFilter.kt        Фильтр раннера для шардов `android.ps1 test -AllTests`
 │   └── AssetLoader.kt                Чтение фикстур из androidTest/assets
 ├── screens/
 │   ├── Screen.kt, GameScreen.kt, SettingsScreen.kt, LoginScreen.kt
@@ -348,13 +349,18 @@ app/src/instr/
 Локальный Windows-запуск использует те же Gradle-задачи через `scripts/android.ps1`.
 `setupAndroid.ps1` устанавливает инструменты и создаёт выделенный AVD, а `test`
 дожидается загрузки и проверяет API 33/WebView 101 перед `connectedInstrAndroidTest`.
-AVD запускается с 2 ядрами, 2 ГБ RAM и SwiftShader без Vulkan.
+AVD запускается с 2 ядрами, 2 ГБ RAM и SwiftShader без Vulkan. SwiftShader не
+освобождает память процесса QEMU после тестов, поэтому `test -AllTests` выполняет
+набор шардами, каждый на свежем эмуляторе.
+<!-- 🤖 Generated with Claude Opus 5.5 -->
 Скрипты общие для человека, Codex и Claude Code; пути, разрешения и команды описаны
 в [agent-setup.md](agent-setup.md). Это инфраструктура разработки, в APK она не входит.
 Для остановки зависшего AVD сохраняются PID и время запуска его host-процесса:
-при отсутствии доступного AVD завершается только подтверждённое дерево этого процесса.
+если AVD недоступен, его консоль не отвечает или эмулятор не завершился после
+`emu kill`, завершается только подтверждённое дерево этого процесса.
+<!-- 🤖 Generated with Claude Opus 5.5 -->
 
-`.github/workflows/e2e.yml` — отдельный workflow на `reactivecircus/android-emulator-runner` (API 33, x86_64, pixel_4), запускается по `pull_request` с path-filter (`app/src/main/**`, `app/src/androidTest/**`, `app/src/instr/**`, `app/build.gradle.kts`, `gradle/libs.versions.toml`) и `workflow_dispatch`. CI использует 2 ядра, 2 ГБ RAM, heap 256 МБ и SwiftShader без Vulkan. Данные AVD кешируются, каждый прогон выполняет холодную загрузку без восстановления snapshot. Не добавлен в `push: main`, чтобы не блокировать мердж долгим прогоном эмулятора. Основной `ci.yml` собирает instr-APK (`assembleInstr`) для быстрого ловли поломок сборки до запуска emulator runner.
+`.github/workflows/e2e.yml` — отдельный workflow на `reactivecircus/android-emulator-runner` (API 33, x86_64, pixel_4), запускается по `pull_request` с path-filter (`app/src/main/**`, `app/src/androidTest/**`, `app/src/instr/**`, `app/build.gradle.kts`, `gradle/libs.versions.toml`) и `workflow_dispatch`. CI использует 2 ядра, 2 ГБ RAM, heap 256 МБ и SwiftShader без Vulkan. Функциональный набор делится на четыре шарда в matrix job `functional`, VR выполняется в job `visual`; у каждого job свой эмулятор, чтобы память QEMU не росла на всём наборе. Данные AVD кешируются, каждый прогон выполняет холодную загрузку без восстановления snapshot. Не добавлен в `push: main`, чтобы не блокировать мердж долгим прогоном эмулятора. Основной `ci.yml` собирает instr-APK (`assembleInstr`) для быстрого ловли поломок сборки до запуска emulator runner.
 
 ### Запрет обращений к прод-серверу
 

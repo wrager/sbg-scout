@@ -32,7 +32,7 @@ export function planChecks(files, { full = false, releasePr = false } = {}) {
   for (const file of files) {
     if (['scripts/planChecks.mjs', 'scripts/planChecks.test.mjs', '.github/workflows/ci.yml'].includes(file)) {
       add(...ALL);
-    } else if (file === '.github/workflows/e2e.yml') {
+    } else if (['.github/workflows/e2e.yml', 'scripts/logRunnerMemory.sh'].includes(file)) {
       add('planner-tests', 'workflows', 'e2e', 'visual');
     } else if (file === '.github/workflows/release.yml') {
       add('workflows', 'release-files', 'release-tests', 'svp-tests');

@@ -47,7 +47,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 buil
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 run -ShowWindow
 # Smoke e2e через FakeGameServer; эмулятор запускается автоматически без окна
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 test
-# Все e2e или указанный класс
+# Все e2e шардами на свежем эмуляторе (-TestsPerShard задаёт размер шарда) или указанный класс
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 test -AllTests
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 test -TestClass com.github.wrager.sbgscout.e2e.flows.smoke.GameLoadsSmokeTest
 # Полная проверка CI (lint, JVM-тесты, debug/instr/release)
@@ -63,10 +63,36 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 stop
 180 секундами (`-BootTimeoutSeconds`). Выделены 2 ядра и 2 ГБ RAM; используется
 программный SwiftShader с отключённым Vulkan. Порт 5580 резервируется для этого AVD;
 при конфликте скрипт останавливается. Подключённые телефоны и другие AVD не выбираются.
-`stop` штатно завершает доступный AVD через adb. Если AVD завис в `offline`,
-он завершает только дерево сохранённого процесса, сверяя PID и время запуска;
-без подтверждённого владельца чужие процессы не останавливаются.
+`stop` штатно завершает доступный AVD через консоль эмулятора (`adb emu kill`).
+Если AVD завис в `offline`, его консоль не ответила за 10 секунд или эмулятор
+не завершился за 30 секунд после `emu kill`, `stop` завершает только дерево
+процесса, сохранённого в `logs\emulator-host.json`, сверяя PID и время запуска;
+без подтверждённого владельца чужие процессы не останавливаются. Сервер adb
+`android.ps1` запускает отдельным процессом без перенаправления вывода: иначе
+сервер унаследует pipe агента, и команда не завершится, пока он работает.
+<!-- 🤖 Generated with Claude Opus 5.5 -->
 Перед e2e проверяются API 33 и WebView 101; при несовпадении тесты не запускаются.
+
+Рендерер SwiftShader не освобождает память процесса QEMU после тестов: в Windows
+около 400 МБ на тест, и на всём наборе эмулятор исчерпывает память и файл подкачки.
+Остальные режимы `-gpu` эмулятора 37.2 (`swiftshader_indirect`, `guest`, `swangle`,
+`lavapipe`, `software`) используют тот же GLES-рендерер SwiftShader, а перезапуск
+Android внутри эмулятора память не возвращает. Поэтому `test -AllTests` получает
+список тестов сухим прогоном раннера (`-e log true`), делит его на шарды по шесть
+тестов (`-TestsPerShard`, до 20), запускает каждый шард на свежем эмуляторе и
+останавливает его после шарда, в том числе при падении. Шард из шести тестов держит
+QEMU около 6 ГБ. Деление по хэшу (`numShards`) здесь не используется: оно даёт шарды
+от 3 до 11 тестов, и самый большой поднимал QEMU до 8 ГБ. Тесты шарда выбирает
+`e2e/infra/SelectedTestsFilter` по аргументу раннера `selectedTests` (через двоеточие):
+из списка `class` через запятую AGP передаёт раннеру только первый тест. После шарда
+скрипт сверяет число выполненных тестов по JUnit-отчёту. Перед загрузкой эмулятора
+шард проверяет свободную память (commit) Windows: 7 ГБ плюс 0,45 ГБ на тест, для шарда
+из шести тестов около 9,7 ГБ. При нехватке запуск останавливается с сообщением, а не
+уводит Windows в подкачку: в таком состоянии загрузка эмулятора замедлялась в разы,
+и UI-тесты падали, не дождавшись фокуса окна. Тогда закрыть другие программы или
+уменьшить `-TestsPerShard`. `test` с одним классом эмулятор не перезапускает; после
+серии таких запусков выполнить `stop`.
+<!-- 🤖 Generated with Claude Opus 5.5 -->
 
 Debug использует настоящий адрес игры. Для автоматической проверки запуска агентом
 применять `run -Offline`: Wi-Fi и мобильные данные **на нашем эмуляторе** отключаются
