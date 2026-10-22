@@ -63,10 +63,11 @@ Android-набор: `./gradlew ktlintCheck detekt lintInstr testInstrUnitTest as
 
 ## Скриншоты README
 
-- Скриншоты в `.github/images/screenshots/` (`game_settings.png`, `settings.png`, `script-manager.png`) обновляются как часть каждого релиза тем же коммитом, что bump версии в `app/build.gradle.kts`.
-- Источник истины — e2e-генератор, не ручные снимки. Скилл `scout-screenshots` запускает три тест-класса в `app/src/androidTest/.../e2e/screenshots/` через `:app:updateReadmeScreenshots` (gradle-обёртка над `connectedInstrAndroidTest` с фильтром по `@ReadmeScreenshot` + `copyReadmeScreenshots`). Эмулятор: API 33, Pixel 4, WebView 101. Локаль приложения форсится на русскую внутри тестов через `LocaleManager.setApplicationLocales`, локаль эмулятора не имеет значения.
+- Скриншоты в `.github/images/screenshots/` (`game_loading.png`, `game_settings.png`, `settings.png`, `script-manager.png`) обновляются как часть каждого релиза тем же коммитом, что bump версии в `app/build.gradle.kts`.
+- Источник истины — e2e-генератор, не ручные снимки. Скилл `scout-screenshots` запускает тест-классы в `app/src/androidTest/.../e2e/screenshots/` через `:app:updateReadmeScreenshots` (gradle-обёртка над `connectedInstrAndroidTest` с фильтром по `@ReadmeScreenshot` + `copyReadmeScreenshots`). Эмулятор: API 33, Pixel 4, WebView 101. Локаль приложения форсится на русскую внутри тестов через `LocaleManager.setApplicationLocales`, локаль эмулятора не имеет значения.
 - В `scout-release` скриншоты обновляются ПОСЛЕ `versionMajor`/`versionMinor`/`versionPatch` в `app/build.gradle.kts`, чтобы новая версия попала на экран настроек из `BuildConfig.VERSION_NAME`.
 - Итоговый squash-коммит release PR включает `RELEASE_NOTES.md`, `version.txt`, `.release-please-manifest.json`, `app/build.gradle.kts`, `.github/images/screenshots/` и актуальный бандл SVP одной транзакцией. Скилл скриншотов сам не коммитит — это решает вызывающий сценарий.
+- `game_loading.png` снимает экран загрузки игры на фикстуре `app-page-loading-screen-realistic.html`: разметка и тексты этапов из `refs/game/index.html` без стилей игры.
 - `game_settings.png` использует mock-фикстуру (`app-page-with-settings-content-realistic.html`), потому что полные стили игры не лежат в репо. Локальный snapshot в `refs/game/private/` (gitignored через `/refs/`) подхватывается задачей `inlineGameSnapshot` как override фикстуры.
 
 ## Терминология
