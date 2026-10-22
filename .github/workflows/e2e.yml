@@ -19,7 +19,75 @@ permissions:
   contents: read
 
 jobs:
-  connected-e2e:
+  functional:
+    if: github.event_name == 'workflow_dispatch' || inputs.functional
+    name: functional (${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # Рендерер SwiftShader в QEMU не освобождает память после каждого теста
+        # (в CI около 130 МБ RSS на тест), и на всём наборе раннер исчерпывает 16 ГБ.
+        # Поэтому у каждого шарда свой эмулятор; номер шарда задаёт позиция в матрице.
+        # 🤖 Generated with Claude Opus 5.5
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: AVD cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          # Общий профиль Pixel 4; кешируем данные AVD, запускаем без snapshot.
+          key: avd-pixel4-api33-default-x86_64-coldboot-v4
+
+      - name: Run functional emulator tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: default
+          arch: x86_64
+          profile: pixel_4
+          force-avd-creation: false
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-options: >-
+            -no-window -gpu swiftshader -feature -Vulkan -cores 2 -no-snapshot
+            -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          # VR-тесты выполняет job visual; без фильтра они прогонялись бы дважды.
+          # 🤖 Generated with Claude Opus 5.5
+          script: sh scripts/logRunnerMemory.sh ./gradlew connectedInstrAndroidTest "-Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.github.wrager.sbgscout.e2e.visualregression.VisualRegressionTest" "-Pandroid.testInstrumentationRunnerArguments.numShards=${{ strategy.job-total }}" "-Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ strategy.job-index }}" --stacktrace --no-daemon
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-reports-functional-${{ matrix.shard }}
+          path: |
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  visual:
+    if: github.event_name == 'workflow_dispatch' || inputs.visual
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -47,10 +115,7 @@ jobs:
           # Общий профиль Pixel 4; кешируем данные AVD, запускаем без snapshot.
           key: avd-pixel4-api33-default-x86_64-coldboot-v4
 
-      - name: Run selected emulator tests
-        env:
-          RUN_FUNCTIONAL: ${{ github.event_name == 'workflow_dispatch' || inputs.functional }}
-          RUN_VISUAL: ${{ github.event_name == 'workflow_dispatch' || inputs.visual }}
+      - name: Run visual regression tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
@@ -64,16 +129,13 @@ jobs:
             -no-window -gpu swiftshader -feature -Vulkan -cores 2 -no-snapshot
             -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          # Separate invocations share the AVD; functional tests exclude VR to avoid running it twice.
-          script: |
-            if [ "$RUN_FUNCTIONAL" = true ]; then ./gradlew connectedInstrAndroidTest "-Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.github.wrager.sbgscout.e2e.visualregression.VisualRegressionTest" --stacktrace --no-daemon; fi
-            if [ "$RUN_VISUAL" = true ]; then ./gradlew visualRegressionTest --stacktrace --no-daemon; fi
+          script: sh scripts/logRunnerMemory.sh ./gradlew visualRegressionTest --stacktrace --no-daemon
 
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-reports
+          name: e2e-reports-visual
           path: |
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/

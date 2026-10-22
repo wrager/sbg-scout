@@ -11,6 +11,11 @@ node scripts/planChecks.mjs --base origin/main
 unstaged и новые неигнорируемые файлы. После изменения исходников скиллов сначала
 выполнить `node scripts/syncAgentSkills.mjs`, затем получить план.
 
+Функциональный e2e в Windows выполнять через `scripts/android.ps1 test -AllTests`, а не
+командой `connectedInstrAndroidTest` из плана: на одном эмуляторе QEMU не освобождает
+память после тестов и исчерпывает память Windows (подробности в `agent-setup.md`).
+<!-- 🤖 Generated with Claude Opus 5.5 -->
+
 | Изменения | Проверки |
 |---|---|
 | `README.md`, `docs/**`, `AGENTS.md`, `CLAUDE.md`, README-PNG, issue templates | Нет исполняемых проверок; проверить смысл и diff |
@@ -30,7 +35,7 @@ unstaged и новые неигнорируемые файлы. После из�
 | `.github/images/visual-regression/*.png` | Только VR |
 | Общие Gradle-файлы, `gradle/**`, wrapper, `buildSrc/**`, `build-logic/**` | Полный Android-набор + e2e + VR |
 | `.editorconfig` / `detekt.yml` | ktlint / detekt |
-| `.github/workflows/e2e.yml` | actionlint + тесты планировщика/команд workflow + функциональный e2e + VR |
+| `.github/workflows/e2e.yml`, `scripts/logRunnerMemory.sh` | actionlint + тесты планировщика/команд workflow + функциональный e2e + VR |
 | `.github/workflows/release.yml` | actionlint + релизные файлы и тесты release/SVP |
 | `.github/workflows/pr-title.yml` | actionlint |
 | `ci.yml`, `planChecks*.mjs`, неизвестные пути | Полный набор без сетевой проверки SVP |
@@ -74,8 +79,18 @@ Node/PowerShell-инструментов. Для workflows дополнител�
 - Только выбранная debug-сборка создаёт preview APK и комментарий. Комментарий
   сообщает о выбранных Android-проверках, а статусы остальных jobs смотрятся отдельно.
 - E2e вызывается из CI только для PR. Ручной запуск `e2e.yml` выполняет e2e и VR.
-  Функциональный прогон исключает VR-аннотацию, затем отдельный VR-прогон сравнивает PNG.
-  Оба используют один AVD. Локальный запуск требует окружения из `agent-setup.md`.
+  Функциональный набор исключает VR-аннотацию и делится на четыре шарда
+  (`numShards`/`shardIndex`) в matrix job `functional`; VR сравнивает PNG в отдельном
+  job `visual`. У каждого job свой эмулятор: SwiftShader в QEMU не освобождает память
+  после тестов, и весь набор на одном эмуляторе исчерпывал 16 ГБ раннера. Локальный
+  запуск требует окружения из `agent-setup.md`.
+  <!-- 🤖 Generated with Claude Opus 5.5 -->
+- Gradle-команды e2e запускаются через `scripts/logRunnerMemory.sh`: каждые 30 секунд
+  в лог job выводится строка `runner-memory` с занятой и доступной памятью, swap,
+  свободным местом на диске и RSS процессов QEMU. Если раннеру не хватит памяти и он
+  оборвётся с `The runner has received a shutdown signal` без отчётов тестов, эти строки
+  покажут рост до момента обрыва.
+  <!-- 🤖 Generated with Claude Opus 5.5 -->
 - `pr-title` нужен всем PR: заголовок задаёт squash-коммит и влияет на release-please.
   Release workflow остаётся на каждом push main; публикация — только при создании релиза.
 
