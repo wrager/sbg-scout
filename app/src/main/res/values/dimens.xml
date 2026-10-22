@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Отступы снизу GameActivity отсчитывает от зоны навигационной панели и выреза экрана. -->
+    <dimen name="native_buttons_bottom_margin">48dp</dimen>
+    <dimen name="page_loading_indicator_margin">12dp</dimen>
+</resources>

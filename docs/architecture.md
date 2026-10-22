@@ -16,19 +16,23 @@ Android-приложение с WebView, загружающее игру SBG (`s
 ### GameActivity
 
 - WebView заполняет экран в immersive-режиме
-- В правом верхнем углу WebView — компактная нативная крутилка загрузки страницы (`pageLoadingIndicator`), не перехватывающая касания. Она находится под экраном настроек и provisioning-overlay. Состояние считает `PageLoadingTracker`, события ему передают `SbgWebViewClient` и `WebChromeClient`: `onProgressChanged` начинает индикацию ещё до получения ответа сервера; `onPageStarted` отмечает начало основного документа, `onPageFinished` текущей навигации скрывает после завершения документа и его load-blocking ресурсов (CSS, JS, изображения, iframe). Запоздалое завершение другого URL игнорируется. Если документ меняет свой URL через pushState, replaceState или hash до окончания загрузки, `doUpdateVisitedHistory` переносит ожидание на новый URL; `onPageFinished`, который WebView присылает сразу после такой навигации с изменением только fragment, индикатор не скрывает. Механизм работает на любой странице, включая login и магазин, при редиректах, reload, истории, ошибках и отмене. 100% не скрывают индикатор начавшегося документа: Chromium может выдать их после разбора/первого отображения страницы, пока низкоприоритетные ресурсы ещё грузятся. Снижение прогресса обозначает новую навигацию и сбрасывает прежний URL; завершение старого документа до ответа нового игнорируется. Ошибка/отмена до `onPageStarted` завершается по 100% прогресса. Готовность i18next не скрывает крутилку. Фоновые fetch/XHR, тайлы карты после загрузки и переходы внутри документа не включают её. Подготовка скриптов перед открытием страницы использует отдельный provisioning-progress.
+- В правом нижнем углу WebView - компактная нативная крутилка загрузки страницы (`pageLoadingIndicator`), не перехватывающая касания. Она находится под экраном настроек и provisioning-overlay. Состояние считает `PageLoadingTracker`, события ему передают `SbgWebViewClient` и `WebChromeClient`: `onProgressChanged` начинает индикацию ещё до получения ответа сервера; `onPageStarted` отмечает начало основного документа, `onPageFinished` текущей навигации скрывает после завершения документа и его load-blocking ресурсов (CSS, JS, изображения, iframe). Запоздалое завершение другого URL игнорируется. Если документ меняет свой URL через pushState, replaceState или hash до окончания загрузки, `doUpdateVisitedHistory` переносит ожидание на новый URL; `onPageFinished`, который WebView присылает сразу после такой навигации с изменением только fragment, индикатор не скрывает. Механизм работает на любой странице, включая login и магазин, при редиректах, reload, истории, ошибках и отмене. 100% не скрывают индикатор начавшегося документа: Chromium может выдать их после разбора/первого отображения страницы, пока низкоприоритетные ресурсы ещё грузятся. Снижение прогресса обозначает новую навигацию и сбрасывает прежний URL; завершение старого документа до ответа нового игнорируется. Ошибка/отмена до `onPageStarted` завершается по 100% прогресса. Готовность i18next не скрывает крутилку. Фоновые fetch/XHR, тайлы карты после загрузки и переходы внутри документа не включают её. Подготовка скриптов перед открытием страницы использует отдельный provisioning-progress.
   <!-- 🤖 Generated with Claude Opus 5.5 -->
-- Белая подложка 50 % opacity над WebView, пока интерфейс игры не инициализировался (сигнал — i18next применил переводы, `#settings` получил локализованный текст)
-- Сверху по центру — текст «Инициализация игры…» и компактные кнопки «⚙ Scout» (настройки SBG Scout), «⟳ Reload» (перезагрузка WebView); цвета кнопок зависят от темы (в светлой — светло-серый фон с тонким чёрным бордером, в тёмной — тёмно-серый без бордера)
+- Внизу по центру экрана - блок `nativeButtonsContainer`: надпись "Загрузка..." и компактные кнопки "Настройки SBG Scout" и "Reload" (перезагрузка WebView) с иконками и обводкой; цвета надписи и кнопок берутся из `scoutButton*` текущей темы. Скрытые элементы убираются из разметки (`GONE`), и блок сжимается к нижнему краю. Экран настроек и provisioning-overlay скрывают блок целиком
+- Блок стоит на `@dimen/native_buttons_bottom_margin` (48dp) выше зоны навигационной панели и выреза экрана, крутилка - на `@dimen/page_loading_indicator_margin` (12dp) от правого края и выше этой зоны (`edgeMargin`, пересчёт при изменении отступов окна), в том числе в полноэкранном режиме: там у `rootLayout` нет отступа снизу, а навигационная панель выезжает по свайпу поверх контента. Открытая клавиатура поднимает их над собой
+- Видимость надписи и кнопок задаёт `nativeButtonsState` (`NativeButtonsState.kt`) по состоянию страницы `PageLoadState`; `GameActivity.renderNativeButtons` применяет его при старте загрузки страницы (`handleGamePageStarted`, `handleOtherPageStarted`), по сигналам bootstrap'а и при закрытии настроек. Надпись видна, только пока грузится игра: загрузку других страниц показывает крутилка
+  <!-- 🤖 Generated with Claude Opus 5.5 -->
 - Двухрежимная кнопка настроек:
   - **Режим загрузки** — нативная «⚙ Scout» видна
   - **Режим игры** — нативная скрывается; в игровую панель настроек (`.settings-content`) инжектируется HTML-кнопка «Настройки приложения», открывающая тот же экран
-- Кнопка «⟳ Reload» видна в режиме загрузки (вместе с «⚙ Scout»), скрывается когда игра готова (i18next инициализирован); вызывает `webView.loadUrl(GAME_URL)`
-- Сигнал готовности игры — `window.i18next.isInitialized`; polling каждые 100мс в bootstrap-скрипте, инжектируемом в `onPageStarted` (старт отложен до DOMContentLoaded). Сигнал универсален и не зависит от DOM-разметки — работает и под скриптами, переделывающими UI (CUI, EUI)
-- Два независимых сигнала от bootstrap'а:
-  - `onGameReady` (i18next готов) → снять подложку, скрыть label/«Reload»
+- Кнопка "Reload" видна, пока игра грузится (вместе с "Scout"), на странице входа и на странице вне игры, с которой "Назад" не вернёт в игру (`webView.canGoBack()` = false, например страница открыта по ссылке из другого приложения); скрывается, когда игра загрузилась; вызывает `webView.loadUrl(GAME_URL)`
+- Сигнал готовности игры — одновременно `window.i18next.isInitialized`, отсутствие игрового экрана загрузки `.loading-screen` и отсутствие `.fatal-error`; polling каждые 100мс в bootstrap-скрипте, инжектируемом в `onPageStarted` (старт отложен до DOMContentLoaded). Игра удаляет `.loading-screen`, только когда все этапы загрузки (тексты, данные, вход в аккаунт, инвентарь, интерфейс, геолокация) прошли успешно или игрок нажал «Хочу», не дожидаясь геолокации; при ошибке этапа экран остаётся, остаётся и "Reload". i18next готов уже на втором этапе, поэтому одного его недостаточно. `.fatal-error` — сообщение, которым игра заменяет страницу при фатальной ошибке (например, при отказе в геолокации). Сигнал не зависит от игрового интерфейса и работает под скриптами, переделывающими UI (CUI, EUI): экран загрузки они не удаляют
+- Сигналы от bootstrap'а:
+  - `onGameReady` (игра загрузилась) → скрыть надпись и "Reload"
   - `onHtmlButtonInjected` (HTML-кнопка успешно вставлена в `.settings-content`) → скрыть нативную «Scout». Под CUI `.settings-content` может отсутствовать — тогда инжекция пропускается и нативная «Scout» остаётся единственным способом открыть настройки
-- При reload игры (`onPageStarted`) все loading-элементы показываются снова и включается белая подложка; флаги `gameReady` и `scoutButtonReplaced` сбрасываются
+- При reload игры (`onPageStarted`) состояние снова `GAME_LOADING`: надпись, "Reload" и "Scout" показываются снова; `scoutButtonReplaced` сбрасывается. `.fatal-error` - тоже `GAME_LOADING`: игра не загрузилась, надпись и кнопки остаются
+- На страницах вне игры (`/login/`, правила и т.п.) сигнала готовности не будет, поэтому состояние задаётся при их загрузке (`SbgWebViewClient.onOtherPageStarted`). Нативная "Scout" остаётся только на странице входа (`GameUrls.isGameLoginPage`, состояние `LOGIN`): до входа это единственный путь к настройкам приложения. "Reload" остаётся на входе и там, где "Назад" не вернёт в игру. Надписи на этих страницах нет. То же при восстановлении Activity, если WebView восстановил не игру
+  <!-- 🤖 Generated with Claude Opus 5.5 -->
 - `settingsContainer` — `FrameLayout` на весь экран поверх WebView, изначально `GONE`; содержит `SettingsFragment` по умолчанию, при переходе в «Управление скриптами» заменяется на `ScriptListFragment` (embedded) через back stack
 - Закрытие — через плавающую квадратную кнопку `[x]` снизу по центру; над кнопкой — 1dp разделитель, визуально отделяющий резерв от скроллируемого контента. Если открыт `ScriptListFragment` — клик по `[x]` делает `popBackStack` (возврат к `SettingsFragment`), иначе закрывает экран настроек. Системная «Назад» всегда идёт в WebView (навигация в истории или выход), настройки она не закрывает
 - При закрытии back stack сбрасывается, применяются отложенные настройки (например, reload игры)
@@ -196,7 +200,7 @@ Android-приложение с WebView, загружающее игру SBG (`s
 6. После provisioning: `webView.loadUrl(sbg-game.ru/app)`
 7. `SbgWebViewClient` инжектирует localStorage-обёртку + включённые скрипты
 8. JS-бриджи доступны скриптам через `Android.*`, `__sbg_share.*`, `__sbg_settings.*`
-9. Пока игра грузится, пользователь видит большую нативную кнопку «Настройки SBG Scout»; после готовности (i18next применён) она скрывается, а внутрь игровой панели настроек инжектируется HTML-кнопка «Настройки приложения» — обе открывают экран `SettingsFragment`, откуда доступны управление скриптами, проверка обновлений и баг-репорт
+9. Пока игра грузится, пользователь видит большую нативную кнопку «Настройки SBG Scout»; после полной загрузки игры она скрывается, а внутрь игровой панели настроек инжектируется HTML-кнопка «Настройки приложения» — обе открывают экран `SettingsFragment`, откуда доступны управление скриптами, проверка обновлений и баг-репорт
 
 ## Структура проекта
 
@@ -205,6 +209,7 @@ app/src/main/java/com/github/wrager/sbgscout/
 ├── SbgScoutApplication.kt   Применяет сохранённые тему/язык до создания Activity (холодный старт)
 ├── GameActivity.kt          LAUNCHER. WebView, immersive, geolocation, экран настроек, provisioning, автообновления
 ├── MainActivity.kt          Legacy-shim v0.1 → перенаправляет в GameActivity
+├── NativeButtonsState.kt    Надпись и кнопки поверх WebView по состоянию страницы
 ├── bridge/
 │   ├── ClipboardBridge.kt     Полифил navigator.clipboard
 │   ├── DownloadBridge.kt      Сохранение blob-файлов из WebView в Downloads
@@ -307,11 +312,13 @@ AndroidX Test падает с `ClassNotFoundException` при создании p
 - Путь, заданный через `server.stubResponse(path)`, проверяется раньше остальных маршрутов; ключ - путь без query. Заглушка `/app` отвечает без проверки cookie `hittoken`.
   <!-- 🤖 Generated with Claude Opus 5.5 -->
 - `GET /app[*]` — при отсутствии cookie `hittoken=<fake>` отвечает `302 Location: /login`; иначе — HTML игровой страницы из `server.gamePageBody`.
+- `GET /store/[*]` — при отсутствии cookie `hittoken=<fake>` отвечает `302 Location: /login`; иначе — HTML магазина из `server.storePageBody`.
 - `GET /login[*]` — HTML логина из `server.loginPageBody`.
 - `POST /login/callback` — `302 Location: /app` + `Set-Cookie` fake-сессии.
+- `GET /rules[*]` — HTML из `server.rulesPageBody`: страница игрового хоста вне игры и вне входа (например, `/rules/game/`).
 - Остальные пути — `404`, `favicon.ico` — `204`.
 
-Тесты задают `gamePageBody` / `loginPageBody` перед стартом сценария. Фикстуры HTML лежат в `app/src/androidTest/assets/fixtures/` и читаются через `AssetLoader` (из `instrumentation.context`, не `targetContext`).
+Тесты задают `gamePageBody` / `loginPageBody` / `rulesPageBody` / `storePageBody` перед стартом сценария. Фикстуры HTML лежат в `app/src/androidTest/assets/fixtures/` и читаются через `AssetLoader` (из `instrumentation.context`, не `targetContext`).
 
 ### Синхронизация WebView
 
@@ -325,8 +332,8 @@ AndroidX Test падает с `ClassNotFoundException` при создании p
 app/src/androidTest/java/com/github/wrager/sbgscout/e2e/
 ├── E2ETestBase.kt                    Жизненный цикл сервера/idling, grant location permission, launchGameActivity
 ├── infra/
-│   ├── FakeGameServer.kt             Обёртка над MockWebServer, gamePageBody/loginPageBody
-│   ├── FakeGameDispatcher.kt         Маршрутизация /app, /login, /login/callback
+│   ├── FakeGameServer.kt             Обёртка над MockWebServer, gamePageBody/loginPageBody/rulesPageBody/storePageBody
+│   ├── FakeGameDispatcher.kt         Маршрутизация /app, /login, /login/callback, /rules
 │   ├── WebViewIdlingResource.kt      IdlingResource, становится idle по markLoaded
 │   ├── GameUrlsOverrideRule.kt       TestRule для runtime-override GameUrls
 │   ├── CookieFixtures.kt             Инъекция fake session-cookie через CookieManager
@@ -334,9 +341,12 @@ app/src/androidTest/java/com/github/wrager/sbgscout/e2e/
 │   └── AssetLoader.kt                Чтение фикстур из androidTest/assets
 ├── screens/
 │   ├── Screen.kt, GameScreen.kt, SettingsScreen.kt, LoginScreen.kt
+│   ├── LoadingUiState.kt             Видимость надписи о загрузке и нативных "Reload" и "Scout" для проверок
+│   └── ViewPlacement.kt              Положение блока кнопок и индикатора загрузки у нижнего края экрана
 └── flows/
     ├── smoke/GameLoadsSmokeTest.kt, ClipboardBridgeE2ETest.kt
     ├── settings/SettingsScreenE2ETest.kt
+    ├── loading/GameLoadingE2ETest.kt, OtherPagesE2ETest.kt  Надпись и кнопки при загрузке игры и на страницах вне игры
     └── auth/LoginFlowE2ETest.kt
 app/src/androidTest/assets/fixtures/  Минимальные HTML/JSON фикстуры
 app/src/instr/
@@ -409,16 +419,18 @@ CI release PR и `publish` до сборки и перед публикацие�
 
 Pixel-by-pixel сравнение скриншотов UI с зафиксированными baseline в `.github/images/visual-regression/`. На каждом PR прогон `visualRegressionTest` сравнивает фактический рендер с baseline; различие выше threshold (per-channel diff > 8 + > 0.1% пикселей) фейлит CI и публикует triplet `[baseline | actual | highlight]` в артефактах.
 
-### Покрытие (10 baseline'ов)
+### Покрытие (11 baseline'ов)
 
 - `app-settings-{light,dark}.png` — settings overlay (PreferenceFragment поверх GameActivity).
 - `script-manager-{light,dark}.png` — список скриптов (SVP enabled, EUI скачен но disabled, CUI с download-иконкой).
 - `dialog-app-update-{light,dark}.png` — диалог проверки обновления приложения в фазе UpdateAvailable.
 - `dialog-script-update-{light,dark}.png` — диалог release-notes после auto-check скриптов.
 - `game-settings-light.png` — popup игровых настроек в WebView с инжектированной кнопкой "SBG Scout".
-- `login-light.png` — fake-страница авторизации.
+- `login-light.png` — fake-страница авторизации с нативными кнопками "Настройки SBG Scout" и "Reload" внизу экрана.
+- `game-loading-light.png` - экран загрузки игры (разметка и тексты этапов из `refs/game/index.html` без стилей игры) с надписью "Загрузка...", "Настройки SBG Scout" и "Reload" внизу экрана, без индикатора загрузки страницы.
+  <!-- 🤖 Generated with Claude Opus 5.5 -->
 
-WebView-экраны (`game-settings`, `login`) только в light: фикстуры без dark CSS, dark-вариант потребовал бы отдельной dark-фикстуры.
+WebView-экраны (`game-settings`, `login`, `game-loading`) только в light: фикстуры без dark CSS, dark-вариант потребовал бы отдельной dark-фикстуры.
 
 ### Архитектура: device-side capture, host-side compare
 
@@ -433,7 +445,7 @@ WebView-экраны (`game-settings`, `login`) только в light: фикс�
 - [`ThemeOverride`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/ThemeOverride.kt) — записывает `KEY_APPLIED_GAME_THEME` в SharedPreferences до `launchGameActivity()` и вызывает `AppCompatDelegate.setDefaultNightMode`. Без этого тема осталась бы AUTO и тесты были бы недетерминированы по системной теме эмулятора.
 - [`StatusBarDemoMode`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/StatusBarDemoMode.kt) — через SystemUI demo mode broadcast'ы фиксирует часы (12:00), батарею (100%), иконки сети и скрывает notifications. Демо-режим стабилизирует исходные кадры; финальные полноэкранные и прокручиваемые PNG исключают системные панели по WindowInsets.
 - Локаль приложения — русская, через `LocaleManager.setApplicationLocales`.
-- Login-сценарий ждёт исчезновения панели буфера обмена SystemUI по resource ID `com.android.systemui:id/clipboard_preview`, независимо от текста и системной локали. Если панель не исчезла за 10 секунд, тест завершается до сохранения PNG.
+- WebView-сценарии `login` и `game-loading` ждут исчезновения панели буфера обмена SystemUI по resource ID `com.android.systemui:id/clipboard_preview` (`ClipboardOverlay`), независимо от текста и системной локали. Если панель не исчезла за 10 секунд, тест завершается до сохранения PNG.
 - Фиксированные stub'ы FakeGameServer для динамических данных (версии релизов, body release notes).
 
 ### Gradle-задачи

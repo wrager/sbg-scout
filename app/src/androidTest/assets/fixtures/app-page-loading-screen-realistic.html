@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>sbg fake app loading screen</title>
+    <style>
+        /* Экран загрузки игры для снимков: разметка, классы и тексты этапов из refs/game/index.html,
+           оформление нейтральное - стилей игры в репозитории нет. Баннера нет: fake-сервер
+           не отдаёт /assets/banner.png. Экран не убирается, поэтому игра остаётся в загрузке. */
+        html, body { margin: 0; height: 100%; background: #fff; color: #222; font-family: sans-serif; }
+        .hidden { display: none; }
+        .loading-screen {
+            box-sizing: border-box;
+            height: 100%;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .loading-screen__tasks { list-style: none; margin: 0; padding: 0; font-size: 16px; line-height: 2; }
+        .loading-screen__task { color: #999; }
+        .loading-screen__task.success { color: #222; }
+        .loading-screen__task.loading { color: #222; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="loading-screen popup pp-center pp-mfull">
+        <ul class="loading-screen__tasks">
+            <li class="loading-screen__task success" data-step="setup">Оживляем игру&hellip;</li>
+            <li class="loading-screen__task success" data-step="i18n">Загружаем тексты&hellip;</li>
+            <li class="loading-screen__task success" data-step="const">Готовим игровые данные&hellip;</li>
+            <li class="loading-screen__task loading" data-step="self">Входим в аккаунт&hellip;</li>
+            <li class="loading-screen__task" data-step="inventory">Заполняем инвентарь&hellip;</li>
+            <li class="loading-screen__task" data-step="ui">Вдохновляем интерфейс&hellip;</li>
+            <li class="loading-screen__task hidden" data-step="geo" data-exby="link">Ищем место в мире&hellip;</li>
+            <li class="loading-screen__task hidden" data-step="link" data-exby="geo">Разбираем спецссылку&hellip;</li>
+        </ul>
+        <div class="loading-screen__skip hidden">
+            <div>Игра готова к работе. Хотите зайти, не дожидаясь модуля геолокации?</div>
+            <button id="loading-screen__skip-btn">Хочу</button>
+        </div>
+        <div class="loading-screen__version"></div>
+    </div>
+    <script>
+        window.i18next = { isInitialized: true };
+        window.__sbgFakeReady = true;
+        window.__sbgFakePage = "app";
+    </script>
+</body>
+</html>

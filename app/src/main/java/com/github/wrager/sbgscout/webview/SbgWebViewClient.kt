@@ -32,6 +32,9 @@ class SbgWebViewClient(
     /** Вызывается при старте загрузки страницы игры (в т.ч. при reload). */
     var onGamePageStarted: (() -> Unit)? = null
 
+    /** Вызывается с URL при старте загрузки любой страницы, кроме игры (вход, правила и т.п.). */
+    var onOtherPageStarted: ((String?) -> Unit)? = null
+
     @Volatile
     private var gamePageFinishedAtLeastOnce = false
 
@@ -59,7 +62,9 @@ class SbgWebViewClient(
     ) {
         super.onPageStarted(view, url, favicon)
         pageLoadingTracker.onPageStarted(url)
-        if (GameUrls.isGameAppPage(url) && view != null) {
+        if (!GameUrls.isGameAppPage(url)) {
+            onOtherPageStarted?.invoke(url)
+        } else if (view != null) {
             view.evaluateJavascript(UserAgentOverride.BOOTSTRAP_SCRIPT) {}
             view.evaluateJavascript(DownloadBridge.BOOTSTRAP_SCRIPT) {}
             view.evaluateJavascript(GameSettingsBridge.LOCAL_STORAGE_WRAPPER) {}

@@ -32,7 +32,7 @@ import org.junit.Test
  */
 class SettingsOverlayNavigationE2ETest : E2ETestBase() {
     @Test
-    fun closeButton_click_hidesOverlayAndShowsTopButtons() {
+    fun closeButton_click_hidesOverlayAndShowsNativeButtons() {
         val scenario = setupFakeGameAndLaunch()
         GameScreen(scenario, idling).waitForLoaded().openSettings()
         assertOverlayVisible(scenario)
@@ -95,17 +95,17 @@ class SettingsOverlayNavigationE2ETest : E2ETestBase() {
     private fun assertOverlayVisible(scenario: ActivityScenario<GameActivity>) {
         scenario.onActivity { activity ->
             val container = activity.findViewById<View>(R.id.settingsContainer)
-            val topButtons = activity.findViewById<View>(R.id.topButtonsContainer)
+            val nativeButtons = activity.findViewById<View>(R.id.nativeButtonsContainer)
             assertEquals(
                 "settingsContainer должен быть VISIBLE",
                 View.VISIBLE,
                 container.visibility,
             )
-            // topButtonsContainer скрывается при открытии overlay.
+            // nativeButtonsContainer скрывается при открытии overlay.
             assertEquals(
-                "topButtonsContainer должен быть GONE при открытом overlay",
+                "nativeButtonsContainer должен быть GONE при открытом overlay",
                 View.GONE,
-                topButtons.visibility,
+                nativeButtons.visibility,
             )
         }
     }
@@ -113,16 +113,16 @@ class SettingsOverlayNavigationE2ETest : E2ETestBase() {
     private fun assertOverlayHidden(scenario: ActivityScenario<GameActivity>) {
         scenario.onActivity { activity ->
             val container = activity.findViewById<View>(R.id.settingsContainer)
-            val topButtons = activity.findViewById<View>(R.id.topButtonsContainer)
+            val nativeButtons = activity.findViewById<View>(R.id.nativeButtonsContainer)
             assertEquals(
                 "settingsContainer должен быть GONE после закрытия",
                 View.GONE,
                 container.visibility,
             )
             assertEquals(
-                "topButtonsContainer должен быть VISIBLE после закрытия overlay",
+                "nativeButtonsContainer должен быть VISIBLE после закрытия overlay",
                 View.VISIBLE,
-                topButtons.visibility,
+                nativeButtons.visibility,
             )
         }
     }

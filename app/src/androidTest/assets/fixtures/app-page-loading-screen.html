@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>sbg fake app with loading screen</title>
+</head>
+<body>
+    <div id="game-root">fake app page</div>
+    <div class="settings-content"></div>
+    <!-- Экран загрузки игры. Только технические имена классов, по которым
+         работает ScoutBridge.BOOTSTRAP_SCRIPT: он считает игру загруженной,
+         когда .loading-screen и .fatal-error нет. -->
+    <div class="loading-screen">
+        <ul>
+            <li class="loading-screen__task loading">fake loading step</li>
+        </ul>
+    </div>
+    <script>
+        // i18next готов сразу: ждать bootstrap должен только экран загрузки.
+        window.i18next = { isInitialized: true };
+        window.__sbgFakeReady = true;
+        window.__sbgFakePage = "app";
+
+        // Исходы загрузки, которые тест вызывает через evaluateJavascript.
+        window.__sbgFakeLoading = {
+            // Все этапы прошли: игра удаляет экран загрузки.
+            finish: function () {
+                document.querySelector('.loading-screen').remove();
+            },
+            // Этап упал: он помечается .failure, экран загрузки остаётся.
+            failStep: function () {
+                var step = document.querySelector('.loading-screen__task.loading');
+                step.classList.remove('loading');
+                step.classList.add('failure');
+            },
+            // Фатальная ошибка: игра заменяет страницу сообщением за одно
+            // синхронное действие, без паузы, в которую успел бы bootstrap.
+            fatalError: function () {
+                var error = document.createElement('div');
+                error.className = 'fatal-error';
+                error.textContent = 'fake fatal error';
+                document.body.innerHTML = '';
+                document.body.appendChild(error);
+            }
+        };
+    </script>
+</body>
+</html>

@@ -12,14 +12,16 @@ import org.junit.runner.RunWith
 /**
  * Проверяет мост [com.github.wrager.sbgscout.bridge.ScoutBridge]
  * (регистрируется как `__sbg_scout`) и его BOOTSTRAP_SCRIPT, который
- * инжектируется в onPageStarted и после готовности i18next вызывает
+ * инжектируется в onPageStarted и после загрузки игры вызывает
  * `onGameReady()` + пытается инжектировать HTML-кнопку настроек в
  * `.settings-content`.
  *
  * На fake-странице (см. `app-page-minimal.html`) `window.i18next` — stub
- * с `isInitialized: true`, поэтому bootstrap делает один check → onReady
- * мгновенно, без setInterval. Проверяем, что все три JS-метода моста
- * доступны и маркер `__sbg_scout_bootstrapped` установлен.
+ * с `isInitialized: true`, а экрана загрузки игры нет, поэтому bootstrap
+ * делает один check → onReady мгновенно, без setInterval. Проверяем, что все
+ * три JS-метода моста доступны и маркер `__sbg_scout_bootstrapped` установлен.
+ * Ожидание экрана загрузки проверяет
+ * [com.github.wrager.sbgscout.e2e.flows.loading.GameLoadingE2ETest].
  */
 @RunWith(AndroidJUnit4::class)
 class ScoutBridgeE2ETest : E2ETestBase() {
