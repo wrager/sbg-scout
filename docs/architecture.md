@@ -30,7 +30,7 @@ Android-приложение с WebView, загружающее игру SBG (`s
   - `onHtmlButtonInjected` (HTML-кнопка успешно вставлена в `.settings-content`) → скрыть нативную «Scout». Под CUI `.settings-content` может отсутствовать — тогда инжекция пропускается и нативная «Scout» остаётся единственным способом открыть настройки
 - При reload игры (`onPageStarted`) все loading-элементы показываются снова и включается белая подложка; флаги `gameReady` и `scoutButtonReplaced` сбрасываются
 - `settingsContainer` — `FrameLayout` на весь экран поверх WebView, изначально `GONE`; содержит `SettingsFragment` по умолчанию, при переходе в «Управление скриптами» заменяется на `ScriptListFragment` (embedded) через back stack
-- Закрытие — через плавающую квадратную кнопку `[x]` снизу по центру; над кнопкой — 1dp разделитель, визуально отделяющий резерв от скроллируемого контента. Если открыт `ScriptListFragment` — клик по `[x]` делает `popBackStack` (возврат к `SettingsFragment`), иначе закрывает экран настроек. Системная «Назад» всегда идёт в WebView (навигация в истории или выход), настройки она не закрывает
+- Закрытие — через плавающую квадратную кнопку `[x]` снизу по центру; над кнопкой — 1dp разделитель, визуально отделяющий резерв от скроллируемого контента. Если открыт `ScriptListFragment` — клик по `[x]` делает `popBackStack` (возврат к `SettingsFragment`), иначе закрывает экран настроек. Системная "Назад" уходит в игру (раздел "Обработка кнопки Назад"), настройки она не закрывает
 - При закрытии back stack сбрасывается, применяются отложенные настройки (например, reload игры)
 - Provisioning overlay перекрывает WebView на время первого запуска (скачивание SVP, если bundled-версии не хватило)
 
@@ -106,9 +106,15 @@ Android-приложение с WebView, загружающее игру SBG (`s
 - Deep-link, пришедший во время provisioning'а (pending-пресеты качаются из сети), откладывается в `pendingDeepLinkUrl` и применяется в `finishProvisioning` вместо дефолта.
 - Preference «Открывать ссылки sbg-game.ru в приложении» (в категории `game`) запускает системный экран назначения default handler: на API 31+ — `Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS` с `package:` URI (сразу попадает на «Supported web addresses» нашего приложения), на API < 31 — `ACTION_APPLICATION_DETAILS_SETTINGS` как fallback. Программно назначить приложение обработчиком нельзя — решение всегда принимает пользователь через системный UI, это ограничение безопасности Android.
 
-### Обработка кнопки «Назад»
+### Обработка кнопки "Назад"
 
-`OnBackPressedCallback` всегда диспатчит `backbutton` event в DOM игры, затем `webView.goBack()` или выход — независимо от того, открыт ли экран настроек (закрытие настроек — только через плавающую `[x]`).
+`OnBackPressedCallback` в `GameActivity` на открытом экране настроек нажатие игнорирует (закрытие настроек - только через плавающую `[x]`), иначе передаёт его в `GameBackNavigation`:
+
+1. В документе игры выполняется `BACK_PRESS_SCRIPT`. Он запоминает открытые игровые попапы (`.popup:not(.hidden)` без экрана загрузки и без попапов внутри скрытых), диспатчит отменяемое событие `backbutton` и возвращает `handled`, если страница вызвала `preventDefault` (так делает EUI) или до события был открыт попап. Верхний открытый попап закрывается его собственной кнопкой `.popup-close`, чтобы отработал игровой `closePopup`; попапу без кнопки (levelup, score) добавляется класс `hidden`. CUI закрывает попап точки и профиля в своём слушателе `backbutton` сам, событие не отменяя.
+2. При `unhandled` вызывается `webView.goBack()`, если история есть, иначе callback отключается и нажатие уходит системе, что завершает Activity.
+
+Решение принимается в callback'е `evaluateJavascript`, то есть после нажатия асинхронно.
+<!-- 🤖 Generated with Claude Fable 5.1 -->
 
 ## Менеджер скриптов
 
@@ -335,7 +341,7 @@ app/src/androidTest/java/com/github/wrager/sbgscout/e2e/
 ├── screens/
 │   ├── Screen.kt, GameScreen.kt, SettingsScreen.kt, LoginScreen.kt
 └── flows/
-    ├── smoke/GameLoadsSmokeTest.kt, ClipboardBridgeE2ETest.kt
+    ├── smoke/GameLoadsSmokeTest.kt, ClipboardBridgeE2ETest.kt, GameBackNavigationE2ETest.kt
     ├── settings/SettingsScreenE2ETest.kt
     └── auth/LoginFlowE2ETest.kt
 app/src/androidTest/assets/fixtures/  Минимальные HTML/JSON фикстуры

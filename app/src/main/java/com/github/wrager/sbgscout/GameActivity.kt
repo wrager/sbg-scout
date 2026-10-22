@@ -69,6 +69,7 @@ import com.github.wrager.sbgscout.settings.SettingsFragment
 import com.github.wrager.sbgscout.updater.AppUpdateChecker
 import com.github.wrager.sbgscout.updater.AppUpdateInstaller
 import com.github.wrager.sbgscout.updater.AppUpdateResult
+import com.github.wrager.sbgscout.webview.GameBackNavigation
 import com.github.wrager.sbgscout.webview.PageLoadingTracker
 import com.github.wrager.sbgscout.webview.SbgWebViewClient
 import com.google.android.material.button.MaterialButton
@@ -1362,20 +1363,22 @@ class GameActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
+                private val backNavigation = GameBackNavigation(webView) { exitByBackPress() }
+
                 override fun handleOnBackPressed() {
                     // На экране настроек «назад» игнорируется — закрытие только
                     // через плавающую кнопку [x] снизу по центру.
                     if (isSettingsOpen()) return
-                    // «Назад» в игре идёт в WebView: навигация в истории или выход.
-                    webView.evaluateJavascript(
-                        "document.dispatchEvent(new Event('backbutton'))",
-                    ) {}
-                    if (webView.canGoBack()) {
-                        webView.goBack()
-                    } else {
-                        isEnabled = false
-                        onBackPressedDispatcher.onBackPressed()
-                    }
+                    backNavigation.onBackPressed()
+                }
+
+                /**
+                 * Нажатие уходит системе: без нашего callback'а "назад" завершает Activity.
+                 * 🤖 Generated with Claude Fable 5.1
+                 */
+                private fun exitByBackPress() {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
                 }
             },
         )

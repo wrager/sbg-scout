@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>sbg fake app with popups</title>
+    <style>.hidden { display: none; }</style>
+</head>
+<body>
+    <!-- Разметка повторяет попапы игры: класс popup, скрытие классом hidden,
+         кнопка .popup-close. Экран загрузки у игры без hidden, у levelup нет
+         кнопки закрытия.
+         🤖 Generated with Claude Fable 5.1 -->
+    <div class="loading-screen popup pp-center pp-mfull"></div>
+    <button id="notifs-menu">notifs</button>
+    <div class="notifs popup pp-center pp-mfull hidden">
+        <h3 class="popup-header">notifs</h3>
+        <div class="notifs__list"></div>
+        <button class="popup-close">[x]</button>
+    </div>
+    <div class="levelup popup pp-center hidden">
+        <h3 class="popup-header">levelup</h3>
+    </div>
+    <script>
+        window.i18next = { isInitialized: true };
+        window.__sbgFakeReady = true;
+        window.__sbgFakePage = "app";
+        window.__sbgBackEvents = [];
+        window.__sbgCloseClicks = 0;
+        document.getElementById('notifs-menu').addEventListener('click', function () {
+            document.querySelector('.notifs').classList.remove('hidden');
+        });
+        document.querySelectorAll('.popup-close').forEach(function (button) {
+            button.addEventListener('click', function () {
+                window.__sbgCloseClicks += 1;
+                button.closest('.popup').classList.add('hidden');
+            });
+        });
+        document.addEventListener('backbutton', function (event) {
+            window.__sbgBackEvents.push(event.cancelable);
+            if (window.__sbgCancelBack) event.preventDefault();
+        });
+    </script>
+</body>
+</html>
