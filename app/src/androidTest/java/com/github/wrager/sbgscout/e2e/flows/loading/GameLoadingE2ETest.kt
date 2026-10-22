@@ -17,7 +17,7 @@ import org.junit.runner.RunWith
  * игры: bootstrap ScoutBridge ждёт, пока игра уберёт свой экран загрузки
  * `.loading-screen`. При ошибке этапа и при `.fatal-error` "Reload" и "Scout"
  * остаются. До загрузки HTML-кнопка Scout в настройки игры не вставляется.
- * Кнопки стоят в левом верхнем углу зеркально индикатору загрузки страницы.
+ * Кнопки стоят в столбце в правом верхнем углу над индикатором загрузки страницы.
  *
  * Исходы загрузки изображает фикстура `app-page-loading-screen.html`
  * (`window.__sbgFakeLoading`). Отрицательные проверки идут окном
@@ -32,7 +32,10 @@ class GameLoadingE2ETest : E2ETestBase() {
         // Страница без .loading-screen (как прежние фикстуры) готова сразу.
         val game = launchGame("fixtures/app-page-with-settings-content.html")
 
-        game.waitForLoadingUi(LoadingUiState.hidden(scout = false))
+        // Скрытые "Scout", "Reload" и индикатор оставляют свои места в столбце пустыми.
+        game
+            .waitForLoadingUi(LoadingUiState.hidden(scout = false))
+            .waitForTopButtonsInPlace()
         assertTrue("HTML-кнопка должна быть вставлена", game.isHtmlButtonInjected())
     }
 
@@ -45,7 +48,7 @@ class GameLoadingE2ETest : E2ETestBase() {
         game
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
             .assertLoadingUiStays(LoadingUiState.hidden(scout = true))
-            .waitForTopButtonsInCorner()
+            .waitForTopButtonsInPlace()
         assertFalse("HTML-кнопке некуда вставляться", game.isHtmlButtonInjected())
     }
 
@@ -56,7 +59,7 @@ class GameLoadingE2ETest : E2ETestBase() {
         game
             .waitForLoadingUi(LoadingUiState.LOADING)
             .assertLoadingUiStays(LoadingUiState.LOADING)
-            .waitForTopButtonsInCorner()
+            .waitForTopButtonsInPlace()
         assertFalse("HTML-кнопка вставлена до загрузки игры", game.isHtmlButtonInjected())
 
         game.evaluateJs("__sbgFakeLoading.finish()")
@@ -101,7 +104,7 @@ class GameLoadingE2ETest : E2ETestBase() {
         game
             .waitForLoadingUi(LoadingUiState.LOADING)
             .assertLoadingUiStays(LoadingUiState.LOADING)
-            .waitForTopButtonsInCorner()
+            .waitForTopButtonsInPlace()
         assertFalse("HTML-кнопка вставлена при фатальной ошибке", game.isHtmlButtonInjected())
     }
 

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Кнопки в левом верхнем углу и индикатор загрузки страницы в правом зеркальны: общие размер и отступ от края. -->
+    <!-- Столбец кнопок и индикатора загрузки страницы в правом верхнем углу. -->
     <dimen name="top_corner_size">40dp</dimen>
     <dimen name="top_corner_margin">12dp</dimen>
+    <dimen name="top_buttons_gap">8dp</dimen>
 </resources>

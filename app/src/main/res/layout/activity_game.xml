@@ -14,15 +14,21 @@
         android:id="@+id/topButtonsContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
+        android:layout_gravity="top|end"
         android:layout_margin="@dimen/top_corner_margin"
         android:orientation="vertical">
+
+        <!-- Пустое место размером с кнопку: столбец начинается на одну кнопку ниже угла. -->
+        <Space
+            android:layout_width="@dimen/top_corner_size"
+            android:layout_height="@dimen/top_corner_size" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/settingsButton"
             style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
             android:layout_width="@dimen/top_corner_size"
             android:layout_height="@dimen/top_corner_size"
+            android:layout_marginTop="@dimen/top_buttons_gap"
             android:backgroundTint="@color/scoutButtonBackground"
             android:contentDescription="@string/app_settings_button"
             android:insetLeft="0dp"
@@ -44,7 +50,7 @@
             style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
             android:layout_width="@dimen/top_corner_size"
             android:layout_height="@dimen/top_corner_size"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="@dimen/top_buttons_gap"
             android:backgroundTint="@color/scoutButtonBackground"
             android:contentDescription="@string/reload_button"
             android:insetLeft="0dp"
@@ -61,25 +67,24 @@
             app:iconTint="@color/scoutButtonContent"
             app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.SBGScout.Circle" />
 
-    </LinearLayout>
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/pageLoadingIndicator"
+            style="@style/Widget.MaterialComponents.CircularProgressIndicator"
+            android:layout_width="@dimen/top_corner_size"
+            android:layout_height="@dimen/top_corner_size"
+            android:layout_marginTop="@dimen/top_buttons_gap"
+            android:background="@drawable/page_loading_background"
+            android:clickable="false"
+            android:contentDescription="@string/page_loading"
+            android:focusable="false"
+            android:indeterminate="true"
+            android:visibility="invisible"
+            app:indicatorColor="@color/scoutButtonContent"
+            app:indicatorInset="8dp"
+            app:indicatorSize="24dp"
+            app:trackThickness="2dp" />
 
-    <com.google.android.material.progressindicator.CircularProgressIndicator
-        android:id="@+id/pageLoadingIndicator"
-        style="@style/Widget.MaterialComponents.CircularProgressIndicator"
-        android:layout_width="@dimen/top_corner_size"
-        android:layout_height="@dimen/top_corner_size"
-        android:layout_gravity="top|end"
-        android:layout_margin="@dimen/top_corner_margin"
-        android:background="@drawable/page_loading_background"
-        android:clickable="false"
-        android:contentDescription="@string/page_loading"
-        android:focusable="false"
-        android:indeterminate="true"
-        android:visibility="gone"
-        app:indicatorColor="@color/scoutButtonContent"
-        app:indicatorInset="8dp"
-        app:indicatorSize="24dp"
-        app:trackThickness="2dp" />
+    </LinearLayout>
 
     <FrameLayout
         android:id="@+id/settingsContainer"

@@ -38,7 +38,7 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     @Test
     fun image_keepsIndicatorVisibleAfterGameReady() {
         assertResourceLoading("<img src='/loading/resource'>", "image/svg+xml", IMAGE) { scenario ->
-            waitForViewVisibility(scenario, R.id.reloadButton, View.GONE)
+            waitForViewVisibility(scenario, R.id.reloadButton, View.INVISIBLE)
             assertIndicatorStays(scenario, visible = true)
         }
     }
@@ -265,9 +265,12 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
                 it.findViewById<View>(R.id.settingsButton).performClick()
                 assertEquals(View.VISIBLE, it.findViewById<View>(R.id.settingsContainer).visibility)
                 val indicator = it.findViewById<View>(R.id.pageLoadingIndicator)
+                val column = it.findViewById<View>(R.id.topButtonsContainer)
                 val settings = it.findViewById<View>(R.id.settingsContainer)
                 val root = it.findViewById<android.view.ViewGroup>(R.id.rootLayout)
-                assertTrue(root.indexOfChild(indicator) < root.indexOfChild(settings))
+                // Индикатор стоит в столбце кнопок, а столбец - под экраном настроек.
+                assertTrue(indicator.parent === column)
+                assertTrue(root.indexOfChild(column) < root.indexOfChild(settings))
                 assertTrue(!indicator.isClickable && !indicator.isFocusable)
                 it.findViewById<View>(R.id.closeSettingsButton).performClick()
             }
@@ -367,7 +370,7 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
         }
     }
 
-    private fun indicatorVisibility(visible: Boolean): Int = if (visible) View.VISIBLE else View.GONE
+    private fun indicatorVisibility(visible: Boolean): Int = if (visible) View.VISIBLE else View.INVISIBLE
 
     private fun waitForWebViewUrl(
         scenario: ActivityScenario<GameActivity>,

@@ -130,8 +130,8 @@ class ExternalLinksE2ETest : E2ETestBase() {
         // Настоящий тап нужен для user activation: иначе WebView 101 помечает
         // предыдущую запись истории как пропускаемую и canGoBack() возвращает false.
         // CENTER_LEFT даёт x=0: WebView может пропустить касание на границе.
-        // Тапаем на четверти ширины, внутри ссылки и в стороне от нативной
-        // кнопки Scout в левом верхнем углу.
+        // Тапаем на четверти ширины, внутри ссылки и в стороне от нативных
+        // кнопок в правом верхнем углу.
         onView(withId(R.id.gameWebView)).perform(
             GeneralClickAction(
                 Tap.SINGLE,

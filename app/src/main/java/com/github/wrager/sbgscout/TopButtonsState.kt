@@ -19,7 +19,7 @@ internal enum class PageLoadState {
 }
 
 /**
- * Кнопки блока `topButtonsContainer` в левом верхнем углу поверх WebView.
+ * Кнопки столбца `topButtonsContainer` в правом верхнем углу поверх WebView.
  *
  * @property reloadButton "Reload": загрузка страницы игры.
  * @property scoutButton нативная "Scout": экран настроек приложения.

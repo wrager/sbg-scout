@@ -352,7 +352,7 @@ class GameActivity : AppCompatActivity() {
                     maxOf(barInsets.bottom, imeInsets.bottom),
                 )
             }
-            updateTopCornerMargins(
+            updateTopButtonsTopMargin(
                 windowInsets
                     .getInsetsIgnoringVisibility(
                         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
@@ -648,8 +648,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun updatePageLoadingIndicator(loading: Boolean) {
-        findViewById<View>(R.id.pageLoadingIndicator).visibility =
-            if (loading) View.VISIBLE else View.GONE
+        setViewVisible(R.id.pageLoadingIndicator, loading)
     }
 
     private fun createDownloadBridge(): DownloadBridge =
@@ -777,26 +776,27 @@ class GameActivity : AppCompatActivity() {
         setViewVisible(R.id.settingsButton, state.scoutButton)
     }
 
+    /** Скрытый элемент столбца `topButtonsContainer` оставляет своё место, чтобы остальные не сдвигались. */
     private fun setViewVisible(
         id: Int,
         visible: Boolean,
     ) {
-        findViewById<View>(id).visibility = if (visible) View.VISIBLE else View.GONE
+        findViewById<View>(id).visibility = if (visible) View.VISIBLE else View.INVISIBLE
     }
 
     /**
-     * Блок кнопок в левом верхнем углу и индикатор загрузки страницы в правом
-     * встают ниже зоны статус-бара и выреза экрана [safeTopInset] (см. [topCornerMargin]).
+     * Столбец кнопок в правом верхнем углу встаёт ниже зоны статус-бара и выреза
+     * экрана [safeTopInset] (см. [topCornerMargin]).
      */
-    private fun updateTopCornerMargins(safeTopInset: Int) {
+    private fun updateTopButtonsTopMargin(safeTopInset: Int) {
         val topMargin =
             topCornerMargin(
                 safeTopInset = safeTopInset,
                 rootPaddingTop = rootLayout.paddingTop,
                 margin = resources.getDimensionPixelSize(R.dimen.top_corner_margin),
             )
-        for (id in intArrayOf(R.id.topButtonsContainer, R.id.pageLoadingIndicator)) {
-            findViewById<View>(id).updateLayoutParams<FrameLayout.LayoutParams> { this.topMargin = topMargin }
+        findViewById<View>(R.id.topButtonsContainer).updateLayoutParams<FrameLayout.LayoutParams> {
+            this.topMargin = topMargin
         }
     }
 
@@ -1444,10 +1444,10 @@ internal fun configureWebViewPerformance(webView: WebView) {
 }
 
 /**
- * Отступ элементов в верхних углах от верха содержимого `rootLayout`: они
- * встают на [margin] ниже зоны статус-бара и выреза экрана [safeTopInset].
+ * Отступ столбца кнопок в правом верхнем углу от верха содержимого `rootLayout`:
+ * столбец встаёт на [margin] ниже зоны статус-бара и выреза экрана [safeTopInset].
  * В обычном режиме эту зону уже покрывает отступ `rootLayout` сверху
- * [rootPaddingTop]; в полноэкранном отступа нет, и зону обходят сами элементы.
+ * [rootPaddingTop]; в полноэкранном отступа нет, и зону обходит сам столбец.
  *
  * 🤖 Generated with Claude Opus 5.5
  */

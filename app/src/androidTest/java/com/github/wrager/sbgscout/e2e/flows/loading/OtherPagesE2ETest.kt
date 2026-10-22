@@ -24,8 +24,8 @@ import org.junit.runner.RunWith
  * На странице входа видны "Scout" (до входа это единственный путь к настройкам
  * приложения) и "Reload". На других страницах нативные кнопки перекрывали бы
  * контент, поэтому остаётся только "Reload" и только тогда, когда "Назад"
- * не вернёт в игру. Кнопки стоят в левом верхнем углу зеркально индикатору
- * загрузки страницы.
+ * не вернёт в игру. Кнопки стоят в столбце в правом верхнем углу, скрытая
+ * кнопка оставляет своё место пустым.
  *
  * Пока не загрузилась страница игры, idling не срабатывает: такие проверки
  * не используют Espresso и ждут страницу по маркеру `window.__sbgFakePage`.
@@ -62,14 +62,14 @@ class OtherPagesE2ETest : E2ETestBase() {
         game
             .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsInCorner()
+            .waitForTopButtonsInPlace()
 
         // Закрытие настроек восстанавливает «Scout» по текущей странице.
         game.openSettings().close()
         game
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
             .assertLoadingUiStays(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsInCorner()
+            .waitForTopButtonsInPlace()
     }
 
     @Test
@@ -81,7 +81,7 @@ class OtherPagesE2ETest : E2ETestBase() {
         game
             .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsInCorner()
+            .waitForTopButtonsInPlace()
 
         LoginScreen(scenario).waitUntilReady().submitFakeAuth()
 
@@ -90,7 +90,7 @@ class OtherPagesE2ETest : E2ETestBase() {
             .waitForLoaded()
             .waitForFakePage("app")
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
-            .waitForTopButtonsInCorner()
+            .waitForTopButtonsInPlace()
     }
 
     @Test
@@ -110,7 +110,7 @@ class OtherPagesE2ETest : E2ETestBase() {
         game
             .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsInCorner()
+            .waitForTopButtonsInPlace()
         scenario.onActivity { activity ->
             assertTrue("Ожидался полноэкранный режим", activity.isFullscreen)
             assertEquals(
@@ -184,7 +184,7 @@ class OtherPagesE2ETest : E2ETestBase() {
             .waitForFakePage("rules")
             .waitForLoadingUi(LoadingUiState.OTHER_PAGE_WITHOUT_HISTORY)
             .assertLoadingUiStays(LoadingUiState.OTHER_PAGE_WITHOUT_HISTORY)
-            .waitForTopButtonsInCorner()
+            .waitForTopButtonsInPlace()
 
         game.pressReload()
         game
