@@ -227,6 +227,30 @@ try {
 } finally {
     if (Test-Path -LiteralPath $hostStatePath) { Remove-Item -LiteralPath $hostStatePath }
 }
+
+$script:events = @()
+$script:failingShard = -1
+Set-Item Function:Stop-ScoutEmulator { $script:events += 'stop' }
+Set-Item Function:Start-ScoutEmulator { $script:events += 'start' }
+Set-Item Function:Assert-TestDevice { $script:events += 'assert' }
+Set-Item Function:Invoke-Gradle {
+    param([string[]]$Tasks)
+    Assert-Equal $Tasks[0] 'connectedInstrAndroidTest' 'runs instrumentation tests'
+    Assert-Equal $Tasks.Count 3 'passes only the shard arguments'
+    $total = ($Tasks[1] -replace '^-Pandroid\.testInstrumentationRunnerArguments\.numShards=', '')
+    $index = ($Tasks[2] -replace '^-Pandroid\.testInstrumentationRunnerArguments\.shardIndex=', '')
+    $script:events += "gradle $index/$total"
+    if ([int]$index -eq $script:failingShard) { throw 'There were failing tests.' }
+}
+$Shards = 3
+Invoke-ShardedTests
+Assert-Equal ($script:events -join ',') ('stop,start,assert,gradle 0/3,stop,start,assert,gradle 1/3,stop,' +
+    'start,assert,gradle 2/3,stop') 'runs every shard on a fresh emulator and stops it afterwards'
+$script:events = @()
+$script:failingShard = 1
+Assert-Fails { Invoke-ShardedTests } 'Test shard 2/3 failed: There were failing tests'
+Assert-Equal ($script:events -join ',') 'stop,start,assert,gradle 0/3,stop,start,assert,gradle 1/3,stop' 'stops the emulator after a failed shard and skips the rest'
+Write-Host 'PASS: full test runs restart the emulator between shards'
 # The negative native-command test deliberately leaves LASTEXITCODE=7.
 # GitHub's PowerShell runner otherwise propagates it after this script succeeds.
 exit 0

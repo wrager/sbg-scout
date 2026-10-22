@@ -7,6 +7,7 @@ param(
     [string]$ToolsRoot = (Join-Path $env:USERPROFILE 'AppData\Local\SBGScout'),
     [string]$TestClass = 'com.github.wrager.sbgscout.e2e.flows.smoke.GameLoadsSmokeTest',
     [switch]$AllTests,
+    [ValidateRange(1, 64)][int]$Shards = 16,
     [switch]$ShowWindow,
     [switch]$Offline,
     [ValidateRange(30, 600)][int]$BootTimeoutSeconds = 180
@@ -174,6 +175,28 @@ function Assert-TestDevice {
     }
 }
 
+function Invoke-ShardedTests {
+    <# Рендерер SwiftShader в QEMU не освобождает память после каждого теста, и на всём
+       наборе эмулятор исчерпывает память Windows. Поэтому каждая часть набора идёт
+       на свежем процессе эмулятора, который останавливается и при падении тестов.
+       🤖 Generated with Claude Opus 5.5 #>
+    Stop-ScoutEmulator
+    for ($shard = 0; $shard -lt $Shards; $shard++) {
+        Write-Host "Test shard $($shard + 1)/$Shards"
+        try {
+            Start-ScoutEmulator
+            Assert-TestDevice
+            Invoke-Gradle @('connectedInstrAndroidTest',
+                "-Pandroid.testInstrumentationRunnerArguments.numShards=$Shards",
+                "-Pandroid.testInstrumentationRunnerArguments.shardIndex=$shard")
+        } catch {
+            throw "Test shard $($shard + 1)/$Shards failed: $_"
+        } finally {
+            Stop-ScoutEmulator
+        }
+    }
+}
+
 function Stop-ScoutEmulator {
     Start-AdbServer
     $serial = Find-ScoutEmulator
@@ -255,11 +278,13 @@ try {
                 'com.github.wrager.sbgscout.debug/com.github.wrager.sbgscout.GameActivity')
         }
         'test' {
-            Start-ScoutEmulator
-            Assert-TestDevice
-            $tasks = @('connectedInstrAndroidTest')
-            if (!$AllTests) { $tasks += "-Pandroid.testInstrumentationRunnerArguments.class=$TestClass" }
-            Invoke-Gradle $tasks
+            if ($AllTests) {
+                Invoke-ShardedTests
+            } else {
+                Start-ScoutEmulator
+                Assert-TestDevice
+                Invoke-Gradle @('connectedInstrAndroidTest', "-Pandroid.testInstrumentationRunnerArguments.class=$TestClass")
+            }
         }
         'logs' {
             Start-AdbServer

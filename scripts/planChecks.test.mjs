@@ -179,34 +179,36 @@ test('GitHub output is valid and missing diff metadata cannot produce a green sk
   assert.equal(readFileSync(output, 'utf8'), '');
 });
 
-// emulator-runner v2 executes each non-comment script line with a separate sh -c.
-// Exercise the actual workflow commands, with a fake Gradle executable instead of an emulator.
-for (const [functional, visual, expected] of [
-  ['true', 'true', ['connectedInstrAndroidTest', 'visualRegressionTest']],
-  ['true', 'false', ['connectedInstrAndroidTest']],
-  ['false', 'true', ['visualRegressionTest']],
-  ['false', 'false', []],
-]) {
-  test(`emulator workflow selects functional=${functional}, visual=${visual}`, (t) => {
-    const { directory, shell, lines } = emulatorScript(t);
-    for (const line of lines) execFileSync(shell, ['-c', line], {
-      cwd: directory, env: { ...process.env, RUN_FUNCTIONAL: functional, RUN_VISUAL: visual },
-    });
-    const log = readFileSync(join(directory, 'calls'), 'utf8').trim().split('\n').filter(Boolean);
-    assert.deepEqual(log.map((entry) => entry.split(' ')[0]), expected);
-    if (functional === 'true') assert.match(log[0], /notAnnotation=.*VisualRegressionTest/);
-  });
-}
+test('e2e jobs start only for the suites requested by CI or a manual run', () => {
+  assert.equal(workflowJob('functional').condition, "github.event_name == 'workflow_dispatch' || inputs.functional");
+  assert.equal(workflowJob('visual').condition, "github.event_name == 'workflow_dispatch' || inputs.visual");
+});
 
-test('emulator workflow propagates a failing Gradle command before starting the next suite', (t) => {
-  const { directory, shell, lines } = emulatorScript(t);
-  assert.throws(() => {
-    for (const line of lines) execFileSync(shell, ['-c', line], {
-      cwd: directory, env: { ...process.env, RUN_FUNCTIONAL: 'true', RUN_VISUAL: 'true', FAIL_GRADLE: 'true' },
-      stdio: 'pipe',
-    });
-  }, (error) => error.status === 7);
-  assert.equal(readFileSync(join(directory, 'calls'), 'utf8').trim().split('\n').length, 1);
+// Exercise the actual workflow commands, with a fake Gradle executable instead of an emulator.
+test('each functional job runs its own shard without visual regression tests', (t) => {
+  const { directory, shell, calls } = emulatorDirectory(t);
+  const shard = shardCommand(workflowJob('functional').script, 2, 4);
+  execFileSync(shell, ['-c', shard], { cwd: directory });
+  const [call, ...rest] = calls();
+  assert.deepEqual(rest, []);
+  assert.match(call, /^connectedInstrAndroidTest /);
+  assert.match(call, /notAnnotation=.*VisualRegressionTest/);
+  assert.match(call, /-Pandroid\.testInstrumentationRunnerArguments\.numShards=4 /);
+  assert.match(call, /-Pandroid\.testInstrumentationRunnerArguments\.shardIndex=2 /);
+});
+
+test('the visual job compares screenshots in one Gradle run', (t) => {
+  const { directory, shell, calls } = emulatorDirectory(t);
+  execFileSync(shell, ['-c', workflowJob('visual').script], { cwd: directory });
+  assert.deepEqual(calls().map((call) => call.split(' ')[0]), ['visualRegressionTest']);
+});
+
+test('emulator jobs fail with the Gradle exit status', (t) => {
+  for (const script of [shardCommand(workflowJob('functional').script, 0, 4), workflowJob('visual').script]) {
+    const { directory, shell } = emulatorDirectory(t);
+    const result = spawnSync(shell, ['-c', script], { cwd: directory, env: { ...process.env, FAIL_GRADLE: 'true' } });
+    assert.equal(result.status, 7);
+  }
 });
 
 test('runner memory log samples while the command runs and keeps its exit status', (t) => {
@@ -249,7 +251,22 @@ function shellPath() {
   return process.platform === 'win32' ? resolve(gitPath, '../../../bin/sh.exe') : 'sh';
 }
 
-function emulatorScript(t) {
+function workflowJob(name) {
+  const workflow = readFileSync(new URL('../.github/workflows/e2e.yml', import.meta.url), 'utf8');
+  const job = workflow.match(new RegExp(`^ {2}${name}:\\r?\\n((?:(?: {4}[^\\r\\n]*)?(?:\\r?\\n|$))+)`, 'm'))?.[1];
+  assert.ok(job, `e2e.yml must define the ${name} job`);
+  const script = job.match(/^ {10}script: (.+)$/m)?.[1];
+  assert.ok(script, `${name} must pass a single-line script to emulator-runner`);
+  return { condition: job.match(/^ {4}if: (.+)$/m)?.[1], script };
+}
+
+function shardCommand(script, index, total) {
+  const command = script.replaceAll('${{ strategy.job-index }}', index).replaceAll('${{ strategy.job-total }}', total);
+  assert.doesNotMatch(command, /\$\{\{/, 'every workflow expression in the script must be substituted');
+  return command;
+}
+
+function emulatorDirectory(t) {
   const directory = mkdtempSync(join(tmpdir(), 'scout-emulator-script-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   writeFileSync(join(directory, 'calls'), '');
@@ -257,9 +274,6 @@ function emulatorScript(t) {
   chmodSync(join(directory, 'gradlew'), 0o755);
   mkdirSync(join(directory, 'scripts'));
   copyFileSync(new URL('./logRunnerMemory.sh', import.meta.url), join(directory, 'scripts/logRunnerMemory.sh'));
-  const workflow = readFileSync(new URL('../.github/workflows/e2e.yml', import.meta.url), 'utf8');
-  const script = workflow.match(/^ {10}script: \|\r?\n((?: {12}[^\r\n]*(?:\r?\n|$))+)/m)?.[1];
-  assert.ok(script, 'emulator-runner must receive executable script lines');
-  const lines = script.trim().split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
-  return { directory, shell: shellPath(), lines };
+  const calls = () => readFileSync(join(directory, 'calls'), 'utf8').trim().split('\n').filter(Boolean);
+  return { directory, shell: shellPath(), calls };
 }
