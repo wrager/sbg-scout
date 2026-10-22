@@ -45,6 +45,18 @@ object GameUrls {
     }
 
     /**
+     * Страница входа. Сравнение с [loginUrl] без query, fragment и конечного
+     * слеша: игра ведёт и на `/login`, и на `/login/`.
+     * 🤖 Generated with Claude Fable 5.1
+     */
+    fun isLoginPage(url: String?): Boolean {
+        if (url.isNullOrEmpty()) return false
+        return pageAddress(url) == pageAddress(loginUrl)
+    }
+
+    private fun pageAddress(url: String): String = url.substringBefore('#').substringBefore('?').trimEnd('/')
+
+    /**
      * Строгая проверка принадлежности URL игровому хосту по `Uri.host`
      * (а не `contains`, чтобы `https://evil.com/?q=sbg-game.ru` не прошёл).
      *

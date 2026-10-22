@@ -97,4 +97,31 @@ class GameUrlsTest {
         // BuildConfig.GAME_HOST_MATCH в instr — "127.0.0.1"
         assertTrue(GameUrls.isGameAppPage("http://${BuildConfig.GAME_HOST_MATCH}/app"))
     }
+
+    @Test
+    fun `isLoginPage returns false for null url`() {
+        assertFalse(GameUrls.isLoginPage(null))
+    }
+
+    @Test
+    fun `isLoginPage matches loginUrl with trailing slash query and fragment`() {
+        GameUrls.loginUrlOverride = "http://127.0.0.1:12345/login"
+        assertTrue(GameUrls.isLoginPage("http://127.0.0.1:12345/login"))
+        assertTrue(GameUrls.isLoginPage("http://127.0.0.1:12345/login/?next=app#top"))
+    }
+
+    @Test
+    fun `isLoginPage returns false for other pages and hosts`() {
+        GameUrls.loginUrlOverride = "http://127.0.0.1:12345/login"
+        assertFalse(GameUrls.isLoginPage("http://127.0.0.1:12345/app"))
+        assertFalse(GameUrls.isLoginPage("http://127.0.0.1:12345/login/callback"))
+        assertFalse(GameUrls.isLoginPage("https://sbg-game.ru/login"))
+    }
+
+    @Test
+    fun `isLoginPage follows beta host`() {
+        GameUrls.betaServerEnabled = true
+        assertTrue(GameUrls.isLoginPage("https://beta.sbg-game.ru/login/"))
+        assertFalse(GameUrls.isLoginPage("https://sbg-game.ru/login"))
+    }
 }

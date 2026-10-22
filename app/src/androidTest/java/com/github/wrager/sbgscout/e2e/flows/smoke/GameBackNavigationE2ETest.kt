@@ -6,12 +6,17 @@ import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.Espresso.pressBackUnconditionally
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
+import com.github.wrager.sbgscout.e2e.screens.LoginScreen
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -75,6 +80,28 @@ class GameBackNavigationE2ETest : E2ETestBase() {
         awaitActivityDestroyed()
     }
 
+    @Test
+    fun back_afterLogin_finishesInsteadOfReturningToLoginPage() {
+        server.gamePageBody = AssetLoader.read("fixtures/app-page-with-popups.html")
+        server.loginPageBody = AssetLoader.read("fixtures/login-page-full-screen-button.html")
+        scenario = launchGameActivity()
+        LoginScreen(scenario).waitUntilReady()
+        tapWebView()
+        GameScreen(scenario, idling).waitForLoaded()
+        drainRequests()
+        scenario.onActivity { activity ->
+            assertTrue("После входа в истории WebView есть страница входа", activity.webView.canGoBack())
+        }
+
+        pressBackUnconditionally()
+
+        awaitActivityDestroyed()
+        assertNull(
+            "WebView не должна возвращаться на страницу входа",
+            nextRequest { it.path.orEmpty().startsWith("/login") },
+        )
+    }
+
     private fun launchGameWithPopups(): GameScreen {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-with-popups.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
@@ -96,6 +123,37 @@ class GameBackNavigationE2ETest : E2ETestBase() {
         assertEquals(script, expected, actual)
     }
 
+    /**
+     * Настоящий тап, а не JS-клик: без user activation WebView 101 помечает
+     * запись `/login` в истории пропускаемой, и `canGoBack()` ложен. Левая
+     * четверть ширины не задета нативными кнопками по центру.
+     * 🤖 Generated with Claude Fable 5.1
+     */
+    private fun tapWebView() {
+        val location = IntArray(2)
+        var width = 0
+        var height = 0
+        scenario.onActivity { activity ->
+            activity.webView.getLocationOnScreen(location)
+            width = activity.webView.width
+            height = activity.webView.height
+        }
+        UiDevice
+            .getInstance(InstrumentationRegistry.getInstrumentation())
+            .click(location[0] + width / 4, location[1] + height / 2)
+    }
+
+    private fun drainRequests() {
+        var request = server.takeRequest(REQUEST_TIMEOUT_MS)
+        while (request != null) request = server.takeRequest(REQUEST_TIMEOUT_MS)
+    }
+
+    private fun nextRequest(predicate: (RecordedRequest) -> Boolean): RecordedRequest? {
+        var request = server.takeRequest(REQUEST_TIMEOUT_MS)
+        while (request != null && !predicate(request)) request = server.takeRequest(REQUEST_TIMEOUT_MS)
+        return request
+    }
+
     private fun awaitActivityDestroyed() {
         val deadline = System.currentTimeMillis() + AWAIT_TIMEOUT_MS
         while (scenario.state != Lifecycle.State.DESTROYED && System.currentTimeMillis() < deadline) {
@@ -112,5 +170,6 @@ class GameBackNavigationE2ETest : E2ETestBase() {
         const val AWAIT_TIMEOUT_MS = 5_000L
         const val POLL_INTERVAL_MS = 50L
         const val SETTLE_MS = 500L
+        const val REQUEST_TIMEOUT_MS = 500L
     }
 }
