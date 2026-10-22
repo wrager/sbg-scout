@@ -97,16 +97,16 @@ class ScriptManagerReloadButtonE2ETest : E2ETestBase() {
         // а applySettingsAfterClose делает повторный webView.loadUrl(GameUrls.appUrl).
         scenario.onActivity { activity: GameActivity ->
             val container = activity.findViewById<View>(R.id.settingsContainer)
-            val topButtons = activity.findViewById<View>(R.id.topButtonsContainer)
+            val nativeButtons = activity.findViewById<View>(R.id.nativeButtonsContainer)
             assertEquals(
                 "settingsContainer должен быть GONE после reloadButton click",
                 View.GONE,
                 container.visibility,
             )
             assertEquals(
-                "topButtonsContainer должен быть VISIBLE после закрытия overlay",
+                "nativeButtonsContainer должен быть VISIBLE после закрытия overlay",
                 View.VISIBLE,
-                topButtons.visibility,
+                nativeButtons.visibility,
             )
         }
 

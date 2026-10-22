@@ -54,7 +54,7 @@
     <string name="app_settings_button">Настройки SBG Scout</string>
     <string name="app_settings_short">Настройки SBG Scout</string>
     <string name="reload_button">Reload</string>
-    <string name="game_initializing">Инициализация игры…</string>
+    <string name="game_initializing">Загрузка…</string>
     <string name="page_loading">Загрузка страницы</string>
     <string name="close_settings">Закрыть</string>
     <string name="settings_category_display">Экран</string>
