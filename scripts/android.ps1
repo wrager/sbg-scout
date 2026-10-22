@@ -26,6 +26,13 @@ $hostStatePath = Join-Path $logsDirectory 'emulator-host.json'
 $adbTimeoutSeconds = 30
 $consoleTimeoutSeconds = 10
 $emulatorStopSeconds = 30
+<# QEMU после загрузки занимает около 3,5 ГБ и растёт примерно на 0,45 ГБ за тест, Gradle и
+   служебные процессы эмулятора - около 1,5 ГБ. Ещё 2 ГБ оставлены на рост других программ:
+   без запаса Windows уходит в подкачку, загрузка эмулятора замедляется в разы, и UI-тесты
+   падают, не дождавшись фокуса окна.
+   🤖 Generated with Claude Opus 5.5 #>
+$shardBaseMegabytes = 7000
+$shardTestMegabytes = 450
 
 function Invoke-Checked {
     param([string]$Program, [string[]]$Arguments, [int]$TimeoutSeconds = 0)
@@ -197,6 +204,20 @@ function Get-InstrumentationTests {
     ConvertFrom-InstrumentationListing $listing
 }
 
+function Get-FreeCommitMegabytes {
+    [math]::Round((Get-CimInstance Win32_OperatingSystem).FreeVirtualMemory / 1KB)
+}
+
+function Assert-ShardMemory {
+    param([int]$TestCount)
+    $required = $shardBaseMegabytes + $shardTestMegabytes * $TestCount
+    $free = Get-FreeCommitMegabytes
+    if ($free -lt $required) {
+        throw ("Only $free MB of Windows commit memory is free, a shard of $TestCount tests needs about $required MB. " +
+            'Close other applications or lower -TestsPerShard.')
+    }
+}
+
 function Get-ConnectedTestCount {
     $results = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'app\build\outputs\androidTest-results\connected') -Recurse -Filter 'TEST-*.xml'
     $count = 0
@@ -215,6 +236,7 @@ function Invoke-ShardedTests {
        🤖 Generated with Claude Opus 5.5 #>
     Stop-ScoutEmulator
     try {
+        Assert-ShardMemory 0
         Start-ScoutEmulator
         Assert-TestDevice
         $tests = @(Get-InstrumentationTests)
@@ -227,6 +249,7 @@ function Invoke-ShardedTests {
         $selection = $tests[($shard * $TestsPerShard)..([math]::Min($tests.Count, ($shard + 1) * $TestsPerShard) - 1)]
         Write-Host "Test shard $($shard + 1)/$shards ($($selection.Count) tests)"
         try {
+            Assert-ShardMemory $selection.Count
             Start-ScoutEmulator
             Assert-TestDevice
             <# Из списка class через запятую AGP передаёт раннеру только первый тест,

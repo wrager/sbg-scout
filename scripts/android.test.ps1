@@ -276,6 +276,17 @@ try {
 }
 Write-Host 'PASS: executed tests are counted from the JUnit report'
 
+$shardBaseMegabytes = 7000
+$shardTestMegabytes = 450
+$script:freeCommit = 9700
+Set-Item Function:Get-FreeCommitMegabytes { $script:freeCommit }
+Assert-ShardMemory 6
+Assert-Fails { Assert-ShardMemory 7 } 'Only 9700 MB of Windows commit memory is free, a shard of 7 tests needs about 10150 MB'
+$script:freeCommit = 6999
+Assert-Fails { Assert-ShardMemory 0 } 'needs about 7000 MB'
+$script:freeCommit = 100000
+Write-Host 'PASS: a shard starts only with enough free commit memory'
+
 $script:events = @()
 $script:failingTest = $null
 $script:executedShortfall = 0
@@ -309,6 +320,16 @@ $script:failingTest = $null
 $script:executedShortfall = 2
 Assert-Fails { Invoke-ShardedTests } 'Test shard 1/3 failed: ran 1 of 3 tests'
 $script:executedShortfall = 0
+$script:events = @()
+Set-Item Function:Assert-ShardMemory {
+    param([int]$TestCount)
+    $script:events += "memory $TestCount"
+    if ($script:events -like 'gradle *') { throw 'Only 5000 MB of Windows commit memory is free' }
+}
+Assert-Fails { Invoke-ShardedTests } 'Test shard 2/3 failed: Only 5000 MB'
+Assert-Equal ($script:events -join ';') ('stop;memory 0;start;assert;list;stop;memory 3;start;assert;gradle A#one:A#two:B#one;stop;' +
+    'memory 3;stop') 'checks memory before every emulator start and does not boot without it'
+Set-Item Function:Assert-ShardMemory { param([int]$TestCount) }
 $script:events = @()
 $script:listedTests = @()
 Assert-Fails { Invoke-ShardedTests } 'No instrumentation tests'
