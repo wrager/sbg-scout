@@ -419,7 +419,7 @@ CI release PR и `publish` до сборки и перед публикацие�
 
 Pixel-by-pixel сравнение скриншотов UI с зафиксированными baseline в `.github/images/visual-regression/`. На каждом PR прогон `visualRegressionTest` сравнивает фактический рендер с baseline; различие выше threshold (per-channel diff > 8 + > 0.1% пикселей) фейлит CI и публикует triplet `[baseline | actual | highlight]` в артефактах.
 
-### Покрытие (10 baseline'ов)
+### Покрытие (11 baseline'ов)
 
 - `app-settings-{light,dark}.png` — settings overlay (PreferenceFragment поверх GameActivity).
 - `script-manager-{light,dark}.png` — список скриптов (SVP enabled, EUI скачен но disabled, CUI с download-иконкой).
@@ -427,8 +427,10 @@ Pixel-by-pixel сравнение скриншотов UI с зафиксиро�
 - `dialog-script-update-{light,dark}.png` — диалог release-notes после auto-check скриптов.
 - `game-settings-light.png` — popup игровых настроек в WebView с инжектированной кнопкой "SBG Scout".
 - `login-light.png` — fake-страница авторизации с нативными кнопками "Настройки SBG Scout" и "Reload" внизу экрана.
+- `game-loading-light.png` - экран загрузки игры (разметка и тексты этапов из `refs/game/index.html` без стилей игры) с надписью "Загрузка...", "Настройки SBG Scout" и "Reload" внизу экрана, без индикатора загрузки страницы.
+  <!-- 🤖 Generated with Claude Opus 5.5 -->
 
-WebView-экраны (`game-settings`, `login`) только в light: фикстуры без dark CSS, dark-вариант потребовал бы отдельной dark-фикстуры.
+WebView-экраны (`game-settings`, `login`, `game-loading`) только в light: фикстуры без dark CSS, dark-вариант потребовал бы отдельной dark-фикстуры.
 
 ### Архитектура: device-side capture, host-side compare
 
@@ -443,7 +445,7 @@ WebView-экраны (`game-settings`, `login`) только в light: фикс�
 - [`ThemeOverride`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/ThemeOverride.kt) — записывает `KEY_APPLIED_GAME_THEME` в SharedPreferences до `launchGameActivity()` и вызывает `AppCompatDelegate.setDefaultNightMode`. Без этого тема осталась бы AUTO и тесты были бы недетерминированы по системной теме эмулятора.
 - [`StatusBarDemoMode`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/StatusBarDemoMode.kt) — через SystemUI demo mode broadcast'ы фиксирует часы (12:00), батарею (100%), иконки сети и скрывает notifications. Демо-режим стабилизирует исходные кадры; финальные полноэкранные и прокручиваемые PNG исключают системные панели по WindowInsets.
 - Локаль приложения — русская, через `LocaleManager.setApplicationLocales`.
-- Login-сценарий ждёт исчезновения панели буфера обмена SystemUI по resource ID `com.android.systemui:id/clipboard_preview`, независимо от текста и системной локали. Если панель не исчезла за 10 секунд, тест завершается до сохранения PNG.
+- WebView-сценарии `login` и `game-loading` ждут исчезновения панели буфера обмена SystemUI по resource ID `com.android.systemui:id/clipboard_preview` (`ClipboardOverlay`), независимо от текста и системной локали. Если панель не исчезла за 10 секунд, тест завершается до сохранения PNG.
 - Фиксированные stub'ы FakeGameServer для динамических данных (версии релизов, body release notes).
 
 ### Gradle-задачи

@@ -23,6 +23,7 @@ import com.github.wrager.sbgscout.e2e.infra.WebViewIdlingResource
 import com.github.wrager.sbgscout.settings.SettingsFragment
 import org.json.JSONArray
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -155,6 +156,24 @@ class GameScreen(
             "Индикатор загрузки страницы",
             timeoutMs,
         ) { it.isAboveNavigationBar && it.isAtEnd }
+
+    /** Ждёт, пока индикатор загрузки страницы скроется: страница и её ресурсы загрузились. */
+    fun waitForPageLoadingIndicatorHidden(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen {
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
+        var shown = isPageLoadingIndicatorShown()
+        while (shown && SystemClock.uptimeMillis() < deadline) {
+            Thread.sleep(POLL_INTERVAL_MS)
+            shown = isPageLoadingIndicatorShown()
+        }
+        assertFalse("Индикатор загрузки страницы виден через ${timeoutMs}ms", shown)
+        return this
+    }
+
+    private fun isPageLoadingIndicatorShown(): Boolean {
+        var shown = false
+        scenario.onActivity { shown = it.findViewById<View>(R.id.pageLoadingIndicator).isShown }
+        return shown
+    }
 
     /** Ждёт, пока блок нативных кнопок встанет внизу по центру выше навигационной панели и выреза экрана. */
     fun waitForNativeButtonsInPlace(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen =
