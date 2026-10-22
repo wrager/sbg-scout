@@ -40,7 +40,7 @@ android {
 
         // Если запускают `./gradlew updateReadmeScreenshots` - фильтруем
         // androidTest по аннотации @ReadmeScreenshot, чтобы прогонялись только
-        // три скриншот-теста. AGP не позволяет per-task переопределить
+        // скриншот-тесты. AGP не позволяет per-task переопределить
         // testInstrumentationRunnerArguments, поэтому смотрим в startParameter
         // на configuration phase.
         val isUpdateScreenshots =
@@ -275,7 +275,7 @@ tasks.register("copyReadmeScreenshots") {
         }
         val targetDir = rootProject.file(".github/images/screenshots")
         targetDir.mkdirs()
-        val expectedNames = setOf("game_settings.png", "settings.png", "script-manager.png")
+        val expectedNames = setOf("game_loading.png", "game_settings.png", "settings.png", "script-manager.png")
         val copied = mutableListOf<String>()
         outputsDir
             .walkTopDown()
@@ -299,7 +299,7 @@ tasks.register("copyReadmeScreenshots") {
     }
 }
 
-// Одной CLI-командой обновить README-скриншоты: прогон трёх @ReadmeScreenshot
+// Одной CLI-командой обновить README-скриншоты: прогон @ReadmeScreenshot
 // тестов на эмуляторе (фильтр по аннотации навешан на configuration phase в
 // defaultConfig.testInstrumentationRunnerArguments при наличии этого task'а в
 // startParameter) + копирование PNG в .github/images/screenshots/.
