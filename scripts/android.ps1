@@ -55,7 +55,7 @@ function Invoke-Checked {
     if ($process.ExitCode -ne 0) {
         throw "$Program failed with exit code $($process.ExitCode): $($errors.Result.Trim())"
     }
-    $output.Result -split '\r?\n' | Where-Object { $_ }
+    $output.Result -split '[\r\n]+' | Where-Object { $_ }
 }
 
 function Start-AdbServer {

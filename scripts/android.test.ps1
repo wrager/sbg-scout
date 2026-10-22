@@ -24,6 +24,8 @@ Assert-Fails { Invoke-Checked 'powershell.exe' @('-NoProfile', '-Command', 'exit
 Write-Host 'PASS: native command failures propagate'
 
 Assert-Equal ((Invoke-Checked 'cmd.exe' @('/c', 'echo one&echo two') -TimeoutSeconds 30) -join ',') 'one,two' 'returns output lines'
+$consoleReply = Invoke-Checked 'powershell.exe' @('-NoProfile', '-Command', '[Console]::Out.Write("sbg-scout-api33`r`r`nOK`r`r`n")') -TimeoutSeconds 30
+Assert-Equal ($consoleReply -join ',') 'sbg-scout-api33,OK' 'splits emulator console replies that end lines with CR CR LF'
 Assert-Fails { Invoke-Checked 'cmd.exe' @('/c', 'echo broken 1>&2& exit 3') -TimeoutSeconds 30 } 'exit code 3: broken'
 $watch = [Diagnostics.Stopwatch]::StartNew()
 $timeout = $null
