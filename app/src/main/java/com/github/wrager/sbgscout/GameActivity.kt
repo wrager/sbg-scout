@@ -11,7 +11,6 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
-import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
@@ -39,6 +38,7 @@ import androidx.core.os.LocaleListCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
@@ -110,12 +110,6 @@ class GameActivity : AppCompatActivity() {
 
     /** true если HTML-кнопка в `.settings-content` успешно инжектирована (нативную «Scout» можно скрыть). */
     private var scoutButtonReplaced = false
-
-    /**
-     * Высота зоны сверху окна, которую закрывают статус-бар (в том числе скрытый:
-     * в полноэкранном режиме он выезжает по свайпу поверх контента) и вырез экрана.
-     */
-    private var safeTopInset = 0
 
     /**
      * Deep-link URL, отложенный до окончания provisioning'а. Когда Activity
@@ -358,12 +352,12 @@ class GameActivity : AppCompatActivity() {
                     maxOf(barInsets.bottom, imeInsets.bottom),
                 )
             }
-            safeTopInset =
+            updateTopCornerMargins(
                 windowInsets
                     .getInsetsIgnoringVisibility(
                         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
-                    ).top
-            updateTopButtonsPosition(currentTopButtonsState().atTop)
+                    ).top,
+            )
             windowInsets
         }
     }
@@ -771,9 +765,6 @@ class GameActivity : AppCompatActivity() {
         settingsContainer.isClickable = true
     }
 
-    private fun currentTopButtonsState(): TopButtonsState =
-        topButtonsState(pageLoadState, scoutButtonReplaced, webView.canGoBack())
-
     /**
      * Показывает кнопки блока по [pageLoadState]. Видимость самого блока
      * не трогает: его скрывают экран настроек и provisioning.
@@ -781,10 +772,9 @@ class GameActivity : AppCompatActivity() {
      * 🤖 Generated with Claude Opus 5.5
      */
     private fun renderTopButtons() {
-        val state = currentTopButtonsState()
+        val state = topButtonsState(pageLoadState, scoutButtonReplaced, webView.canGoBack())
         setViewVisible(R.id.reloadButton, state.reloadButton)
         setViewVisible(R.id.settingsButton, state.scoutButton)
-        updateTopButtonsPosition(state.atTop)
     }
 
     private fun setViewVisible(
@@ -794,23 +784,20 @@ class GameActivity : AppCompatActivity() {
         findViewById<View>(id).visibility = if (visible) View.VISIBLE else View.GONE
     }
 
-    /** Блок кнопок у верхнего края ([atTop]) встаёт ниже статус-бара и выреза экрана (см. [topButtonsTopMargin]). */
-    private fun updateTopButtonsPosition(atTop: Boolean) {
-        val container = findViewById<View>(R.id.topButtonsContainer)
-        val params = container.layoutParams as? FrameLayout.LayoutParams ?: return
-        if (atTop) {
-            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            params.topMargin =
-                topButtonsTopMargin(
-                    safeTopInset = safeTopInset,
-                    rootPaddingTop = rootLayout.paddingTop,
-                    gap = (TOP_BUTTONS_EDGE_GAP_DP * resources.displayMetrics.density).toInt(),
-                )
-        } else {
-            params.gravity = Gravity.CENTER
-            params.topMargin = 0
+    /**
+     * Блок кнопок в левом верхнем углу и индикатор загрузки страницы в правом
+     * встают ниже зоны статус-бара и выреза экрана [safeTopInset] (см. [topCornerMargin]).
+     */
+    private fun updateTopCornerMargins(safeTopInset: Int) {
+        val topMargin =
+            topCornerMargin(
+                safeTopInset = safeTopInset,
+                rootPaddingTop = rootLayout.paddingTop,
+                margin = resources.getDimensionPixelSize(R.dimen.top_corner_margin),
+            )
+        for (id in intArrayOf(R.id.topButtonsContainer, R.id.pageLoadingIndicator)) {
+            findViewById<View>(id).updateLayoutParams<FrameLayout.LayoutParams> { this.topMargin = topMargin }
         }
-        container.layoutParams = params
     }
 
     private fun openSettings() {
@@ -1424,9 +1411,6 @@ class GameActivity : AppCompatActivity() {
         private const val RELEASE_NOTES_MAX_HEIGHT_DP = 200
         private const val RELEASE_NOTES_PADDING_DP = 24
 
-        /** Зазор между блоком кнопок у верхнего края и статус-баром или вырезом экрана. */
-        private const val TOP_BUTTONS_EDGE_GAP_DP = 8
-
         /**
          * Флаг отложенной перезагрузки страницы игры. Ставится из
          * [SettingsFragment] (preference `reload_game`) и [ScriptListFragment]
@@ -1460,13 +1444,15 @@ internal fun configureWebViewPerformance(webView: WebView) {
 }
 
 /**
- * Отступ блока кнопок у верхнего края от верха содержимого `rootLayout`:
- * блок встаёт на [gap] ниже зоны статус-бара и выреза экрана [safeTopInset].
+ * Отступ элементов в верхних углах от верха содержимого `rootLayout`: они
+ * встают на [margin] ниже зоны статус-бара и выреза экрана [safeTopInset].
  * В обычном режиме эту зону уже покрывает отступ `rootLayout` сверху
- * [rootPaddingTop]; в полноэкранном отступа нет, и зону обходит сам блок.
+ * [rootPaddingTop]; в полноэкранном отступа нет, и зону обходят сами элементы.
+ *
+ * 🤖 Generated with Claude Opus 5.5
  */
-internal fun topButtonsTopMargin(
+internal fun topCornerMargin(
     safeTopInset: Int,
     rootPaddingTop: Int,
-    gap: Int,
-): Int = maxOf(safeTopInset - rootPaddingTop, 0) + gap
+    margin: Int,
+): Int = maxOf(safeTopInset - rootPaddingTop, 0) + margin

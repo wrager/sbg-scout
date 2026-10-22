@@ -16,8 +16,8 @@ import org.junit.runner.RunWith
  * Нативная "Reload" на странице игры скрывается только после полной загрузки
  * игры: bootstrap ScoutBridge ждёт, пока игра уберёт свой экран загрузки
  * `.loading-screen`. При ошибке этапа и при `.fatal-error` "Reload" и "Scout"
- * остаются. До загрузки HTML-кнопка Scout в настройки игры не вставляется,
- * а блок кнопок стоит у верхнего края.
+ * остаются. До загрузки HTML-кнопка Scout в настройки игры не вставляется.
+ * Кнопки стоят в левом верхнем углу зеркально индикатору загрузки страницы.
  *
  * Исходы загрузки изображает фикстура `app-page-loading-screen.html`
  * (`window.__sbgFakeLoading`). Отрицательные проверки идут окном
@@ -45,7 +45,7 @@ class GameLoadingE2ETest : E2ETestBase() {
         game
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
             .assertLoadingUiStays(LoadingUiState.hidden(scout = true))
-            .waitForTopButtonsCentered()
+            .waitForTopButtonsInCorner()
         assertFalse("HTML-кнопке некуда вставляться", game.isHtmlButtonInjected())
     }
 
@@ -53,11 +53,10 @@ class GameLoadingE2ETest : E2ETestBase() {
     fun loadingScreen_keepsLoadingUi_untilGameRemovesIt() {
         val game = launchGame(LOADING_SCREEN_FIXTURE)
 
-        // По центру "Reload" ложилась бы на кнопку игры "Хочу" в её экране загрузки.
         game
             .waitForLoadingUi(LoadingUiState.LOADING)
             .assertLoadingUiStays(LoadingUiState.LOADING)
-            .waitForTopButtonsAtTop()
+            .waitForTopButtonsInCorner()
         assertFalse("HTML-кнопка вставлена до загрузки игры", game.isHtmlButtonInjected())
 
         game.evaluateJs("__sbgFakeLoading.finish()")
@@ -85,7 +84,7 @@ class GameLoadingE2ETest : E2ETestBase() {
     }
 
     @Test
-    fun fatalError_keepsReloadAndScoutAtTop() {
+    fun fatalError_keepsReloadAndScoutInCorner() {
         val game = launchGame(LOADING_SCREEN_FIXTURE)
         game.waitForLoadingUi(LoadingUiState.LOADING)
 
@@ -99,11 +98,10 @@ class GameLoadingE2ETest : E2ETestBase() {
                     "document.querySelector('.fatal-error') !== null",
             ),
         )
-        // Текст .fatal-error игра выводит по центру экрана: блок кнопок не должен его закрывать.
         game
             .waitForLoadingUi(LoadingUiState.LOADING)
             .assertLoadingUiStays(LoadingUiState.LOADING)
-            .waitForTopButtonsAtTop()
+            .waitForTopButtonsInCorner()
         assertFalse("HTML-кнопка вставлена при фатальной ошибке", game.isHtmlButtonInjected())
     }
 

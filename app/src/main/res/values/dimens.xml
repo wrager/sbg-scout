@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Кнопки в левом верхнем углу и индикатор загрузки страницы в правом зеркальны: общие размер и отступ от края. -->
+    <dimen name="top_corner_size">40dp</dimen>
+    <dimen name="top_corner_margin">12dp</dimen>
+</resources>

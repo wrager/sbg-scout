@@ -24,9 +24,8 @@ import org.junit.runner.RunWith
  * На странице входа видны "Scout" (до входа это единственный путь к настройкам
  * приложения) и "Reload". На других страницах нативные кнопки перекрывали бы
  * контент, поэтому остаётся только "Reload" и только тогда, когда "Назад"
- * не вернёт в игру.
- * Вне игры блок кнопок прижат к верхнему краю: по центру "Scout" закрывала бы
- * кнопку входа через Telegram.
+ * не вернёт в игру. Кнопки стоят в левом верхнем углу зеркально индикатору
+ * загрузки страницы.
  *
  * Пока не загрузилась страница игры, idling не срабатывает: такие проверки
  * не используют Espresso и ждут страницу по маркеру `window.__sbgFakePage`.
@@ -57,27 +56,24 @@ class OtherPagesE2ETest : E2ETestBase() {
         CookieFixtures.injectFakeAuth(server.baseUrl)
         val game = GameScreen(launchGameActivity(), idling).waitForLoaded()
         // В игре нативную «Scout» заменила HTML-кнопка в настройках игры.
-        game
-            .waitForLoadingUi(LoadingUiState.hidden(scout = false))
-            .waitForTopButtonsCentered()
+        game.waitForLoadingUi(LoadingUiState.hidden(scout = false))
 
         game.navigateByScript("/login/")
         game
             .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsAtTop()
+            .waitForTopButtonsInCorner()
 
         // Закрытие настроек восстанавливает «Scout» по текущей странице.
         game.openSettings().close()
         game
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
             .assertLoadingUiStays(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsAtTop()
+            .waitForTopButtonsInCorner()
     }
 
     @Test
-    fun loginPage_pinsButtonsToTop_andGameCentersThemAgain() {
-        // По центру «Scout» закрывала бы кнопку входа через Telegram посередине страницы.
+    fun loginPage_thenGame_keepsScoutInTopLeftCorner() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-minimal.html")
         server.loginPageBody = AssetLoader.read(LOGIN_FIXTURE)
         val scenario = launchGameActivity()
@@ -85,21 +81,23 @@ class OtherPagesE2ETest : E2ETestBase() {
         game
             .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsAtTop()
+            .waitForTopButtonsInCorner()
 
         LoginScreen(scenario).waitUntilReady().submitFakeAuth()
 
+        // В фикстуре игры нет .settings-content: «Scout» остаётся, как под CUI.
         game
             .waitForLoaded()
             .waitForFakePage("app")
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
-            .waitForTopButtonsCentered()
+            .waitForTopButtonsInCorner()
     }
 
     @Test
-    fun loginPageInFullscreen_keepsButtonsBelowStatusBarArea() {
+    fun loginPageInFullscreen_keepsCornersBelowStatusBarArea() {
         // В полноэкранном режиме у rootLayout нет отступа сверху, а статус-бар
-        // выезжает по свайпу поверх контента: блок всё равно встаёт ниже его зоны.
+        // выезжает по свайпу поверх контента: кнопки и индикатор загрузки
+        // всё равно встают ниже его зоны.
         PreferenceManager
             .getDefaultSharedPreferences(targetContext)
             .edit()
@@ -112,7 +110,7 @@ class OtherPagesE2ETest : E2ETestBase() {
         game
             .waitForFakePage("login")
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsAtTop()
+            .waitForTopButtonsInCorner()
         scenario.onActivity { activity ->
             assertTrue("Ожидался полноэкранный режим", activity.isFullscreen)
             assertEquals(
@@ -186,7 +184,7 @@ class OtherPagesE2ETest : E2ETestBase() {
             .waitForFakePage("rules")
             .waitForLoadingUi(LoadingUiState.OTHER_PAGE_WITHOUT_HISTORY)
             .assertLoadingUiStays(LoadingUiState.OTHER_PAGE_WITHOUT_HISTORY)
-            .waitForTopButtonsAtTop()
+            .waitForTopButtonsInCorner()
 
         game.pressReload()
         game

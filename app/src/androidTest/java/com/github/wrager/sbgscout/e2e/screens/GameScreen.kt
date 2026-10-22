@@ -4,6 +4,7 @@ import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -143,12 +144,15 @@ class GameScreen(
         }
     }
 
-    /** Положение блока кнопок поверх WebView в экранных пикселях. */
-    fun topButtonsGeometry(): TopButtonsGeometry {
-        var geometry: TopButtonsGeometry? = null
+    /** Блок кнопок в левом верхнем углу рядом с параметрами индикатора загрузки страницы. */
+    fun topCornerGeometry(): TopCornerGeometry {
+        var geometry: TopCornerGeometry? = null
         scenario.onActivity { activity ->
             val root = activity.findViewById<View>(R.id.rootLayout)
             val container = activity.findViewById<View>(R.id.topButtonsContainer)
+            val indicatorParams =
+                activity.findViewById<View>(R.id.pageLoadingIndicator).layoutParams as? ViewGroup.MarginLayoutParams
+                    ?: error("У индикатора загрузки страницы нет отступов разметки")
             val rootLocation = IntArray(2).also { root.getLocationOnScreen(it) }
             val containerLocation = IntArray(2).also { container.getLocationOnScreen(it) }
             val safeTopInset =
@@ -157,40 +161,42 @@ class GameScreen(
                     ?.getInsetsIgnoringVisibility(
                         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
                     )?.top ?: 0
-            val areaHeight = root.height - root.paddingTop - root.paddingBottom
+            val buttons =
+                listOf(R.id.settingsButton, R.id.reloadButton)
+                    .map { activity.findViewById<View>(it) }
+                    .filter { it.isShown }
             geometry =
-                TopButtonsGeometry(
-                    top = containerLocation[1],
-                    centerY = containerLocation[1] + container.height / 2,
+                TopCornerGeometry(
+                    buttonsStart = containerLocation[0] - rootLocation[0] - root.paddingLeft,
+                    buttonsTop = containerLocation[1] - rootLocation[1] - root.paddingTop,
+                    indicatorEnd = indicatorParams.rightMargin,
+                    indicatorTop = indicatorParams.topMargin,
+                    buttonsScreenTop = containerLocation[1],
                     safeTop = rootLocation[1] + safeTopInset,
-                    areaCenterY = rootLocation[1] + root.paddingTop + areaHeight / 2,
-                    screenTop = rootLocation[1],
-                    screenHeight = root.height,
+                    buttonSizes = buttons.map { it.width to it.height },
+                    indicatorSize = indicatorParams.width to indicatorParams.height,
+                    buttonsStacked = buttons.zipWithNext().all { (upper, lower) -> lower.top >= upper.bottom },
                 )
         }
         return checkNotNull(geometry) { "GameActivity недоступна" }
     }
 
-    /** Ждёт, пока блок кнопок встанет у верхнего края (так на странице входа). */
-    fun waitForTopButtonsAtTop(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen =
-        waitForTopButtons("у верхнего края", timeoutMs) { it.isAtTop }
-
-    /** Ждёт, пока блок кнопок встанет по центру экрана (так на всех страницах, кроме входа). */
-    fun waitForTopButtonsCentered(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen =
-        waitForTopButtons("по центру", timeoutMs) { it.isCentered }
-
-    private fun waitForTopButtons(
-        placement: String,
-        timeoutMs: Long,
-        isPlaced: (TopButtonsGeometry) -> Boolean,
-    ): GameScreen {
+    /**
+     * Ждёт, пока блок кнопок встанет в левый верхний угол зеркально индикатору
+     * загрузки страницы в правом: те же отступы и размер кнопок, ниже статус-бара
+     * и выреза экрана, кнопки одна под другой.
+     */
+    fun waitForTopButtonsInCorner(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen {
         val deadline = SystemClock.uptimeMillis() + timeoutMs
-        var geometry = topButtonsGeometry()
-        while (!isPlaced(geometry) && SystemClock.uptimeMillis() < deadline) {
+        var geometry = topCornerGeometry()
+        while (!geometry.mirrorsIndicator && SystemClock.uptimeMillis() < deadline) {
             Thread.sleep(POLL_INTERVAL_MS)
-            geometry = topButtonsGeometry()
+            geometry = topCornerGeometry()
         }
-        assertTrue("Блок кнопок не встал $placement за ${timeoutMs}ms: $geometry", isPlaced(geometry))
+        assertTrue(
+            "Блок кнопок не встал в левый верхний угол зеркально индикатору за ${timeoutMs}ms: $geometry",
+            geometry.mirrorsIndicator,
+        )
         return this
     }
 
@@ -234,7 +240,7 @@ class GameScreen(
      * Касание элемента страницы с id [elementId] настоящим касанием экрана
      * (Espresso в экранных координатах), а не JS `click()`: переход по такому
      * касанию идёт с действием пользователя и остаётся в истории для «Назад».
-     * Элемент не должен быть под нативными кнопками в центре экрана.
+     * Элемент не должен быть под нативными кнопками в левом верхнем углу.
      */
     fun tapElement(elementId: String) {
         val raw =

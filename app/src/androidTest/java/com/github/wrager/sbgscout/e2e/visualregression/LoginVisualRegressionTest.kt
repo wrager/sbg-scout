@@ -58,10 +58,10 @@ class LoginVisualRegressionTest : E2ETestBase() {
         val scenario = launchGameActivity()
         LoginScreen(scenario).waitUntilReady()
 
-        // "Scout" и "Reload" у верхнего края - часть экрана входа и входят в снимок.
+        // "Scout" и "Reload" в левом верхнем углу - часть экрана входа и входят в снимок.
         GameScreen(scenario, idling)
             .waitForLoadingUi(LoadingUiState.LOGIN_PAGE)
-            .waitForTopButtonsAtTop()
+            .waitForTopButtonsInCorner()
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
 
         // restoreClipboard предыдущего теста может оставить панель SystemUI.
