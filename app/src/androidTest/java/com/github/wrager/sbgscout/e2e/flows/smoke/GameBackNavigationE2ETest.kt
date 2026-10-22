@@ -74,10 +74,11 @@ class GameBackNavigationE2ETest : E2ETestBase() {
     @Test
     fun back_withoutOpenPopups_finishesActivity() {
         launchGameWithPopups()
+        val activity = currentActivity()
 
         pressBackUnconditionally()
 
-        awaitActivityDestroyed()
+        awaitFinishing(activity)
     }
 
     @Test
@@ -89,13 +90,12 @@ class GameBackNavigationE2ETest : E2ETestBase() {
         tapWebView()
         GameScreen(scenario, idling).waitForLoaded()
         drainRequests()
-        scenario.onActivity { activity ->
-            assertTrue("После входа в истории WebView есть страница входа", activity.webView.canGoBack())
-        }
+        val activity = currentActivity()
+        assertTrue("После входа в истории WebView есть страница входа", activity.webView.canGoBack())
 
         pressBackUnconditionally()
 
-        awaitActivityDestroyed()
+        awaitFinishing(activity)
         assertNull(
             "WebView не должна возвращаться на страницу входа",
             nextRequest { it.path.orEmpty().startsWith("/login") },
@@ -125,8 +125,9 @@ class GameBackNavigationE2ETest : E2ETestBase() {
 
     /**
      * Настоящий тап, а не JS-клик: без user activation WebView 101 помечает
-     * запись `/login` в истории пропускаемой, и `canGoBack()` ложен. Левая
-     * четверть ширины не задета нативными кнопками по центру.
+     * запись `/login` в истории пропускаемой, и `canGoBack()` ложен. Точка
+     * в левой четверти ширины на середине высоты не задета нативными кнопками,
+     * которые стоят внизу по центру.
      * 🤖 Generated with Claude Fable 5.1
      */
     private fun tapWebView() {
@@ -154,13 +155,26 @@ class GameBackNavigationE2ETest : E2ETestBase() {
         return request
     }
 
-    private fun awaitActivityDestroyed() {
+    private fun currentActivity(): GameActivity {
+        lateinit var activity: GameActivity
+        scenario.onActivity { activity = it }
+        return activity
+    }
+
+    /**
+     * После `finish()` Activity ещё несколько секунд живёт в CREATED, пока
+     * система её не уничтожит, поэтому ждём `isFinishing`, а не DESTROYED.
+     * 🤖 Generated with Claude Fable 5.1
+     */
+    private fun awaitFinishing(activity: GameActivity) {
         val deadline = System.currentTimeMillis() + AWAIT_TIMEOUT_MS
-        while (scenario.state != Lifecycle.State.DESTROYED && System.currentTimeMillis() < deadline) {
+        while (!isFinishing(activity) && System.currentTimeMillis() < deadline) {
             Thread.sleep(POLL_INTERVAL_MS)
         }
-        assertEquals("Activity должна завершиться по кнопке назад", Lifecycle.State.DESTROYED, scenario.state)
+        assertTrue("Activity должна завершаться по кнопке назад", isFinishing(activity))
     }
+
+    private fun isFinishing(activity: GameActivity): Boolean = activity.isFinishing || activity.isDestroyed
 
     private companion object {
         const val IS_NOTIFS_HIDDEN = "document.querySelector('.notifs').classList.contains('hidden')"
