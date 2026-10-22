@@ -13,12 +13,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Индикатор загрузки на странице игры (белая подложка, "Инициализация игры...",
- * "Reload", нативная "Scout") снимается только после полной загрузки игры:
- * bootstrap ScoutBridge ждёт, пока игра уберёт свой экран загрузки
- * `.loading-screen`. При `.fatal-error` игра уже не загрузится: надпись
- * скрывается, "Reload" остаётся. До загрузки HTML-кнопка Scout в настройки
- * игры не вставляется, а блок кнопок стоит у верхнего края.
+ * Нативная "Reload" на странице игры скрывается только после полной загрузки
+ * игры: bootstrap ScoutBridge ждёт, пока игра уберёт свой экран загрузки
+ * `.loading-screen`. При ошибке этапа и при `.fatal-error` "Reload" и "Scout"
+ * остаются. До загрузки HTML-кнопка Scout в настройки игры не вставляется,
+ * а блок кнопок стоит у верхнего края.
  *
  * Исходы загрузки изображает фикстура `app-page-loading-screen.html`
  * (`window.__sbgFakeLoading`). Отрицательные проверки идут окном
@@ -74,7 +73,7 @@ class GameLoadingE2ETest : E2ETestBase() {
 
         game.evaluateJs("__sbgFakeLoading.failStep()")
 
-        // Этап упал, экран загрузки игры остался — остаются подложка и «Reload».
+        // Этап упал, экран загрузки игры остался: остаётся и "Reload".
         assertEquals(
             "true",
             game.evaluateJs(
@@ -86,7 +85,7 @@ class GameLoadingE2ETest : E2ETestBase() {
     }
 
     @Test
-    fun fatalError_keepsReloadAtTop_withoutInitializingLabel() {
+    fun fatalError_keepsReloadAndScoutAtTop() {
         val game = launchGame(LOADING_SCREEN_FIXTURE)
         game.waitForLoadingUi(LoadingUiState.LOADING)
 
@@ -102,8 +101,8 @@ class GameLoadingE2ETest : E2ETestBase() {
         )
         // Текст .fatal-error игра выводит по центру экрана: блок кнопок не должен его закрывать.
         game
-            .waitForLoadingUi(LoadingUiState.FAILED)
-            .assertLoadingUiStays(LoadingUiState.FAILED)
+            .waitForLoadingUi(LoadingUiState.LOADING)
+            .assertLoadingUiStays(LoadingUiState.LOADING)
             .waitForTopButtonsAtTop()
         assertFalse("HTML-кнопка вставлена при фатальной ошибке", game.isHtmlButtonInjected())
     }

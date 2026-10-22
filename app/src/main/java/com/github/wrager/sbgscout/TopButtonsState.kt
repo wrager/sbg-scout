@@ -2,14 +2,14 @@ package com.github.wrager.sbgscout
 
 /** Страница в WebView и ход загрузки игры на ней. */
 internal enum class PageLoadState {
-    /** Страница игры грузится, в том числе застряла на упавшем этапе загрузки. */
+    /**
+     * Страница игры грузится, в том числе застряла на упавшем этапе загрузки
+     * или показала `.fatal-error`, например при отказе в геолокации.
+     */
     GAME_LOADING,
 
     /** Игра убрала свой экран загрузки. */
     GAME_READY,
-
-    /** Игра заменила страницу сообщением `.fatal-error`, например при отказе в геолокации. */
-    GAME_FAILED,
 
     /** Страница входа. */
     LOGIN,
@@ -19,11 +19,8 @@ internal enum class PageLoadState {
 }
 
 /**
- * Что показывает GameActivity поверх WebView: белую подложку и блок кнопок
- * `topButtonsContainer`.
+ * Блок кнопок `topButtonsContainer` поверх WebView в GameActivity.
  *
- * @property loadingOverlay белая подложка.
- * @property initializingLabel надпись "Инициализация игры...".
  * @property reloadButton "Reload": загрузка страницы игры.
  * @property scoutButton нативная "Scout": экран настроек приложения.
  * @property atTop блок у верхнего края экрана; иначе по центру.
@@ -31,17 +28,15 @@ internal enum class PageLoadState {
  * 🤖 Generated with Claude Opus 5.5
  */
 internal data class TopButtonsState(
-    val loadingOverlay: Boolean,
-    val initializingLabel: Boolean,
     val reloadButton: Boolean,
     val scoutButton: Boolean,
     val atTop: Boolean,
 )
 
 /**
- * Подложка и блок кнопок для страницы [page]. [scoutButtonReplaced] - игра
- * загрузилась, и в её настройки вставлена HTML-кнопка вместо "Scout";
- * [canGoBack] - "Назад" вернёт на предыдущую страницу WebView.
+ * Блок кнопок для страницы [page]. [scoutButtonReplaced] - игра загрузилась,
+ * и в её настройки вставлена HTML-кнопка вместо "Scout"; [canGoBack] - "Назад"
+ * вернёт на предыдущую страницу WebView.
  *
  * По центру экрана блок стоит только в загруженной игре. Пока игра грузится,
  * по центру "Reload" ложилась бы на кнопку игры "Хочу" в её экране загрузки,
@@ -58,44 +53,9 @@ internal fun topButtonsState(
     canGoBack: Boolean,
 ): TopButtonsState =
     when (page) {
-        PageLoadState.GAME_LOADING ->
-            TopButtonsState(
-                loadingOverlay = true,
-                initializingLabel = true,
-                reloadButton = true,
-                scoutButton = true,
-                atTop = true,
-            )
-        PageLoadState.GAME_FAILED ->
-            TopButtonsState(
-                loadingOverlay = true,
-                initializingLabel = false,
-                reloadButton = true,
-                scoutButton = true,
-                atTop = true,
-            )
+        PageLoadState.GAME_LOADING -> TopButtonsState(reloadButton = true, scoutButton = true, atTop = true)
         PageLoadState.GAME_READY ->
-            TopButtonsState(
-                loadingOverlay = false,
-                initializingLabel = false,
-                reloadButton = false,
-                scoutButton = !scoutButtonReplaced,
-                atTop = false,
-            )
-        PageLoadState.LOGIN ->
-            TopButtonsState(
-                loadingOverlay = false,
-                initializingLabel = false,
-                reloadButton = true,
-                scoutButton = true,
-                atTop = true,
-            )
-        PageLoadState.OTHER_PAGE ->
-            TopButtonsState(
-                loadingOverlay = false,
-                initializingLabel = false,
-                reloadButton = !canGoBack,
-                scoutButton = false,
-                atTop = true,
-            )
+            TopButtonsState(reloadButton = false, scoutButton = !scoutButtonReplaced, atTop = false)
+        PageLoadState.LOGIN -> TopButtonsState(reloadButton = true, scoutButton = true, atTop = true)
+        PageLoadState.OTHER_PAGE -> TopButtonsState(reloadButton = !canGoBack, scoutButton = false, atTop = true)
     }

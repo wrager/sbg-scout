@@ -54,7 +54,6 @@
     <string name="app_settings_button">SBG Scout settings</string>
     <string name="app_settings_short">SBG Scout settings</string>
     <string name="reload_button">Reload</string>
-    <string name="game_initializing">Initializing game\u2026</string>
     <string name="page_loading">Loading page</string>
     <string name="close_settings">Close</string>
     <string name="close_settings_symbol" translatable="false">[x]</string>

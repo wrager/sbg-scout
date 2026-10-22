@@ -1,32 +1,24 @@
 package com.github.wrager.sbgscout.e2e.screens
 
-/**
- * Видимость индикатора загрузки игры поверх WebView в GameActivity:
- * белая подложка, надпись «Инициализация игры…», «Reload» и нативная «Scout».
- */
+/** Видимость нативных кнопок "Reload" и "Scout" поверх WebView в GameActivity. */
 data class LoadingUiState(
-    val overlay: Boolean,
-    val label: Boolean,
     val reload: Boolean,
     val scout: Boolean,
 ) {
     companion object {
-        /** Страница игры грузится: видно всё. */
-        val LOADING = LoadingUiState(overlay = true, label = true, reload = true, scout = true)
-
-        /** Игра заменила страницу сообщением `.fatal-error`: загрузки больше не будет, надпись скрыта. */
-        val FAILED = LoadingUiState(overlay = true, label = false, reload = true, scout = true)
+        /** Страница игры грузится, в том числе после `.fatal-error`: видны обе кнопки. */
+        val LOADING = LoadingUiState(reload = true, scout = true)
 
         /** Страница входа: "Scout" ведёт в настройки, "Reload" перезагружает вход. */
-        val LOGIN_PAGE = LoadingUiState(overlay = false, label = false, reload = true, scout = true)
+        val LOGIN_PAGE = LoadingUiState(reload = true, scout = true)
 
         /** Страница вне игры, с которой "Назад" не вернёт в игру: в игру ведёт только "Reload". */
-        val OTHER_PAGE_WITHOUT_HISTORY = LoadingUiState(overlay = false, label = false, reload = true, scout = false)
+        val OTHER_PAGE_WITHOUT_HISTORY = LoadingUiState(reload = true, scout = false)
 
         /**
-         * Индикатор загрузки скрыт: игра загрузилась или открыта страница вне
-         * игры. [scout] — осталась ли нативная «Scout».
+         * "Reload" скрыта: игра загрузилась или открыта страница вне игры,
+         * с которой "Назад" вернёт в игру. [scout] - осталась ли нативная "Scout".
          */
-        fun hidden(scout: Boolean) = LoadingUiState(overlay = false, label = false, reload = false, scout = scout)
+        fun hidden(scout: Boolean) = LoadingUiState(reload = false, scout = scout)
     }
 }

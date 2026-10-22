@@ -7,31 +7,22 @@ import android.webkit.JavascriptInterface
  *
  * Bootstrap-скрипт, инжектируемый в onPageStarted, ждёт полной загрузки игры
  * (см. [BOOTSTRAP_SCRIPT]) и:
- * 1. Вызывает [onGameReady] — игра готова, Android снимает подложку загрузки.
+ * 1. Вызывает [onGameReady] - игра готова, Android скрывает нативную "Reload".
  * 2. Пытается вставить строчку «SBG Scout settings» в игровую панель настроек
  *    (`.settings-content`). При успехе вызывает [onHtmlButtonInjected] — Android
  *    скрывает нативную кнопку. Под скриптами, переделывающими UI (CUI),
  *    `.settings-content` может отсутствовать — инжекция пропускается, нативная
  *    кнопка остаётся.
  * 3. Клик по HTML-кнопке вызывает [openScoutSettings] — открыть экран настроек.
- *
- * Если вместо загрузки игра показала `.fatal-error`, bootstrap вызывает
- * [onGameFailed] и больше ничего не ждёт: игра уже не загрузится.
  */
 class ScoutBridge(
     private val onReady: () -> Unit,
-    private val onFailed: () -> Unit,
     private val onHtmlInjected: () -> Unit,
     private val onOpenSettings: () -> Unit,
 ) {
     @JavascriptInterface
     fun onGameReady() {
         onReady()
-    }
-
-    @JavascriptInterface
-    fun onGameFailed() {
-        onFailed()
     }
 
     @JavascriptInterface
@@ -55,18 +46,16 @@ class ScoutBridge(
          * - игра убрала свой экран загрузки `.loading-screen`. Игра удаляет его,
          *   только когда все этапы загрузки (тексты, данные, вход в аккаунт,
          *   инвентарь, интерфейс, геолокация) прошли успешно или игрок нажал
-         *   «Хочу», не дожидаясь геолокации. При ошибке этапа экран остаётся —
-         *   остаются и подложка с «Reload»;
-         * - нет `.fatal-error`. При фатальной ошибке (например, отказе
+         *   «Хочу», не дожидаясь геолокации. При ошибке этапа экран остаётся,
+         *   остаётся и "Reload";
+         * - нет `.fatal-error`: при фатальной ошибке (например, отказе
          *   в геолокации) игра заменяет страницу сообщением, и экран загрузки
-         *   пропадает вместе с ней: вместо onGameReady вызывается onGameFailed.
-         *   `.fatal-error` проверяется первым: игра показывает его и до
-         *   инициализации i18next, если не загрузилась одна из её библиотек.
+         *   пропадает вместе с ней.
          *
-         * i18next инициализируется на втором этапе загрузки, поэтому раньше
-         * подложка снималась, даже если игра потом падала на входе в аккаунт.
-         * Проверка i18next оставлена: если экран загрузки когда-нибудь пропадёт
-         * из разметки, подложка всё равно дождётся хотя бы i18next. Экран загрузки
+         * Одного i18next недостаточно: он готов уже на втором этапе загрузки, а
+         * следующие этапы, например вход в аккаунт, ещё могут упасть. Проверка
+         * i18next нужна, если экран загрузки пропадёт из разметки игры: тогда
+         * готовность дождётся хотя бы i18next. Экран загрузки
          * скрипты, переделывающие UI (CUI, EUI), не удаляют — SVP меняет только
          * строку версии внутри него, EUI лишь стилизует `.fatal-error`.
          * Сигнал по-прежнему не зависит от игрового интерфейса: версия, которая
@@ -80,9 +69,11 @@ class ScoutBridge(
          * — так же, как делает сама игра в `script.js` через `getLanguage()`.
          * Если итоговый язык начинается с "ru" — русские строки, иначе английские.
          *
-         * Нет таймаута: polling продолжается, пока игра не загрузится или не
-         * покажет `.fatal-error`. Если этого не случится (нет сети, ошибка этапа),
-         * подложка загрузки не снимается, нативные "Scout" и "Reload" остаются доступны.
+         * Нет таймаута: polling продолжается, пока игра не загрузится.
+         * Если этого не случится (нет сети, ошибка этапа, `.fatal-error`),
+         * нативные "Scout" и "Reload" остаются доступны.
+         *
+         * 🤖 Generated with Claude Opus 5.5
          */
         val BOOTSTRAP_SCRIPT =
             """
@@ -130,11 +121,10 @@ class ScoutBridge(
                     return true;
                 }
 
-                function loadState() {
-                    if (document.querySelector('.fatal-error')) return 'failed';
-                    if (!(window.i18next && window.i18next.isInitialized)) return 'loading';
-                    if (document.querySelector('.loading-screen')) return 'loading';
-                    return 'ready';
+                function checkReady() {
+                    if (!(window.i18next && window.i18next.isInitialized)) return false;
+                    if (document.querySelector('.loading-screen')) return false;
+                    return !document.querySelector('.fatal-error');
                 }
 
                 function onReady() {
@@ -144,23 +134,18 @@ class ScoutBridge(
                     }
                 }
 
-                function onFailed() {
-                    if (window.__sbg_scout) window.__sbg_scout.onGameFailed();
-                }
-
-                function settleLoadState() {
-                    var state = loadState();
-                    if (state === 'ready') onReady();
-                    else if (state === 'failed') onFailed();
-                    return state !== 'loading';
-                }
-
                 function start() {
                     if (window.__sbg_scout_bootstrapped) return;
                     window.__sbg_scout_bootstrapped = true;
-                    if (settleLoadState()) return;
+                    if (checkReady()) {
+                        onReady();
+                        return;
+                    }
                     var interval = setInterval(function() {
-                        if (settleLoadState()) clearInterval(interval);
+                        if (checkReady()) {
+                            clearInterval(interval);
+                            onReady();
+                        }
                     }, 100);
                 }
 

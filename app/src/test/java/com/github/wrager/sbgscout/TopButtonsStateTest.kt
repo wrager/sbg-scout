@@ -5,43 +5,17 @@ import org.junit.Test
 
 class TopButtonsStateTest {
     @Test
-    fun `game loading shows overlay label reload and scout at the top`() {
+    fun `game loading shows reload and scout at the top`() {
         assertEquals(
-            TopButtonsState(
-                loadingOverlay = true,
-                initializingLabel = true,
-                reloadButton = true,
-                scoutButton = true,
-                atTop = true,
-            ),
+            TopButtonsState(reloadButton = true, scoutButton = true, atTop = true),
             topButtonsState(PageLoadState.GAME_LOADING, scoutButtonReplaced = false, canGoBack = true),
-        )
-    }
-
-    @Test
-    fun `fatal error keeps overlay reload and scout at the top without label`() {
-        assertEquals(
-            TopButtonsState(
-                loadingOverlay = true,
-                initializingLabel = false,
-                reloadButton = true,
-                scoutButton = true,
-                atTop = true,
-            ),
-            topButtonsState(PageLoadState.GAME_FAILED, scoutButtonReplaced = false, canGoBack = true),
         )
     }
 
     @Test
     fun `ready game keeps scout in the center while html button is missing`() {
         assertEquals(
-            TopButtonsState(
-                loadingOverlay = false,
-                initializingLabel = false,
-                reloadButton = false,
-                scoutButton = true,
-                atTop = false,
-            ),
+            TopButtonsState(reloadButton = false, scoutButton = true, atTop = false),
             topButtonsState(PageLoadState.GAME_READY, scoutButtonReplaced = false, canGoBack = false),
         )
     }
@@ -55,14 +29,7 @@ class TopButtonsStateTest {
 
     @Test
     fun `login page keeps scout and reload at the top`() {
-        val expected =
-            TopButtonsState(
-                loadingOverlay = false,
-                initializingLabel = false,
-                reloadButton = true,
-                scoutButton = true,
-                atTop = true,
-            )
+        val expected = TopButtonsState(reloadButton = true, scoutButton = true, atTop = true)
 
         assertEquals(expected, topButtonsState(PageLoadState.LOGIN, scoutButtonReplaced = false, canGoBack = true))
         assertEquals(expected, topButtonsState(PageLoadState.LOGIN, scoutButtonReplaced = false, canGoBack = false))
@@ -71,13 +38,7 @@ class TopButtonsStateTest {
     @Test
     fun `other page with history back to game shows nothing`() {
         assertEquals(
-            TopButtonsState(
-                loadingOverlay = false,
-                initializingLabel = false,
-                reloadButton = false,
-                scoutButton = false,
-                atTop = true,
-            ),
+            TopButtonsState(reloadButton = false, scoutButton = false, atTop = true),
             topButtonsState(PageLoadState.OTHER_PAGE, scoutButtonReplaced = false, canGoBack = true),
         )
     }
@@ -85,13 +46,7 @@ class TopButtonsStateTest {
     @Test
     fun `other page without history keeps reload at the top`() {
         assertEquals(
-            TopButtonsState(
-                loadingOverlay = false,
-                initializingLabel = false,
-                reloadButton = true,
-                scoutButton = false,
-                atTop = true,
-            ),
+            TopButtonsState(reloadButton = true, scoutButton = false, atTop = true),
             topButtonsState(PageLoadState.OTHER_PAGE, scoutButtonReplaced = false, canGoBack = false),
         )
     }

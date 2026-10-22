@@ -105,7 +105,7 @@ class GameActivity : AppCompatActivity() {
     private var lastAppliedTheme: GameSettingsReader.ThemeMode? = null
     private var lastAppliedLanguage: String? = null
 
-    /** Текущая страница WebView: по ней [renderTopButtons] показывает подложку и блок кнопок. */
+    /** Текущая страница WebView: по ней [renderTopButtons] показывает блок кнопок. */
     private var pageLoadState = PageLoadState.GAME_LOADING
 
     /** true если HTML-кнопка в `.settings-content` успешно инжектирована (нативную «Scout» можно скрыть). */
@@ -278,7 +278,7 @@ class GameActivity : AppCompatActivity() {
 
     /**
      * Применяет цвета `scoutButton*` из текущей темы к кнопкам
-     * «Scout»/«Reload»/«[x]» и текстовому label'у. Нужно после смены
+     * «Scout»/«Reload»/«[x]». Нужно после смены
      * uiMode (configChanges=uiMode), т.к. Activity не пересоздаётся и view'хи
      * держат значения цветов, разрезолвенные при инфляции.
      * Индикатор загрузки страницы перекрашивается теми же цветами.
@@ -303,7 +303,6 @@ class GameActivity : AppCompatActivity() {
             button.iconTint = contentTint
             button.strokeColor = strokeTint
         }
-        findViewById<android.widget.TextView>(R.id.gameInitializingLabel).setTextColor(content)
         findViewById<CircularProgressIndicator>(R.id.pageLoadingIndicator).apply {
             setIndicatorColor(content)
             backgroundTintList = backgroundTint
@@ -492,12 +491,6 @@ class GameActivity : AppCompatActivity() {
             onReady = {
                 runOnUiThread {
                     pageLoadState = PageLoadState.GAME_READY
-                    renderTopButtons()
-                }
-            },
-            onFailed = {
-                runOnUiThread {
-                    pageLoadState = PageLoadState.GAME_FAILED
                     renderTopButtons()
                 }
             },
@@ -782,15 +775,13 @@ class GameActivity : AppCompatActivity() {
         topButtonsState(pageLoadState, scoutButtonReplaced, webView.canGoBack())
 
     /**
-     * Показывает подложку и элементы блока кнопок по [pageLoadState]. Видимость
-     * самого блока не трогает: его скрывают экран настроек и provisioning.
+     * Показывает кнопки блока по [pageLoadState]. Видимость самого блока
+     * не трогает: его скрывают экран настроек и provisioning.
      *
      * 🤖 Generated with Claude Opus 5.5
      */
     private fun renderTopButtons() {
         val state = currentTopButtonsState()
-        setViewVisible(R.id.loadingOverlay, state.loadingOverlay)
-        setViewVisible(R.id.gameInitializingLabel, state.initializingLabel)
         setViewVisible(R.id.reloadButton, state.reloadButton)
         setViewVisible(R.id.settingsButton, state.scoutButton)
         updateTopButtonsPosition(state.atTop)

@@ -38,7 +38,7 @@ class PageLoadingIndicatorE2ETest : E2ETestBase() {
     @Test
     fun image_keepsIndicatorVisibleAfterGameReady() {
         assertResourceLoading("<img src='/loading/resource'>", "image/svg+xml", IMAGE) { scenario ->
-            waitForViewVisibility(scenario, R.id.gameInitializingLabel, View.GONE)
+            waitForViewVisibility(scenario, R.id.reloadButton, View.GONE)
             assertIndicatorStays(scenario, visible = true)
         }
     }

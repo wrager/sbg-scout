@@ -19,7 +19,7 @@ import org.junit.runner.RunWith
  * На fake-странице (см. `app-page-minimal.html`) `window.i18next` — stub
  * с `isInitialized: true`, а экрана загрузки игры нет, поэтому bootstrap
  * делает один check → onReady мгновенно, без setInterval. Проверяем, что все
- * четыре JS-метода моста доступны и маркер `__sbg_scout_bootstrapped` установлен.
+ * три JS-метода моста доступны и маркер `__sbg_scout_bootstrapped` установлен.
  * Ожидание экрана загрузки проверяет
  * [com.github.wrager.sbgscout.e2e.flows.loading.GameLoadingE2ETest].
  */
@@ -35,14 +35,10 @@ class ScoutBridgeE2ETest : E2ETestBase() {
 
         assertEquals("true", game.evaluateJs("typeof __sbg_scout !== 'undefined'"))
 
-        // Callback-и, которые bootstrap может дёрнуть.
+        // Три callback'а, которые bootstrap может дёрнуть.
         assertEquals(
             "true",
             game.evaluateJs("typeof __sbg_scout.onGameReady === 'function'"),
-        )
-        assertEquals(
-            "true",
-            game.evaluateJs("typeof __sbg_scout.onGameFailed === 'function'"),
         )
         assertEquals(
             "true",

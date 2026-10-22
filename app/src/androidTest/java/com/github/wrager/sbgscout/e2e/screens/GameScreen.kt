@@ -93,16 +93,14 @@ class GameScreen(
     }
 
     /**
-     * Текущая видимость индикатора загрузки игры с учётом родителей
-     * ([View.isShown]) — так, как её видит пользователь.
+     * Текущая видимость нативных кнопок с учётом родителей ([View.isShown]):
+     * так, как её видит пользователь.
      */
     fun loadingUiState(): LoadingUiState {
         var state: LoadingUiState? = null
         scenario.onActivity { activity ->
             state =
                 LoadingUiState(
-                    overlay = activity.findViewById<View>(R.id.loadingOverlay).isShown,
-                    label = activity.findViewById<View>(R.id.gameInitializingLabel).isShown,
                     reload = activity.findViewById<View>(R.id.reloadButton).isShown,
                     scout = activity.findViewById<View>(R.id.settingsButton).isShown,
                 )
@@ -111,7 +109,7 @@ class GameScreen(
     }
 
     /**
-     * Ждёт состояния индикатора загрузки [expected]: колбэки моста и
+     * Ждёт видимости нативных кнопок [expected]: колбэки моста и
      * WebViewClient доходят до UI-потока асинхронно.
      */
     fun waitForLoadingUi(
@@ -124,12 +122,12 @@ class GameScreen(
             Thread.sleep(POLL_INTERVAL_MS)
             actual = loadingUiState()
         }
-        assertEquals("Индикатор загрузки за ${timeoutMs}ms", expected, actual)
+        assertEquals("Нативные кнопки за ${timeoutMs}ms", expected, actual)
         return this
     }
 
     /**
-     * Проверяет, что индикатор загрузки держится в состоянии [expected] всё
+     * Проверяет, что нативные кнопки держатся в состоянии [expected] всё
      * окно [durationMs]. Окно много длиннее интервала опроса bootstrap-скрипта
      * ScoutBridge (100 мс): сработай сигнал готовности, изменение успело бы прийти.
      */
@@ -139,7 +137,7 @@ class GameScreen(
     ): GameScreen {
         val deadline = SystemClock.uptimeMillis() + durationMs
         while (true) {
-            assertEquals("Индикатор загрузки в окне ${durationMs}ms", expected, loadingUiState())
+            assertEquals("Нативные кнопки в окне ${durationMs}ms", expected, loadingUiState())
             if (SystemClock.uptimeMillis() >= deadline) return this
             Thread.sleep(POLL_INTERVAL_MS)
         }
@@ -287,17 +285,14 @@ class GameScreen(
     }
 
     /**
-     * Скрывает loadingOverlay и нативные кнопки поверх WebView, чтобы они
-     * не попали на скриншот. На обычном flow эти элементы убираются bootstrap-
-     * callback'ами в JS, но JNI-call'и к Activity не всегда успевают до того,
-     * как тест берёт screenshot. Дополнительно `invalidate()` принудительно
-     * перерисовывает WebView в frame buffer, иначе UiAutomation иногда
-     * захватывает кадр ПЕРЕД paint pass'ом WebView.
+     * Скрывает нативные кнопки поверх WebView, чтобы они не попали на скриншот.
+     * На обычном flow они убираются bootstrap-callback'ами в JS, но JNI-call'и
+     * к Activity не всегда успевают до того, как тест берёт screenshot.
+     * Дополнительно `invalidate()` принудительно перерисовывает WebView в frame
+     * buffer, иначе UiAutomation иногда захватывает кадр ПЕРЕД paint pass'ом WebView.
      */
     fun hideTransientChromeForScreenshot() {
         scenario.onActivity { activity ->
-            activity.findViewById<View>(R.id.loadingOverlay)?.visibility = View.GONE
-            activity.findViewById<View>(R.id.gameInitializingLabel)?.visibility = View.GONE
             activity.findViewById<View>(R.id.reloadButton)?.visibility = View.GONE
             activity.findViewById<View>(R.id.settingsButton)?.visibility = View.GONE
             activity.webView.invalidate()
