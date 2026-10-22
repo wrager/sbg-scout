@@ -20,11 +20,52 @@ $emulator = Join-Path $env:ANDROID_HOME 'emulator\emulator.exe'
 $avdName = 'sbg-scout-api33'
 $logsDirectory = Join-Path $ToolsRoot 'logs'
 $hostStatePath = Join-Path $logsDirectory 'emulator-host.json'
+$adbTimeoutSeconds = 30
+$consoleTimeoutSeconds = 10
+$emulatorStopSeconds = 30
 
 function Invoke-Checked {
-    param([string]$Program, [string[]]$Arguments)
-    & $Program @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "$Program failed with exit code $LASTEXITCODE" }
+    param([string]$Program, [string[]]$Arguments, [int]$TimeoutSeconds = 0)
+    if ($TimeoutSeconds -le 0) {
+        & $Program @Arguments
+        if ($LASTEXITCODE -ne 0) { throw "$Program failed with exit code $LASTEXITCODE" }
+        return
+    }
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo.FileName = $Program
+    $process.StartInfo.Arguments = ($Arguments | ForEach-Object {
+            if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ }
+        }) -join ' '
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError = $true
+    [void]$process.Start()
+    $output = $process.StandardOutput.ReadToEndAsync()
+    $errors = $process.StandardError.ReadToEndAsync()
+    <# Вывод закрывается, только когда его закроют и потомки процесса: запущенный
+       клиентом сервер adb держит его бессрочно, поэтому чтение тоже ограничено.
+       🤖 Generated with Claude Opus 5.5 #>
+    $finished = $process.WaitForExit($TimeoutSeconds * 1000) -and
+        [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($output, $errors), 5000)
+    if (!$finished) {
+        if (!$process.HasExited) { $process.Kill() }
+        throw [TimeoutException]::new("$Program $($process.StartInfo.Arguments) did not finish within $TimeoutSeconds seconds.")
+    }
+    if ($process.ExitCode -ne 0) {
+        throw "$Program failed with exit code $($process.ExitCode): $($errors.Result.Trim())"
+    }
+    $output.Result -split '\r?\n' | Where-Object { $_ }
+}
+
+function Start-AdbServer {
+    <# Сервер adb переживает команду: запущенный из процесса с перенаправленным выводом,
+       он наследует pipe, и вызывающий агент ждёт его завершения. Поэтому клиент
+       запускается через ShellExecute без перенаправления и без -Wait, который ждёт
+       и дочерний сервер.
+       🤖 Generated with Claude Opus 5.5 #>
+    $process = Start-Process -FilePath $adb -ArgumentList 'start-server' -WindowStyle Hidden -PassThru
+    if (!$process.WaitForExit(30000)) { throw 'adb start-server did not finish within 30 seconds.' }
+    if ($process.ExitCode -ne 0) { throw "adb start-server failed with exit code $($process.ExitCode)" }
 }
 
 function Invoke-Gradle {
@@ -39,19 +80,41 @@ function Invoke-Gradle {
 }
 
 function Find-ScoutEmulator {
-    $devices = @(Invoke-Checked $adb @('devices'))
+    $devices = @(Invoke-Checked $adb @('devices') -TimeoutSeconds $adbTimeoutSeconds)
     foreach ($device in $devices) {
         if ($device -match '^(emulator-\d+)\s+device$') {
             $serial = $Matches[1]
-            $name = @(Invoke-Checked $adb @('-s', $serial, 'emu', 'avd', 'name'))
+            try {
+                $name = @(Invoke-Checked $adb @('-s', $serial, 'emu', 'avd', 'name') -TimeoutSeconds $consoleTimeoutSeconds)
+            } catch [TimeoutException] {
+                Write-Host "$serial emulator console did not respond; its AVD is unknown."
+                continue
+            }
             if ($name -contains $avdName) { return $serial }
         }
     }
 }
 
+function Stop-EmulatorByConsole {
+    param([string]$Serial)
+    try {
+        Invoke-Checked $adb @('-s', $Serial, 'emu', 'kill') -TimeoutSeconds $consoleTimeoutSeconds | Out-Host
+    } catch [TimeoutException] {
+        Write-Host "$Serial emulator console did not accept kill."
+        return $false
+    }
+    $deadline = (Get-Date).AddSeconds($emulatorStopSeconds)
+    do {
+        $remaining = @(Invoke-Checked $adb @('devices') -TimeoutSeconds $adbTimeoutSeconds) -match "^$Serial\s"
+        if (!$remaining) { return $true }
+        Start-Sleep -Seconds 1
+    } while ((Get-Date) -lt $deadline)
+    return $false
+}
+
 function Start-ScoutEmulator {
     $process = $null
-    Invoke-Checked $adb @('start-server') | Out-Host
+    Start-AdbServer
     $serial = Find-ScoutEmulator
     if (!$serial) {
         Invoke-Checked $emulator @('-accel-check') | Out-Host
@@ -61,7 +124,9 @@ function Start-ScoutEmulator {
         # The fixed port prevents accidentally installing to another emulator or a real phone.
         $serial = 'emulator-5580'
         $devices = @(Invoke-Checked $adb @('devices'))
-        if ($devices -match '^emulator-5580\s') { throw 'Emulator port 5580 is occupied by another device.' }
+        if ($devices -match '^emulator-5580\s') {
+            throw 'Emulator port 5580 is occupied by another device or by an unresponsive emulator; try stop.'
+        }
         New-Item -ItemType Directory -Force -Path $logsDirectory | Out-Null
         # Without output redirection Start-Process uses ShellExecute on Windows.
         # The detached host owns log redirection so agent output capture can finish
@@ -84,7 +149,7 @@ function Start-ScoutEmulator {
         if ($devices -match "^$serial\s+device$") {
             $boot = @(Invoke-Checked $adb @('-s', $serial, 'shell', 'getprop', 'sys.boot_completed'))
             if ($boot -contains '1') {
-                $name = @(Invoke-Checked $adb @('-s', $serial, 'emu', 'avd', 'name'))
+                $name = @(Invoke-Checked $adb @('-s', $serial, 'emu', 'avd', 'name') -TimeoutSeconds $consoleTimeoutSeconds)
                 if ($name -notcontains $avdName) { throw "Unexpected AVD on $serial" }
                 $env:ANDROID_SERIAL = $serial
                 Write-Host "Ready: $avdName ($serial)"
@@ -110,7 +175,7 @@ function Assert-TestDevice {
 }
 
 function Stop-ScoutEmulator {
-    Invoke-Checked $adb @('start-server') | Out-Host
+    Start-AdbServer
     $serial = Find-ScoutEmulator
     $hostProcess = $null
     if (Test-Path -LiteralPath $hostStatePath) {
@@ -121,24 +186,21 @@ function Stop-ScoutEmulator {
             $hostProcess = $candidate
         }
     }
-    if ($serial) {
-        Invoke-Checked $adb @('-s', $serial, 'emu', 'kill')
-        $deadline = (Get-Date).AddSeconds(30)
-        do {
-            $remaining = @(Invoke-Checked $adb @('devices')) -match "^$serial\s"
-            if (!$remaining) { break }
-            Start-Sleep -Seconds 1
-        } while ((Get-Date) -lt $deadline)
-        if ($remaining) { throw "$serial did not stop within 30 seconds." }
-    } elseif ($hostProcess) {
-        # After a failed boot there may be no identifiable online AVD. Stop only
-        # our verified host and its emulator children, including QEMU.
-        Write-Host "Stopping unresponsive $avdName (host PID $($hostProcess.Id))."
-        Invoke-Checked (Join-Path $env:SystemRoot 'System32\taskkill.exe') @(
-            '/PID', $hostProcess.Id.ToString(), '/T', '/F'
-        ) | Out-Host
-    } else {
-        Write-Host "$avdName has no online device or owned host process."
+    $stopped = $serial -and (Stop-EmulatorByConsole $serial)
+    if (!$stopped) {
+        if ($hostProcess) {
+            <# Без опознанного AVD (сбой загрузки, зависшая консоль, emu kill без эффекта)
+               останавливается только подтверждённый хост и его дочерние процессы, включая QEMU.
+               🤖 Generated with Claude Opus 5.5 #>
+            Write-Host "Stopping unresponsive $avdName (host PID $($hostProcess.Id))."
+            Invoke-Checked (Join-Path $env:SystemRoot 'System32\taskkill.exe') @(
+                '/PID', $hostProcess.Id.ToString(), '/T', '/F'
+            ) | Out-Host
+        } elseif ($serial) {
+            throw "$serial did not stop, and there is no owned host process to terminate."
+        } else {
+            Write-Host "$avdName has no online device or owned host process."
+        }
     }
     # adb disconnects before QEMU releases the AVD and log files.
     if ($hostProcess -and !$hostProcess.WaitForExit(30000)) { throw 'Emulator host has not finished stopping.' }
@@ -200,7 +262,7 @@ try {
             Invoke-Gradle $tasks
         }
         'logs' {
-            Invoke-Checked $adb @('start-server') | Out-Host
+            Start-AdbServer
             $serial = Find-ScoutEmulator
             if (!$serial) { throw "$avdName is not running." }
             New-Item -ItemType Directory -Force -Path $logsDirectory | Out-Null
