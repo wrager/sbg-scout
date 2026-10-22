@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -77,6 +77,7 @@ test('release PRs keep full checks and latest SVP even when only notes changed',
 test('workflow changes exercise only the relevant workflow dependencies', () => {
   assert.deepEqual(checks(['.github/workflows/pr-title.yml']), ['workflows']);
   assert.deepEqual(checks(['.github/workflows/e2e.yml']), ['planner-tests', 'workflows', 'e2e', 'visual']);
+  assert.deepEqual(checks(['scripts/logRunnerMemory.sh']), ['planner-tests', 'workflows', 'e2e', 'visual']);
   assert.deepEqual(checks(['.github/workflows/release.yml']), ['release-files', 'release-tests', 'svp-tests', 'workflows']);
 });
 
@@ -208,17 +209,57 @@ test('emulator workflow propagates a failing Gradle command before starting the 
   assert.equal(readFileSync(join(directory, 'calls'), 'utf8').trim().split('\n').length, 1);
 });
 
+test('runner memory log samples while the command runs and keeps its exit status', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'scout-runner-memory-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const bin = join(directory, 'bin');
+  mkdirSync(bin);
+  const fake = (name, lines, command = '') =>
+    writeFileSync(join(bin, name), `#!/bin/sh\n${command}cat <<'EOF'\n${lines.join('\n')}\nEOF\n`, { mode: 0o755 });
+  fake('free', ['               total        used        free      shared  buff/cache   available',
+    'Mem:           15990        6000        1000          45        3017        9000',
+    'Swap:           4095         512        3583'], 'echo >> free.calls\n');
+  fake('ps', [' 2097152 /sdk/emulator/qemu/linux-x86_64/qemu-system-x86_64 -avd test',
+    '    1024 /usr/bin/java -jar gradle.jar', ' 1048576 /sdk/emulator/qemu/linux-x86_64/qemu-system-x86_64 -avd other']);
+  fake('df', ['Filesystem     1048576-blocks  Used Available Capacity Mounted on', '/dev/root  74244 50000 24244 68% /']);
+  /*
+   * Сэмплер начинает второй замер только после печати первого, поэтому команда
+   * ждёт второго вызова free, а не фиксированное время.
+   * 🤖 Generated with Claude Opus 5.5
+   */
+  writeFileSync(join(directory, 'work'), '#!/bin/sh\nfor attempt in $(seq 100); do\n' +
+    '  [ "$(cat free.calls 2>/dev/null | wc -l)" -ge 2 ] && exit 3\n  sleep 0.1\ndone\nexit 99\n', { mode: 0o755 });
+  copyFileSync(new URL('./logRunnerMemory.sh', import.meta.url), join(directory, 'logRunnerMemory.sh'));
+  /*
+   * Git for Windows sh ставит свой /usr/bin первым в PATH, поэтому фейковые
+   * free, ps и df добавляются в начало PATH уже внутри shell.
+   * 🤖 Generated with Claude Opus 5.5
+   */
+  const result = spawnSync(shellPath(), ['-c', 'export PATH="$PWD/bin:$PATH"; exec sh logRunnerMemory.sh ./work'], {
+    cwd: directory, encoding: 'utf8', env: { ...process.env, MEMORY_LOG_INTERVAL: '0.2' },
+  });
+  assert.equal(result.status, 3, result.stderr);
+  for (const sample of result.stdout.trim().split('\n')) {
+    assert.match(sample, /^runner-memory \d\d:\d\d:\d\d used=6000M available=9000M swap=512M qemu_rss=3072M disk_free=24244M$/);
+  }
+});
+
+function shellPath() {
+  const gitPath = execFileSync('git', ['--exec-path'], { encoding: 'utf8' }).trim();
+  return process.platform === 'win32' ? resolve(gitPath, '../../../bin/sh.exe') : 'sh';
+}
+
 function emulatorScript(t) {
   const directory = mkdtempSync(join(tmpdir(), 'scout-emulator-script-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   writeFileSync(join(directory, 'calls'), '');
   writeFileSync(join(directory, 'gradlew'), '#!/bin/sh\nprintf "%s\\n" "$*" >> calls\nif [ "$FAIL_GRADLE" = true ]; then exit 7; fi\n');
   chmodSync(join(directory, 'gradlew'), 0o755);
+  mkdirSync(join(directory, 'scripts'));
+  copyFileSync(new URL('./logRunnerMemory.sh', import.meta.url), join(directory, 'scripts/logRunnerMemory.sh'));
   const workflow = readFileSync(new URL('../.github/workflows/e2e.yml', import.meta.url), 'utf8');
   const script = workflow.match(/^ {10}script: \|\r?\n((?: {12}[^\r\n]*(?:\r?\n|$))+)/m)?.[1];
   assert.ok(script, 'emulator-runner must receive executable script lines');
   const lines = script.trim().split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
-  const gitPath = execFileSync('git', ['--exec-path'], { encoding: 'utf8' }).trim();
-  const shell = process.platform === 'win32' ? resolve(gitPath, '../../../bin/sh.exe') : 'sh';
-  return { directory, shell, lines };
+  return { directory, shell: shellPath(), lines };
 }

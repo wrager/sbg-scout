@@ -66,8 +66,8 @@ jobs:
           disable-animations: true
           # Separate invocations share the AVD; functional tests exclude VR to avoid running it twice.
           script: |
-            if [ "$RUN_FUNCTIONAL" = true ]; then ./gradlew connectedInstrAndroidTest "-Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.github.wrager.sbgscout.e2e.visualregression.VisualRegressionTest" --stacktrace --no-daemon; fi
-            if [ "$RUN_VISUAL" = true ]; then ./gradlew visualRegressionTest --stacktrace --no-daemon; fi
+            if [ "$RUN_FUNCTIONAL" = true ]; then sh scripts/logRunnerMemory.sh ./gradlew connectedInstrAndroidTest "-Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.github.wrager.sbgscout.e2e.visualregression.VisualRegressionTest" --stacktrace --no-daemon; fi
+            if [ "$RUN_VISUAL" = true ]; then sh scripts/logRunnerMemory.sh ./gradlew visualRegressionTest --stacktrace --no-daemon; fi
 
       - name: Upload reports
         if: always()
