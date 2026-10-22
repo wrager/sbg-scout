@@ -330,6 +330,7 @@ app/src/androidTest/java/com/github/wrager/sbgscout/e2e/
 │   ├── WebViewIdlingResource.kt      IdlingResource, становится idle по markLoaded
 │   ├── GameUrlsOverrideRule.kt       TestRule для runtime-override GameUrls
 │   ├── CookieFixtures.kt             Инъекция fake session-cookie через CookieManager
+│   ├── SelectedTestsFilter.kt        Фильтр раннера для шардов `android.ps1 test -AllTests`
 │   └── AssetLoader.kt                Чтение фикстур из androidTest/assets
 ├── screens/
 │   ├── Screen.kt, GameScreen.kt, SettingsScreen.kt, LoginScreen.kt

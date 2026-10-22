@@ -230,29 +230,90 @@ try {
     if (Test-Path -LiteralPath $hostStatePath) { Remove-Item -LiteralPath $hostStatePath }
 }
 
+$listing = @(
+    'INSTRUMENTATION_STATUS: class=com.example.FirstTest', 'INSTRUMENTATION_STATUS: current=1',
+    'INSTRUMENTATION_STATUS: stream=', 'com.example.FirstTest:', 'INSTRUMENTATION_STATUS: test=opensScreen',
+    'INSTRUMENTATION_STATUS_CODE: 1', 'INSTRUMENTATION_STATUS: class=com.example.FirstTest',
+    'INSTRUMENTATION_STATUS: stream=.', 'INSTRUMENTATION_STATUS: test=opensScreen', 'INSTRUMENTATION_STATUS_CODE: 0',
+    'INSTRUMENTATION_STATUS: class=com.example.SecondTest', 'INSTRUMENTATION_STATUS: test=savesPreference',
+    'INSTRUMENTATION_STATUS_CODE: 1', 'INSTRUMENTATION_STATUS: class=com.example.SecondTest',
+    'INSTRUMENTATION_STATUS: test=savesPreference', 'INSTRUMENTATION_STATUS_CODE: 0',
+    'INSTRUMENTATION_RESULT: stream=', 'OK (2 tests)', 'INSTRUMENTATION_CODE: -1'
+)
+$expectedTests = 'com.example.FirstTest#opensScreen,com.example.SecondTest#savesPreference'
+Assert-Equal ((ConvertFrom-InstrumentationListing $listing) -join ',') $expectedTests 'reads tests from a dry-run listing'
+$script:gradleCalls = @()
+Set-Item Function:Invoke-Gradle {
+    param([string[]]$Tasks)
+    $script:gradleCalls += ($Tasks -join ' ')
+    '> Task :app:installInstr'
+    'BUILD SUCCESSFUL in 9s'
+}
+Set-Item Function:Invoke-Checked {
+    param([string]$Program, [string[]]$Arguments, [int]$TimeoutSeconds)
+    Assert-Equal ($Arguments -join ' ') ('-s emulator-5580 shell am instrument -w -r -e log true ' +
+        'com.github.wrager.sbgscout.instr.test/androidx.test.runner.AndroidJUnitRunner') 'lists tests without running them'
+    if ($TimeoutSeconds -le 0) { throw 'Unbounded test listing' }
+    return $listing
+}
+$env:ANDROID_SERIAL = 'emulator-5580'
+Assert-Equal ((Get-InstrumentationTests) -join ',') $expectedTests 'lists the installed tests'
+Assert-Equal ($script:gradleCalls -join ';') 'installInstr installInstrAndroidTest' 'installs the app and test APKs first'
+Write-Host 'PASS: full test runs list tests through a dry run'
+
+$realRepoRoot = $repoRoot
+$repoRoot = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
+try {
+    $resultsDirectory = Join-Path $repoRoot 'app\build\outputs\androidTest-results\connected\instr'
+    New-Item -ItemType Directory -Force -Path $resultsDirectory | Out-Null
+    Set-Content -LiteralPath (Join-Path $resultsDirectory 'TEST-sbg-scout-api33(AVD) - 13.xml') -Value (
+        "<?xml version='1.0' encoding='UTF-8' ?>`n" +
+        '<testsuites tests="6" failures="0" errors="0" skipped="0"><testsuite name="A" tests="6" /></testsuites>')
+    Assert-Equal (Get-ConnectedTestCount) 6 'counts executed tests from the JUnit report'
+} finally {
+    Remove-Item -LiteralPath $repoRoot -Recurse -Force
+    $repoRoot = $realRepoRoot
+}
+Write-Host 'PASS: executed tests are counted from the JUnit report'
+
 $script:events = @()
-$script:failingShard = -1
+$script:failingTest = $null
+$script:executedShortfall = 0
+$script:lastSelection = @()
+$script:listedTests = @('A#one', 'A#two', 'B#one', 'B#two', 'C#one', 'C#two', 'D#one')
 Set-Item Function:Stop-ScoutEmulator { $script:events += 'stop' }
 Set-Item Function:Start-ScoutEmulator { $script:events += 'start' }
 Set-Item Function:Assert-TestDevice { $script:events += 'assert' }
+Set-Item Function:Get-InstrumentationTests { $script:events += 'list'; $script:listedTests }
+Set-Item Function:Get-ConnectedTestCount { $script:lastSelection.Count - $script:executedShortfall }
 Set-Item Function:Invoke-Gradle {
     param([string[]]$Tasks)
     Assert-Equal $Tasks[0] 'connectedInstrAndroidTest' 'runs instrumentation tests'
-    Assert-Equal $Tasks.Count 3 'passes only the shard arguments'
-    $total = ($Tasks[1] -replace '^-Pandroid\.testInstrumentationRunnerArguments\.numShards=', '')
-    $index = ($Tasks[2] -replace '^-Pandroid\.testInstrumentationRunnerArguments\.shardIndex=', '')
-    $script:events += "gradle $index/$total"
-    if ([int]$index -eq $script:failingShard) { throw 'There were failing tests.' }
+    Assert-Equal $Tasks.Count 3 'passes only the test selection'
+    Assert-Equal $Tasks[1] '-Pandroid.testInstrumentationRunnerArguments.filter=com.github.wrager.sbgscout.e2e.infra.SelectedTestsFilter' 'selects tests with the filter'
+    $selection = $Tasks[2] -replace '^-Pandroid\.testInstrumentationRunnerArguments\.selectedTests=', ''
+    $script:lastSelection = @($selection -split ':')
+    $script:events += "gradle $selection"
+    if ($script:failingTest -and $script:lastSelection -contains $script:failingTest) { throw 'There were failing tests.' }
 }
-$Shards = 3
+$TestsPerShard = 3
 Invoke-ShardedTests
-Assert-Equal ($script:events -join ',') ('stop,start,assert,gradle 0/3,stop,start,assert,gradle 1/3,stop,' +
-    'start,assert,gradle 2/3,stop') 'runs every shard on a fresh emulator and stops it afterwards'
+Assert-Equal ($script:events -join ';') ('stop;start;assert;list;stop;start;assert;gradle A#one:A#two:B#one;stop;' +
+    'start;assert;gradle B#two:C#one:C#two;stop;start;assert;gradle D#one;stop') 'runs equal shards on fresh emulators'
 $script:events = @()
-$script:failingShard = 1
+$script:failingTest = 'C#one'
 Assert-Fails { Invoke-ShardedTests } 'Test shard 2/3 failed: There were failing tests'
-Assert-Equal ($script:events -join ',') 'stop,start,assert,gradle 0/3,stop,start,assert,gradle 1/3,stop' 'stops the emulator after a failed shard and skips the rest'
-Write-Host 'PASS: full test runs restart the emulator between shards'
+Assert-Equal ($script:events -join ';') ('stop;start;assert;list;stop;start;assert;gradle A#one:A#two:B#one;stop;' +
+    'start;assert;gradle B#two:C#one:C#two;stop') 'stops the emulator after a failed shard and skips the rest'
+$script:failingTest = $null
+$script:executedShortfall = 2
+Assert-Fails { Invoke-ShardedTests } 'Test shard 1/3 failed: ran 1 of 3 tests'
+$script:executedShortfall = 0
+$script:events = @()
+$script:listedTests = @()
+Assert-Fails { Invoke-ShardedTests } 'No instrumentation tests'
+Assert-Equal ($script:events -join ';') 'stop;start;assert;list;stop' 'stops the listing emulator when nothing can run'
+Write-Host 'PASS: full test runs restart the emulator between equal shards and verify executed tests'
 # The negative native-command test deliberately leaves LASTEXITCODE=7.
 # GitHub's PowerShell runner otherwise propagates it after this script succeeds.
 exit 0

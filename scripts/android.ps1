@@ -7,7 +7,9 @@ param(
     [string]$ToolsRoot = (Join-Path $env:USERPROFILE 'AppData\Local\SBGScout'),
     [string]$TestClass = 'com.github.wrager.sbgscout.e2e.flows.smoke.GameLoadsSmokeTest',
     [switch]$AllTests,
-    [ValidateRange(1, 64)][int]$Shards = 16,
+    <# Все тесты шарда передаются в командной строке gradlew.bat, длина которой ограничена.
+       🤖 Generated with Claude Opus 5.5 #>
+    [ValidateRange(1, 20)][int]$TestsPerShard = 6,
     [switch]$ShowWindow,
     [switch]$Offline,
     [ValidateRange(30, 600)][int]$BootTimeoutSeconds = 180
@@ -175,22 +177,68 @@ function Assert-TestDevice {
     }
 }
 
+function ConvertFrom-InstrumentationListing {
+    param([string[]]$Lines)
+    $class = $null
+    $test = $null
+    foreach ($line in $Lines) {
+        if ($line -match '^INSTRUMENTATION_STATUS: class=(.+)$') { $class = $Matches[1] }
+        elseif ($line -match '^INSTRUMENTATION_STATUS: test=(.+)$') { $test = $Matches[1] }
+        elseif ($line -eq 'INSTRUMENTATION_STATUS_CODE: 1') { "$class#$test" }
+    }
+}
+
+function Get-InstrumentationTests {
+    Invoke-Gradle @('installInstr', 'installInstrAndroidTest') | Out-Host
+    <# log=true перечисляет тесты, не запуская их.
+       🤖 Generated with Claude Opus 5.5 #>
+    $listing = Invoke-Checked $adb @('-s', $env:ANDROID_SERIAL, 'shell', 'am', 'instrument', '-w', '-r', '-e', 'log', 'true',
+        'com.github.wrager.sbgscout.instr.test/androidx.test.runner.AndroidJUnitRunner') -TimeoutSeconds 300
+    ConvertFrom-InstrumentationListing $listing
+}
+
+function Get-ConnectedTestCount {
+    $results = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'app\build\outputs\androidTest-results\connected') -Recurse -Filter 'TEST-*.xml'
+    $count = 0
+    foreach ($result in $results) {
+        [xml]$report = Get-Content -Raw -LiteralPath $result.FullName
+        $count += [int]$report.testsuites.tests
+    }
+    return $count
+}
+
 function Invoke-ShardedTests {
     <# Рендерер SwiftShader в QEMU не освобождает память после каждого теста, и на всём
-       наборе эмулятор исчерпывает память Windows. Поэтому каждая часть набора идёт
-       на свежем процессе эмулятора, который останавливается и при падении тестов.
+       наборе эмулятор исчерпывает память Windows. Поэтому каждая часть набора идёт на свежем
+       процессе эмулятора, который останавливается и при падении тестов. Части делятся по списку
+       тестов, а не по хэшу numShards: он даёт части разного размера, и память растёт по самой большой.
        🤖 Generated with Claude Opus 5.5 #>
     Stop-ScoutEmulator
-    for ($shard = 0; $shard -lt $Shards; $shard++) {
-        Write-Host "Test shard $($shard + 1)/$Shards"
+    try {
+        Start-ScoutEmulator
+        Assert-TestDevice
+        $tests = @(Get-InstrumentationTests)
+    } finally {
+        Stop-ScoutEmulator
+    }
+    if (!$tests) { throw 'No instrumentation tests were found.' }
+    $shards = [math]::Ceiling($tests.Count / $TestsPerShard)
+    for ($shard = 0; $shard -lt $shards; $shard++) {
+        $selection = $tests[($shard * $TestsPerShard)..([math]::Min($tests.Count, ($shard + 1) * $TestsPerShard) - 1)]
+        Write-Host "Test shard $($shard + 1)/$shards ($($selection.Count) tests)"
         try {
             Start-ScoutEmulator
             Assert-TestDevice
+            <# Из списка class через запятую AGP передаёт раннеру только первый тест,
+               поэтому шард выбирает SelectedTestsFilter по списку через двоеточие.
+               🤖 Generated with Claude Opus 5.5 #>
             Invoke-Gradle @('connectedInstrAndroidTest',
-                "-Pandroid.testInstrumentationRunnerArguments.numShards=$Shards",
-                "-Pandroid.testInstrumentationRunnerArguments.shardIndex=$shard")
+                '-Pandroid.testInstrumentationRunnerArguments.filter=com.github.wrager.sbgscout.e2e.infra.SelectedTestsFilter',
+                "-Pandroid.testInstrumentationRunnerArguments.selectedTests=$($selection -join ':')")
+            $executed = Get-ConnectedTestCount
+            if ($executed -ne $selection.Count) { throw "ran $executed of $($selection.Count) tests" }
         } catch {
-            throw "Test shard $($shard + 1)/$Shards failed: $_"
+            throw "Test shard $($shard + 1)/$shards failed: $_"
         } finally {
             Stop-ScoutEmulator
         }

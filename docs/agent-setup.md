@@ -47,7 +47,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 buil
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 run -ShowWindow
 # Smoke e2e через FakeGameServer; эмулятор запускается автоматически без окна
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 test
-# Все e2e шардами на свежем эмуляторе (-Shards задаёт число шардов) или указанный класс
+# Все e2e шардами на свежем эмуляторе (-TestsPerShard задаёт размер шарда) или указанный класс
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 test -AllTests
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 test -TestClass com.github.wrager.sbgscout.e2e.flows.smoke.GameLoadsSmokeTest
 # Полная проверка CI (lint, JVM-тесты, debug/instr/release)
@@ -77,11 +77,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 stop
 около 400 МБ на тест, и на всём наборе эмулятор исчерпывает память и файл подкачки.
 Остальные режимы `-gpu` эмулятора 37.2 (`swiftshader_indirect`, `guest`, `swangle`,
 `lavapipe`, `software`) используют тот же GLES-рендерер SwiftShader, а перезапуск
-Android внутри эмулятора память не возвращает. Поэтому `test -AllTests` делит набор
-на 16 шардов (`-Shards`), запускает каждый на свежем эмуляторе и останавливает его
-после шарда, в том числе при падении. Шард из примерно шести тестов держит QEMU
-около 6 ГБ. `test` с одним классом эмулятор не перезапускает; после серии таких
-запусков выполнить `stop`.
+Android внутри эмулятора память не возвращает. Поэтому `test -AllTests` получает
+список тестов сухим прогоном раннера (`-e log true`), делит его на шарды по шесть
+тестов (`-TestsPerShard`, до 20), запускает каждый шард на свежем эмуляторе и
+останавливает его после шарда, в том числе при падении. Шард из шести тестов держит
+QEMU около 6 ГБ. Деление по хэшу (`numShards`) здесь не используется: оно даёт шарды
+от 3 до 11 тестов, и самый большой поднимал QEMU до 8 ГБ. Тесты шарда выбирает
+`e2e/infra/SelectedTestsFilter` по аргументу раннера `selectedTests` (через двоеточие):
+из списка `class` через запятую AGP передаёт раннеру только первый тест. После шарда
+скрипт сверяет число выполненных тестов по JUnit-отчёту. `test` с одним классом
+эмулятор не перезапускает; после серии таких запусков выполнить `stop`.
 <!-- 🤖 Generated with Claude Opus 5.5 -->
 
 Debug использует настоящий адрес игры. Для автоматической проверки запуска агентом
