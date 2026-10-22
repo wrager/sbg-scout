@@ -4,13 +4,11 @@ import android.webkit.ValueCallback
 import android.webkit.WebBackForwardList
 import android.webkit.WebHistoryItem
 import android.webkit.WebView
-import com.github.wrager.sbgscout.config.GameUrls
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -18,7 +16,7 @@ import org.junit.Test
 /**
  * Unit-тесты [GameBackNavigation]: что происходит после ответа страницы
  * на нажатие "назад". Сам скрипт страницы проверяет e2e-тест
- * `GameBackNavigationE2ETest`.
+ * `GameBackNavigationE2ETest`, распознавание страницы входа - тесты `GameUrls`.
  *
  * 🤖 Generated with Claude Fable 5.1
  */
@@ -26,21 +24,20 @@ class GameBackNavigationTest {
     private val webView = mockk<WebView>()
     private var exits = 0
     private var pageResult = UNHANDLED
-    private val navigation = GameBackNavigation(webView) { exits++ }
+    private val navigation =
+        GameBackNavigation(
+            webView,
+            isLoginPage = { url -> url != null && url.startsWith(LOGIN_URL) },
+            exit = { exits++ },
+        )
 
     @Before
     fun setUp() {
-        GameUrls.loginUrlOverride = LOGIN_URL
         every { webView.evaluateJavascript(GameBackNavigation.BACK_PRESS_SCRIPT, any()) } answers {
             secondArg<ValueCallback<String>?>()?.onReceiveValue(pageResult)
         }
         every { webView.goBack() } just Runs
         stubHistory(APP_URL)
-    }
-
-    @After
-    fun tearDown() {
-        GameUrls.loginUrlOverride = null
     }
 
     @Test
@@ -76,17 +73,7 @@ class GameBackNavigationTest {
 
     @Test
     fun `unhandled press does not return to the login page`() {
-        stubHistory(LOGIN_URL, APP_URL)
-
-        navigation.onBackPressed()
-
-        verify(exactly = 0) { webView.goBack() }
-        assertEquals(1, exits)
-    }
-
-    @Test
-    fun `login page with slash and query is still the login page`() {
-        stubHistory("$LOGIN_URL/?next=app", APP_URL)
+        stubHistory("$LOGIN_URL/", APP_URL)
 
         navigation.onBackPressed()
 

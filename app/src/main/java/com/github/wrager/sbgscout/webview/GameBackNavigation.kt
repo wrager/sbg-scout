@@ -1,7 +1,6 @@
 package com.github.wrager.sbgscout.webview
 
 import android.webkit.WebView
-import com.github.wrager.sbgscout.config.GameUrls
 
 /**
  * Системная кнопка "назад" на странице игры. Сначала нажатие получает страница:
@@ -9,10 +8,13 @@ import com.github.wrager.sbgscout.config.GameUrls
  * попапа (чат, инвентарь, точка). Нажатие, которое страница не использовала,
  * возвращает WebView по истории, а без истории вызывает [exit].
  *
+ * @property isLoginPage страница входа по URL записи истории, см. `GameUrls.isGameLoginPage`.
+ *
  * 🤖 Generated with Claude Fable 5.1
  */
 class GameBackNavigation(
     private val webView: WebView,
+    private val isLoginPage: (String?) -> Boolean,
     private val exit: () -> Unit,
 ) {
     fun onBackPressed() {
@@ -34,7 +36,7 @@ class GameBackNavigation(
         if (!webView.canGoBack()) return false
         val history = webView.copyBackForwardList()
         val previous = history.getItemAtIndex(history.currentIndex - 1) ?: return true
-        return !GameUrls.isLoginPage(previous.url)
+        return !isLoginPage(previous.url)
     }
 
     companion object {

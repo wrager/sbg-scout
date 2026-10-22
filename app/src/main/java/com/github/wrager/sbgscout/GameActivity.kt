@@ -1381,7 +1381,8 @@ class GameActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
-                private val backNavigation = GameBackNavigation(webView) { exitByBackPress() }
+                private val backNavigation =
+                    GameBackNavigation(webView, isLoginPage = GameUrls::isGameLoginPage) { exitByBackPress() }
 
                 override fun handleOnBackPressed() {
                     // На экране настроек «назад» игнорируется — закрытие только
