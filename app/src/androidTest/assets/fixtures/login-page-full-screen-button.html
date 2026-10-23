@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>sbg fake login</title>
+    <style>#fake-telegram-auth { position: fixed; inset: 0; }</style>
+</head>
+<body>
+    <!-- Кнопка на весь экран: тест попадает в неё настоящим тапом по WebView.
+         🤖 Generated with Claude Fable 5.1 -->
+    <button id="fake-telegram-auth" onclick="submitTelegramStub()">Sign in</button>
+    <script>
+        window.__sbgFakePage = "login";
+        function submitTelegramStub() {
+            fetch("/login/callback", { method: "POST", body: "stub" })
+                .then(function () { window.location.href = "/app"; });
+        }
+    </script>
+</body>
+</html>
