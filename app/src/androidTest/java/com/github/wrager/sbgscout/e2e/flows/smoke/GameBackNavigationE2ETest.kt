@@ -15,6 +15,7 @@ import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import com.github.wrager.sbgscout.e2e.screens.LoginScreen
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -72,17 +73,16 @@ class GameBackNavigationE2ETest : E2ETestBase() {
     }
 
     @Test
-    fun back_withoutOpenPopups_finishesActivity() {
+    fun back_withoutOpenPopups_sendsAppToBackground() {
         launchGameWithPopups()
-        val activity = currentActivity()
 
         pressBackUnconditionally()
 
-        awaitFinishing(activity)
+        awaitBackground()
     }
 
     @Test
-    fun back_afterLogin_finishesInsteadOfReturningToLoginPage() {
+    fun back_afterLogin_sendsAppToBackgroundInsteadOfReturningToLoginPage() {
         server.gamePageBody = AssetLoader.read("fixtures/app-page-with-popups.html")
         server.loginPageBody = AssetLoader.read("fixtures/login-page-full-screen-button.html")
         scenario = launchGameActivity()
@@ -90,14 +90,13 @@ class GameBackNavigationE2ETest : E2ETestBase() {
         tapWebView()
         GameScreen(scenario, idling).waitForLoaded()
         drainRequests()
-        val activity = currentActivity()
         var canGoBack = false
         scenario.onActivity { activity -> canGoBack = activity.webView.canGoBack() }
         assertTrue("После входа в истории WebView есть страница входа", canGoBack)
 
         pressBackUnconditionally()
 
-        awaitFinishing(activity)
+        awaitBackground()
         assertNull(
             "WebView не должна возвращаться на страницу входа",
             nextRequest { it.path.orEmpty().startsWith("/login") },
@@ -157,26 +156,20 @@ class GameBackNavigationE2ETest : E2ETestBase() {
         return request
     }
 
-    private fun currentActivity(): GameActivity {
-        lateinit var activity: GameActivity
-        scenario.onActivity { activity = it }
-        return activity
-    }
-
     /**
-     * После `finish()` Activity ещё несколько секунд живёт в CREATED, пока
-     * система её не уничтожит, поэтому ждём `isFinishing`, а не DESTROYED.
+     * Нажатие с корневой Activity система с Android 12 не завершает, а уводит
+     * задачу в фон, поэтому ждём ухода с переднего плана: CREATED или DESTROYED.
      * 🤖 Generated with Claude Fable 5.1
      */
-    private fun awaitFinishing(activity: GameActivity) {
+    private fun awaitBackground() {
         val deadline = System.currentTimeMillis() + AWAIT_TIMEOUT_MS
-        while (!isFinishing(activity) && System.currentTimeMillis() < deadline) {
+        while (isForeground() && System.currentTimeMillis() < deadline) {
             Thread.sleep(POLL_INTERVAL_MS)
         }
-        assertTrue("Activity должна завершаться по кнопке назад", isFinishing(activity))
+        assertFalse("Приложение должно уйти в фон по кнопке назад, состояние ${scenario.state}", isForeground())
     }
 
-    private fun isFinishing(activity: GameActivity): Boolean = activity.isFinishing || activity.isDestroyed
+    private fun isForeground(): Boolean = scenario.state.isAtLeast(Lifecycle.State.STARTED)
 
     private companion object {
         const val IS_NOTIFS_HIDDEN = "document.querySelector('.notifs').classList.contains('hidden')"

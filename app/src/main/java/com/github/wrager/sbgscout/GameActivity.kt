@@ -1392,7 +1392,8 @@ class GameActivity : AppCompatActivity() {
                 }
 
                 /**
-                 * Нажатие уходит системе: без нашего callback'а "назад" завершает Activity.
+                 * Нажатие уходит системе: без нашего callback'а "назад" уводит приложение
+                 * в фон (корневая Activity, Android 12+) или завершает Activity.
                  * 🤖 Generated with Claude Fable 5.1
                  */
                 private fun exitByBackPress() {
