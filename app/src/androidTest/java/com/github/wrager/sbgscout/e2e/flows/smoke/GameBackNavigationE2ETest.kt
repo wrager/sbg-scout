@@ -91,7 +91,9 @@ class GameBackNavigationE2ETest : E2ETestBase() {
         GameScreen(scenario, idling).waitForLoaded()
         drainRequests()
         val activity = currentActivity()
-        assertTrue("После входа в истории WebView есть страница входа", activity.webView.canGoBack())
+        var canGoBack = false
+        scenario.onActivity { activity -> canGoBack = activity.webView.canGoBack() }
+        assertTrue("После входа в истории WebView есть страница входа", canGoBack)
 
         pressBackUnconditionally()
 
