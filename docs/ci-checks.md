@@ -24,6 +24,8 @@ unstaged и новые неигнорируемые файлы. После из�
 | `scripts/checkRelease*.mjs` | Релизные файлы + тесты валидатора + синтаксис Node |
 | `scripts/updateBundledSvp*.mjs` | Тесты загрузчика + синтаксис Node, без сети |
 | `RELEASE_NOTES.md`, `version.txt`, `.release-please-manifest.json` | Согласованность релизных файлов |
+| `scripts/releaseNotes*.mjs`, `scripts/prepareRelease.mjs`, `.github/release-notes.json`, `.release-notes.json` | Тесты процесса notes + синтаксис Node/JSON |
+| `.github/RELEASE_NOTES_TEMPLATE.md` | Тесты процесса notes |
 | `release-please-config.json` | Релизные файлы, тесты валидатора, синтаксис JSON |
 | `renovate.json`, `scripts/fetchRefs.mjs`, `scripts/checkSyntax.mjs` | Синтаксис JSON и Node-скриптов |
 | `scripts/*.ps1` | Парсинг PowerShell и `android.test.ps1`, без SDK/эмулятора |
@@ -36,7 +38,8 @@ unstaged и новые неигнорируемые файлы. После из�
 | Общие Gradle-файлы, `gradle/**`, wrapper, `buildSrc/**`, `build-logic/**` | Полный Android-набор + e2e + VR |
 | `.editorconfig` / `detekt.yml` | ktlint / detekt |
 | `.github/workflows/e2e.yml`, `scripts/logRunnerMemory.sh` | actionlint + тесты планировщика/команд workflow + функциональный e2e + VR |
-| `.github/workflows/release.yml` | actionlint + релизные файлы и тесты release/SVP |
+| `.github/workflows/prepare-release.yml` | actionlint + тесты планировщика/release/SVP + функциональный e2e + VR |
+| `.github/workflows/release.yml`, `.github/workflows/release-notes.yml` | actionlint + релизные файлы и тесты release/SVP |
 | `.github/workflows/pr-title.yml` | actionlint |
 | `ci.yml`, `planChecks*.mjs`, неизвестные пути | Полный набор без сетевой проверки SVP |
 
@@ -96,3 +99,5 @@ Node/PowerShell-инструментов. Для workflows дополнител�
 
 Ошибка определения diff не означает пустой план. Исправить базу/доступ к Git либо
 явно выполнить `--full`; недоступные проверки перечислять с точной причиной.
+
+🤖 Generated with GPT-6.1 Sol

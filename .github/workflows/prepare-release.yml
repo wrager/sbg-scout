@@ -1,0 +1,193 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Release PR number (empty selects the single open release PR)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    outputs:
+      number: ${{ steps.inspect.outputs.number }}
+      head: ${{ steps.inspect.outputs.head }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - id: inspect
+        run: node scripts/releaseNotes.mjs inspect "$RELEASE_PR"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_PR: ${{ inputs.pull_request }}
+
+  materials:
+    needs: inspect
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_PR: ${{ needs.inspect.outputs.number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.inspect.outputs.head }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - run: sudo sh -c 'echo KERNEL==\"kvm\",GROUP=\"kvm\",MODE=\"0666\",OPTIONS+=\"static_node=kvm\" > /etc/udev/rules.d/99-kvm4all.rules'
+      - run: sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - run: node scripts/updateBundledSvp.mjs
+      - name: Generate README screenshots
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          avd-name: release-readme
+          emulator-port: 5554
+          api-level: 33
+          target: default
+          arch: x86_64
+          profile: pixel_4
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -cores 2 -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: ./gradlew :app:updateReadmeScreenshots --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
+      - name: Generate visual baselines
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          avd-name: release-baselines
+          emulator-port: 5556
+          api-level: 33
+          target: default
+          arch: x86_64
+          profile: pixel_4
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -cores 2 -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: ./gradlew :app:updateVisualRegressionBaselines --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
+      - name: Verify prepared Android release
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          avd-name: release-verify
+          emulator-port: 5558
+          api-level: 33
+          target: default
+          arch: x86_64
+          profile: pixel_4
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -cores 2 -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: node scripts/prepareRelease.mjs "$RELEASE_PR" --materials-ready
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-materials
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            RELEASE_NOTES.md
+            .release-notes.json
+            app/src/main/assets/scripts/sbg-vanilla-plus.user.js
+            .github/images/screenshots/game_loading.png
+            .github/images/screenshots/game_settings.png
+            .github/images/screenshots/script-manager.png
+            .github/images/screenshots/settings.png
+            .github/images/visual-regression/app-settings-dark.png
+            .github/images/visual-regression/app-settings-light.png
+            .github/images/visual-regression/dialog-app-update-dark.png
+            .github/images/visual-regression/dialog-app-update-light.png
+            .github/images/visual-regression/dialog-script-update-dark.png
+            .github/images/visual-regression/dialog-script-update-light.png
+            .github/images/visual-regression/game-loading-light.png
+            .github/images/visual-regression/game-settings-light.png
+            .github/images/visual-regression/login-light.png
+            .github/images/visual-regression/script-manager-dark.png
+            .github/images/visual-regression/script-manager-light.png
+
+  functional:
+    needs: [inspect, materials]
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.inspect.outputs.head }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: release-materials
+          path: release-materials
+      - run: cp release-materials/app/src/main/assets/scripts/sbg-vanilla-plus.user.js app/src/main/assets/scripts/sbg-vanilla-plus.user.js
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - run: sudo sh -c 'echo KERNEL==\"kvm\",GROUP=\"kvm\",MODE=\"0666\",OPTIONS+=\"static_node=kvm\" > /etc/udev/rules.d/99-kvm4all.rules'
+      - run: sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Verify prepared bundled script
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: default
+          arch: x86_64
+          profile: pixel_4
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -cores 2 -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: sh scripts/logRunnerMemory.sh ./gradlew connectedInstrAndroidTest "-Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.github.wrager.sbgscout.e2e.visualregression.VisualRegressionTest" "-Pandroid.testInstrumentationRunnerArguments.numShards=4" "-Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}" --no-daemon --max-workers=2
+
+
+  apply:
+    needs: [inspect, materials, functional]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: release-materials
+          path: release-materials
+      - run: node scripts/releaseNotes.mjs apply "$RELEASE_PR"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_PR: ${{ needs.inspect.outputs.number }}
+          RELEASE_MATERIALS: release-materials

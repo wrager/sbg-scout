@@ -69,10 +69,10 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 | Подготовка release PR | `$scout-release` | `/scout-release` |
 | Анонс изменений | `$scout-announce 1.2.0` | `/scout-announce 1.2.0` |
 
-Release Please предлагает версию в release PR; агент готовит в нём русские notes
-и три скриншота. CI сверяет версию заголовка notes. После проверок и review
-squash merge создаёт тег и draft, затем публикуется проверенный подписанный APK.
-Подготовка PR сама по себе не разрешает выпуск.
+Release Please предлагает версию в release PR. Пользовательские notes редактируются
+в его комментарии; общая команда или Actions / Prepare release готовит файл notes,
+SVP и скриншоты. После проверок ручной squash merge запускает выпуск APK.
+[Процесс релиза](docs/releasing.md) одинаков для ручной работы и агентов.
 
 Подробности: [окружение, preview и релизы](docs/agent-setup.md).
 
@@ -94,3 +94,5 @@ squash merge создаёт тег и draft, затем публикуется �
 [downloads-latest-badge]: https://img.shields.io/github/downloads/wrager/sbg-scout/latest/total?style=flat-square&cacheSeconds=3600&label=downloads%40latest
 [license-badge]: https://img.shields.io/github/license/wrager/sbg-scout?style=flat-square
 [sbg-badge]: https://img.shields.io/website?label=sbg-game.ru/app&style=flat-square&url=https%3A%2F%2Fsbg-game.ru/app
+
+🤖 Generated with GPT-6.1 Sol

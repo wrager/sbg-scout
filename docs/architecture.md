@@ -479,3 +479,10 @@ WebView-экраны (`game-settings`, `login`, `game-loading`) только в 
 `ci.yml` сохраняет required checks `check` и `agent-skills`, условно запускает jobs и отдельные шаги, а также вызывает e2e только для PR. Если планирование падает или не возвращает флаг группы, оба required jobs запускаются и падают на проверке плана. При успешном плане ненужные jobs получают Skipped, допустимый для branch protection. Debug artifact и комментарий создаются только при выбранной debug-сборке. Release PR всегда получает полный набор и сетевую проверку актуальности SVP.
 
 `pr-title.yml` остаётся независимым обязательным workflow для всех PR; `release.yml` обрабатывает каждый push main через release-please и публикует APK только при `release_created`. Подробная матрица и локальные команды — [ci-checks.md](ci-checks.md).
+
+Пользовательские release notes хранятся в помеченном комментарии release PR;
+RELEASE_NOTES.md и .release-notes.json формируются общей командой. Проверка
+связывает комментарий, main, версию и хеш содержимого, а publish повторяет её
+на SHA выпуска. Подробности: [процесс релиза](releasing.md).
+
+🤖 Generated with GPT-6.1 Sol

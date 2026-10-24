@@ -284,18 +284,10 @@ debug-секрет и использует временный ключ; preview 
    маркерам `x-release-please-major/minor/patch`. Формула Android `versionCode`
    прежняя: `major * 10000 + minor * 100 + patch`, minor и patch меньше 100.
    `CHANGELOG.md` не создаётся; автоматический черновик notes находится в теле PR.
-2. Вызвать `scout-release` для этого PR: выполнить `node scripts/updateBundledSvp.mjs`
-   до тестов и скриншотов, включить обновлённый
-   `app/src/main/assets/scripts/sbg-vanilla-plus.user.js` в этот же PR; сверить notes с итоговым кодом,
-   записать русские `RELEASE_NOTES.md`, после bump версии сгенерировать три README-PNG
-   и обновить visual regression baseline через `scout-visual-regression`,
-   проверить изображения и выполнить проверки. CI запускает
-   `node scripts/checkRelease.mjs`: заголовок notes должен совпадать с version.txt
-   и manifest. Это не проверка полноты текста; её обеспечивает review diff. Служебную структуру тела PR,
-   заголовок и метки release-please сохранить. Перед merge повторить сверку,
-   если бот изменил PR. Перед merge выполнить `node scripts/updateBundledSvp.mjs --check`:
-   даже при неизменном HEAD мог выйти новый SVP. Если бандл устарел — повторить
-   обновление, тесты и скриншоты. Notes, версия, PNG и бандл входят в один итоговый squash.
+2. Заполнить помеченный комментарий release PR и подготовить материалы общей
+   командой или Actions / Prepare release по [процессу релиза](releasing.md).
+   Комментарий является источником notes; обновление ботом требует повторной
+   подготовки при изменении версии, main или содержимого.
 3. Вручную squash-merge подготовленный release PR. Workflow создаёт тег
    `vX.Y.Z` и draft GitHub Release, затем job `publish` проверяет наличие
    трёх signing secrets, делает checkout SHA релиза и проверяет актуальность бандла SVP
@@ -367,3 +359,5 @@ release-please и реальный PR с debug APK. Создание перво�
 Основания: [release-please](https://github.com/googleapis/release-please),
 [release-please action](https://github.com/googleapis/release-please-action),
 [softprops v3](https://github.com/softprops/action-gh-release/tree/v3.0.3).
+
+🤖 Generated with GPT-6.1 Sol
