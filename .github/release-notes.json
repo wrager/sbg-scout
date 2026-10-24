@@ -1,0 +1,90 @@
+{
+  "repository": "wrager/sbg-scout",
+  "android": true,
+  "artifacts": [
+    "app/src/main/assets/scripts/sbg-vanilla-plus.user.js",
+    ".github/images/screenshots/game_loading.png",
+    ".github/images/screenshots/game_settings.png",
+    ".github/images/screenshots/script-manager.png",
+    ".github/images/screenshots/settings.png",
+    ".github/images/visual-regression/app-settings-dark.png",
+    ".github/images/visual-regression/app-settings-light.png",
+    ".github/images/visual-regression/dialog-app-update-dark.png",
+    ".github/images/visual-regression/dialog-app-update-light.png",
+    ".github/images/visual-regression/dialog-script-update-dark.png",
+    ".github/images/visual-regression/dialog-script-update-light.png",
+    ".github/images/visual-regression/game-loading-light.png",
+    ".github/images/visual-regression/game-settings-light.png",
+    ".github/images/visual-regression/login-light.png",
+    ".github/images/visual-regression/script-manager-dark.png",
+    ".github/images/visual-regression/script-manager-light.png"
+  ],
+  "beforeNotes": [
+    [
+      "node",
+      "scripts/updateBundledSvp.mjs"
+    ],
+    [
+      "./gradlew",
+      ":app:updateReadmeScreenshots",
+      "--no-daemon",
+      "--max-workers=2",
+      "-Pkotlin.compiler.execution.strategy=in-process"
+    ],
+    [
+      "./gradlew",
+      ":app:updateVisualRegressionBaselines",
+      "--no-daemon",
+      "--max-workers=2",
+      "-Pkotlin.compiler.execution.strategy=in-process"
+    ]
+  ],
+  "checks": [
+    [
+      "node",
+      "scripts/syncAgentSkills.mjs",
+      "--check"
+    ],
+    [
+      "node",
+      "--test",
+      "scripts/syncAgentSkills.test.mjs",
+      "scripts/checkRelease.test.mjs",
+      "scripts/updateBundledSvp.test.mjs",
+      "scripts/releaseNotes.test.mjs"
+    ],
+    [
+      "node",
+      "scripts/checkRelease.mjs"
+    ],
+    [
+      "./gradlew",
+      "ktlintCheck",
+      "detekt",
+      "lintInstr",
+      "testInstrUnitTest",
+      "assembleDebug",
+      "assembleInstr",
+      "assembleRelease",
+      "--no-daemon",
+      "--max-workers=2",
+      "-Pkotlin.compiler.execution.strategy=in-process"
+    ],
+    [
+      "./gradlew",
+      "visualRegressionTest",
+      "--no-daemon",
+      "--max-workers=2",
+      "-Pkotlin.compiler.execution.strategy=in-process"
+    ],
+    [
+      "node",
+      "scripts/updateBundledSvp.mjs",
+      "--check"
+    ]
+  ],
+  "statusContexts": [
+    "agent-skills",
+    "pr-title"
+  ]
+}

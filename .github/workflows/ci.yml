@@ -88,7 +88,7 @@ jobs:
 
       - name: Test release checks
         if: contains(fromJSON(needs.changes.outputs.checks), 'release-tests')
-        run: node --test scripts/checkRelease.test.mjs
+        run: node --test scripts/checkRelease.test.mjs scripts/releaseNotes.test.mjs
 
       - name: Test APK signing checks
         run: node --test scripts/checkReleaseSigning.test.mjs
