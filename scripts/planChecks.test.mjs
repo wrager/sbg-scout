@@ -28,6 +28,8 @@ test('tooling checks follow their own source and test dependencies', () => {
     [['scripts/syncAgentSkills.test.mjs'], ['skills', 'skills-tests', 'node-syntax']],
     [['scripts/checkRelease.mjs'], ['release-files', 'release-tests', 'node-syntax']],
     [['scripts/updateBundledSvp.mjs'], ['svp-tests', 'node-syntax']],
+    [['scripts/releaseNotes.mjs', 'scripts/releaseNotes.test.mjs', 'scripts/prepareRelease.mjs', '.github/release-notes.json', '.release-notes.json'], ['release-tests', 'node-syntax']],
+    [['.github/RELEASE_NOTES_TEMPLATE.md'], ['release-tests']],
     [['scripts/androidEnvironment.ps1', 'scripts/checkPowerShell.ps1'], ['windows']],
     [['scripts/fetchRefs.mjs', 'renovate.json'], ['node-syntax']],
   ];
@@ -78,7 +80,10 @@ test('workflow changes exercise only the relevant workflow dependencies', () => 
   assert.deepEqual(checks(['.github/workflows/pr-title.yml']), ['workflows']);
   assert.deepEqual(checks(['.github/workflows/e2e.yml']), ['planner-tests', 'workflows', 'e2e', 'visual']);
   assert.deepEqual(checks(['scripts/logRunnerMemory.sh']), ['planner-tests', 'workflows', 'e2e', 'visual']);
-  assert.deepEqual(checks(['.github/workflows/release.yml']), ['release-files', 'release-tests', 'svp-tests', 'workflows']);
+  assert.deepEqual(checks(['.github/workflows/prepare-release.yml']), ['release-files', 'release-tests', 'svp-tests', 'planner-tests', 'workflows', 'e2e', 'visual']);
+  for (const workflow of ['release.yml', 'release-notes.yml']) {
+    assert.deepEqual(checks([`.github/workflows/${workflow}`]), ['release-files', 'release-tests', 'svp-tests', 'workflows']);
+  }
 });
 
 test('plans expose runnable commands, with functional and visual tests separate', () => {

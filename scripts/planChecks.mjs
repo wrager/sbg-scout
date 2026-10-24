@@ -15,7 +15,7 @@ const COMMANDS = {
   skills: 'node scripts/syncAgentSkills.mjs --check',
   'skills-tests': 'node --test scripts/syncAgentSkills.test.mjs',
   'release-files': 'node scripts/checkRelease.mjs',
-  'release-tests': 'node --test scripts/checkRelease.test.mjs',
+  'release-tests': 'node --test scripts/checkRelease.test.mjs scripts/releaseNotes.test.mjs',
   'svp-tests': 'node --test scripts/updateBundledSvp.test.mjs',
   'planner-tests': 'node --test scripts/planChecks.test.mjs',
   'node-syntax': 'node scripts/checkSyntax.mjs',
@@ -34,7 +34,9 @@ export function planChecks(files, { full = false, releasePr = false } = {}) {
       add(...ALL);
     } else if (['.github/workflows/e2e.yml', 'scripts/logRunnerMemory.sh'].includes(file)) {
       add('planner-tests', 'workflows', 'e2e', 'visual');
-    } else if (file === '.github/workflows/release.yml') {
+    } else if (file === '.github/workflows/prepare-release.yml') {
+      add('planner-tests', 'workflows', 'release-files', 'release-tests', 'svp-tests', 'e2e', 'visual');
+    } else if (['.github/workflows/release.yml', '.github/workflows/release-notes.yml'].includes(file)) {
       add('workflows', 'release-files', 'release-tests', 'svp-tests');
     } else if (file === '.github/workflows/pr-title.yml') {
       add('workflows');
@@ -65,6 +67,10 @@ export function planChecks(files, { full = false, releasePr = false } = {}) {
       add('release-files');
     } else if (file === 'release-please-config.json') {
       add('node-syntax', 'release-files', 'release-tests');
+    } else if (['scripts/releaseNotes.mjs', 'scripts/releaseNotes.test.mjs', 'scripts/prepareRelease.mjs', '.github/release-notes.json', '.release-notes.json'].includes(file)) {
+      add('release-tests', 'node-syntax');
+    } else if (file === '.github/RELEASE_NOTES_TEMPLATE.md') {
+      add('release-tests');
     } else if (file === 'renovate.json') {
       add('node-syntax');
     } else if (/^scripts\/[^/]+\.ps1$/.test(file)) {
