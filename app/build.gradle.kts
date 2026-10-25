@@ -387,18 +387,22 @@ tasks.register("compareReadmeScreenshots") {
                 validatePageLoadingSpinner(baseline)
                 validatePageLoadingSpinner(actual)
             }
-            val ignoredRegion =
-                if (name == "game_loading.png") {
-                    pageLoadingIndicatorRegion(actualImage)
-                } else {
-                    null
+            val ignoredRegions =
+                when (name) {
+                    "game_loading.png" -> listOf(pageLoadingIndicatorRegion(actualImage))
+                    "settings.png", "script-manager.png" ->
+                        listOf(
+                            Rectangle(0, 0, actualImage.width, 24),
+                            Rectangle(0, actualImage.height - 32, actualImage.width, 32),
+                        )
+                    else -> emptyList()
                 }
             val diff =
                 compareVisualRegressionImages(
                     baseline,
                     actual,
                     File(reportsDir, "$name.diff.png"),
-                    ignoredRegion,
+                    ignoredRegions,
                 )
             if (diff.differentFraction > vrMaxDifferentFraction) {
                 mismatches += "$name: ${"%.3f".format(diff.differentFraction * 100)}% pixels differ"
@@ -741,7 +745,7 @@ fun compareVisualRegressionImages(
     baseline: File,
     actual: File,
     diffOutput: File,
-    ignoredRegion: Rectangle? = null,
+    ignoredRegions: List<Rectangle> = emptyList(),
 ): VisualRegressionDiff {
     val baselineImage = ImageIO.read(baseline) ?: error("Не читается baseline: $baseline")
     val actualImage = ImageIO.read(actual) ?: error("Не читается actual: $actual")
@@ -782,7 +786,7 @@ fun compareVisualRegressionImages(
         for (x in 0 until width) {
             val b = baselineImage.getRGB(x, y)
             val a = actualImage.getRGB(x, y)
-            if (ignoredRegion?.contains(x, y) == true) {
+            if (ignoredRegions.any { it.contains(x, y) }) {
                 highlight.setRGB(x, y, a)
             } else if (vrPixelDiffers(b, a, vrMaxChannelDiff)) {
                 differentPixels++
