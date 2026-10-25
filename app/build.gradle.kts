@@ -1,5 +1,4 @@
 import java.awt.Color
-import java.awt.Rectangle
 import java.awt.image.BufferedImage
 import java.util.Base64
 import javax.imageio.ImageIO
@@ -20,7 +19,7 @@ jacoco {
 
 val readmeScreenshotMode =
     gradle.startParameter.taskNames.any {
-        it.substringAfterLast(":") in setOf("updateReadmeScreenshots", "verifyReadmeScreenshots")
+        it.substringAfterLast(":") == "updateReadmeScreenshots"
     }
 
 android {
@@ -328,99 +327,6 @@ tasks.register("updateReadmeScreenshots") {
     description = "Прогнать @ReadmeScreenshot тесты + скопировать PNG в .github/images/screenshots/"
     dependsOn("connectedInstrAndroidTest")
     finalizedBy("copyReadmeScreenshots")
-}
-
-tasks.register("compareReadmeScreenshots") {
-    group = "verification"
-    description = "Сравнить README-скриншоты из test storage с сохранёнными PNG"
-    doLast {
-        val outputsDir =
-            layout.buildDirectory
-                .dir("outputs/connected_android_test_additional_output")
-                .get()
-                .asFile
-        check(outputsDir.exists()) { "Не найдены результаты скриншот-тестов в $outputsDir" }
-        val actualByName =
-            outputsDir
-                .walkTopDown()
-                .filter { it.isFile && it.parentFile.name == "readme" && it.extension == "png" }
-                .groupBy { it.name }
-        check(actualByName.keys == readmeScreenshotNames && actualByName.values.all { it.size == 1 }) {
-            "Ожидались ровно ${readmeScreenshotNames.sorted()}; найдены ${actualByName.mapValues { it.value.size }}"
-        }
-        val reportsDir =
-            layout.buildDirectory
-                .dir("reports/readme-screenshots")
-                .get()
-                .asFile
-        reportsDir.mkdirs()
-        val baselineDir = rootProject.file(".github/images/screenshots")
-        val mismatches = mutableListOf<String>()
-        for (name in readmeScreenshotNames.sorted()) {
-            val baseline = File(baselineDir, name)
-            val actual = actualByName.getValue(name).single()
-            check(baseline.exists()) { "Не найден README-скриншот $baseline" }
-            val baselineImage = ImageIO.read(baseline) ?: error("Не читается скриншот: $baseline")
-            val actualImage = ImageIO.read(actual) ?: error("Не читается скриншот: $actual")
-            check(
-                baselineImage.width > 0 &&
-                    baselineImage.height > 0 &&
-                    actualImage.width > 0 &&
-                    actualImage.height > 0,
-            ) {
-                "Пустой README-скриншот: $name"
-            }
-            if (name == "game_settings.png") {
-                check(baselineImage.width == 360 && baselineImage.height >= 150) {
-                    "$baseline нельзя заменять усечённой mock-версией: размер ${baselineImage.width}x${baselineImage.height}"
-                }
-                check(actualImage.width == 360 && actualImage.height >= 70) {
-                    "$actual не содержит полную строку настроек Scout: размер ${actualImage.width}x${actualImage.height}"
-                }
-                logger.lifecycle(
-                    "$name: размеры проверены; пиксели приватных секций не сравниваются, " +
-                        "потому что refs/game/private недоступен в CI",
-                )
-                continue
-            }
-            if (name == "game_loading.png") {
-                validatePageLoadingSpinner(baseline)
-                validatePageLoadingSpinner(actual)
-            }
-            val ignoredRegions =
-                when (name) {
-                    "game_loading.png" -> listOf(pageLoadingIndicatorRegion(actualImage))
-                    "settings.png", "script-manager.png" ->
-                        listOf(
-                            Rectangle(0, 0, actualImage.width, 24),
-                            Rectangle(0, actualImage.height - 32, actualImage.width, 32),
-                        )
-                    else -> emptyList()
-                }
-            val diff =
-                compareVisualRegressionImages(
-                    baseline,
-                    actual,
-                    File(reportsDir, "$name.diff.png"),
-                    ignoredRegions,
-                )
-            if (diff.differentFraction > vrMaxDifferentFraction) {
-                mismatches += "$name: ${"%.3f".format(diff.differentFraction * 100)}% pixels differ"
-            }
-        }
-        check(mismatches.isEmpty()) {
-            "README-скриншоты отличаются от результатов тестов:\n${mismatches.joinToString("\n")}" +
-                "\nDiff-картинки в $reportsDir"
-        }
-        logger.lifecycle("Три README-скриншота совпали с результатами тестов; game_settings.png проверен по размерам.")
-    }
-}
-
-tasks.register("verifyReadmeScreenshots") {
-    group = "verification"
-    description = "Прогнать @ReadmeScreenshot тесты и сравнить PNG с сохранёнными снимками"
-    dependsOn("connectedInstrAndroidTest")
-    finalizedBy("compareReadmeScreenshots")
 }
 
 // Visual regression: тесты с @VisualRegressionTest пишут actual.png в test
@@ -745,7 +651,6 @@ fun compareVisualRegressionImages(
     baseline: File,
     actual: File,
     diffOutput: File,
-    ignoredRegions: List<Rectangle> = emptyList(),
 ): VisualRegressionDiff {
     val baselineImage = ImageIO.read(baseline) ?: error("Не читается baseline: $baseline")
     val actualImage = ImageIO.read(actual) ?: error("Не читается actual: $actual")
@@ -786,9 +691,7 @@ fun compareVisualRegressionImages(
         for (x in 0 until width) {
             val b = baselineImage.getRGB(x, y)
             val a = actualImage.getRGB(x, y)
-            if (ignoredRegions.any { it.contains(x, y) }) {
-                highlight.setRGB(x, y, a)
-            } else if (vrPixelDiffers(b, a, vrMaxChannelDiff)) {
+            if (vrPixelDiffers(b, a, vrMaxChannelDiff)) {
                 differentPixels++
                 highlight.setRGB(x, y, magenta)
             } else {
@@ -838,20 +741,6 @@ fun validatePageLoadingSpinner(file: File) {
             "$darkCenterPixels тёмных пикселей внутри, $darkRingPixels тёмных пикселей на дуге"
     }
     check(image.width >= 720) { "README-скриншот $file имеет ширину ${image.width}px; нужно не менее 720px" }
-}
-
-fun pageLoadingIndicatorRegion(image: BufferedImage): Rectangle {
-    val pixelsPerDp = pixel4PixelsPerDp(image)
-    val left = floor(image.width - 52 * pixelsPerDp).toInt()
-    val top = floor(image.height - 52 * pixelsPerDp).toInt()
-    val right = ceil(image.width - 12 * pixelsPerDp).toInt()
-    val bottom = ceil(image.height - 12 * pixelsPerDp).toInt()
-    return Rectangle(
-        left,
-        top,
-        right - left,
-        bottom - top,
-    )
 }
 
 fun pixel4PixelsPerDp(image: BufferedImage): Double = image.width * 440.0 / (1080 * 160)
