@@ -55,6 +55,8 @@ export function planChecks(files, { full = false, releasePr = false } = {}) {
       add('ktlint', 'detekt', 'release');
     } else if (file.startsWith('.github/images/visual-regression/') && file.endsWith('.png')) {
       add('visual');
+    } else if (file.startsWith('.github/images/screenshots/') && file.endsWith('.png')) {
+      add('visual');
     } else if (/^\.(?:agents|claude)\/skills\//.test(file)) {
       add('skills');
     } else if (/^scripts\/syncAgentSkills(?:\.test)?\.mjs$/.test(file)) {
@@ -82,7 +84,6 @@ export function planChecks(files, { full = false, releasePr = false } = {}) {
     } else if (file === 'detekt.yml') {
       add('detekt');
     } else if (/^docs\//.test(file) || /^\.github\/ISSUE_TEMPLATE\//.test(file) ||
-      /^\.github\/images\/screenshots\//.test(file) ||
       ['README.md', 'AGENTS.md', 'CLAUDE.md', 'LICENSE', '.gitignore', 'app/.gitignore',
         '.github/images/icon.png', '.github/images/visual-regression/README.md'].includes(file)) {
       // These files are neither build inputs nor executable agent tooling.
@@ -97,7 +98,10 @@ export function planChecks(files, { full = false, releasePr = false } = {}) {
   const commands = checks.filter((check) => COMMANDS[check]).map((check) => COMMANDS[check]);
   if (gradleTasks.length) commands.push(`./gradlew ${gradleTasks.join(' ')}`);
   if (selected.has('e2e')) commands.push('./gradlew connectedInstrAndroidTest "-Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.github.wrager.sbgscout.e2e.visualregression.VisualRegressionTest"');
-  if (selected.has('visual')) commands.push('./gradlew visualRegressionTest');
+  if (selected.has('visual')) {
+    commands.push('./gradlew visualRegressionTest');
+    commands.push('./gradlew verifyReadmeScreenshots');
+  }
   return { checks, gradleTasks, commands, unknownFiles };
 }
 

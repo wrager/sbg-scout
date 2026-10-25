@@ -12,7 +12,7 @@ const runtime = checks(['app/src/main/AndroidManifest.xml']);
 
 test('PR #65 and other ordinary documentation require no executable checks', () => {
   assert.deepEqual(checks(['AGENTS.md', 'docs/agent-setup.md']), []);
-  assert.deepEqual(checks(['README.md', 'CLAUDE.md', '.github/images/screenshots/settings.png',
+  assert.deepEqual(checks(['README.md', 'CLAUDE.md',
     '.github/images/visual-regression/README.md', '.github/ISSUE_TEMPLATE/bug_report.yml']), []);
 });
 
@@ -42,6 +42,9 @@ test('test-only and variant-only changes avoid unrelated builds and emulators', 
   assert.deepEqual(checks(['app/src/debug/res/values/strings.xml']), ['ktlint', 'detekt', 'debug']);
   assert.deepEqual(checks(['app/proguard-rules.pro']), ['ktlint', 'detekt', 'release']);
   assert.deepEqual(checks(['.github/images/visual-regression/login-light.png']), ['visual']);
+  for (const name of ['game_loading.png', 'game_settings.png', 'settings.png', 'script-manager.png']) {
+    assert.deepEqual(checks([`.github/images/screenshots/${name}`]), ['visual'], name);
+  }
   assert.deepEqual(checks(['.editorconfig']), ['ktlint']);
   assert.deepEqual(checks(['detekt.yml']), ['detekt']);
 });
@@ -93,6 +96,7 @@ test('plans expose runnable commands, with functional and visual tests separate'
   const full = planChecks([], { full: true });
   assert.match(full.commands.find((command) => command.includes('connectedInstrAndroidTest')), /notAnnotation=.*VisualRegressionTest/);
   assert.ok(full.commands.includes('./gradlew visualRegressionTest'));
+  assert.ok(full.commands.includes('./gradlew verifyReadmeScreenshots'));
 });
 
 function repository(t) {
@@ -187,6 +191,7 @@ test('GitHub output is valid and missing diff metadata cannot produce a green sk
 test('e2e jobs start only for the suites requested by CI or a manual run', () => {
   assert.equal(workflowJob('functional').condition, "github.event_name == 'workflow_dispatch' || inputs.functional");
   assert.equal(workflowJob('visual').condition, "github.event_name == 'workflow_dispatch' || inputs.visual");
+  assert.equal(workflowJob('readme').condition, "github.event_name == 'workflow_dispatch' || inputs.visual");
 });
 
 // Exercise the actual workflow commands, with a fake Gradle executable instead of an emulator.
@@ -202,14 +207,16 @@ test('each functional job runs its own shard without visual regression tests', (
   assert.match(call, /-Pandroid\.testInstrumentationRunnerArguments\.shardIndex=2 /);
 });
 
-test('the visual job compares screenshots in one Gradle run', (t) => {
+test('native baselines and README screenshots run on separate emulators', (t) => {
   const { directory, shell, calls } = emulatorDirectory(t);
   execFileSync(shell, ['-c', workflowJob('visual').script], { cwd: directory });
-  assert.deepEqual(calls().map((call) => call.split(' ')[0]), ['visualRegressionTest']);
+  execFileSync(shell, ['-c', workflowJob('readme').script], { cwd: directory });
+  assert.deepEqual(calls().map((call) => call.split(' ')[0]), ['visualRegressionTest', 'verifyReadmeScreenshots']);
 });
 
 test('emulator jobs fail with the Gradle exit status', (t) => {
-  for (const script of [shardCommand(workflowJob('functional').script, 0, 4), workflowJob('visual').script]) {
+  for (const script of [shardCommand(workflowJob('functional').script, 0, 4),
+    workflowJob('visual').script, workflowJob('readme').script]) {
     const { directory, shell } = emulatorDirectory(t);
     const result = spawnSync(shell, ['-c', script], { cwd: directory, env: { ...process.env, FAIL_GRADLE: 'true' } });
     assert.equal(result.status, 7);

@@ -460,14 +460,18 @@ WebView-экраны (`game-settings`, `login`, `game-loading`) только в 
 - `./gradlew visualRegressionTest` — прогон + сравнение с baseline. Зелёный = регрессий нет.
 - `./gradlew updateVisualRegressionBaselines` — прогон + перезапись baseline в `.github/images/visual-regression/`. Запускается локально при намеренных UI-изменениях; `git diff` показывает реально изменившиеся файлы, коммитятся только они.
 - `./gradlew copyVisualRegressionBaselines` / `compareVisualRegressionBaselines` — host-side финализаторы.
+- `./gradlew verifyReadmeScreenshots` - заново создаёт все четыре README PNG и сравнивает три воспроизводимых снимка (`game_loading`, `settings`, `script-manager`) с файлами в `.github/images/screenshots/`. Перед прогоном удаляет прежние результаты из test storage, поэтому пропущенный тест не может пройти за счёт старого файла.
+- `./gradlew checkReadmeLoadingSpinner` - проверяет сохранённый `game_loading.png` без эмулятора: у видимого индикатора есть дуга и пустая середина. Та же проверка применяется к новому снимку при `verifyReadmeScreenshots`.
+
+Три воспроизводимых README-снимка сравниваются по тому же порогу, что и visual regression baseline. На `game_loading.png` из попиксельного сравнения исключается только область анимированного индикатора 40dp: её фаза меняется между кадрами, а форму проверяет отдельный инвариант. Размеры PNG должны совпадать; `game_loading.png` сохраняется в исходной ширине 1080 px и отображается в README с шириной 360 px. `game_settings.png` тоже обязан быть создан тестом и декодироваться как PNG. Сохранённый снимок должен иметь ширину 360px и высоту не менее 150px, тестовый mock - ширину 360px и высоту не менее 70px; это не позволяет случайно заменить богатый снимок усечённой mock-версией или обрезать строку Scout. Его пиксели не сравниваются: локальный `refs/game/private` может заменить mock-фикстуру, а этого приватного snapshot нет в CI. Mock-вариант настроек отдельно покрыт VR baseline `game-settings-light.png`.
 
 Скилл `scout-visual-regression` описывает проверку и обновление baseline для Codex и Claude Code (см. [общий источник](../.agents/skills/scout-visual-regression/SKILL.md)).
 
 ### CI
 
-`e2e.yml` — reusable workflow, вызываемый из `ci.yml` по общему плану проверок; ручной `workflow_dispatch` запускает оба набора. `connectedInstrAndroidTest` и `visualRegressionTest` запускаются выбранными отдельными командами Gradle в одном emulator-runner step (переиспользуют AVD). Функциональный прогон исключает `@VisualRegressionTest` через `notAnnotation`, поэтому VR-сценарии исполняются один раз — в отдельном прогоне со сравнением PNG. Ключ AVD-кэша включает профиль Pixel 4, чтобы baseline всегда сравнивались при разрешении 1080x2280 и density 440 dpi. Diff-картинки и actual.png попадают в `e2e-reports` artifact при падении.
+`e2e.yml` - reusable workflow, вызываемый из `ci.yml` по общему плану проверок; ручной `workflow_dispatch` запускает все наборы. Функциональные тесты, `visualRegressionTest` и `verifyReadmeScreenshots` выполняются в отдельных jobs со свежими эмуляторами, чтобы ограничить накопление памяти QEMU. Функциональный прогон исключает `@VisualRegressionTest` через `notAnnotation`, поэтому VR-сценарии исполняются один раз - в отдельном прогоне со сравнением PNG. Ключ AVD-кэша включает профиль Pixel 4, чтобы baseline всегда сравнивались при разрешении 1080x2280 и density 440 dpi. Diff-картинки и actual.png попадают в отдельные артефакты `e2e-reports-*` при падении.
 
-При изменении только PNG baseline в `.github/images/visual-regression/` выбирается только visual regression, без функционального e2e. План учитывает общие Gradle-файлы, wrapper и настройки JVM, влияющие на тестируемую сборку.
+При изменении только PNG в `.github/images/visual-regression/` или `.github/images/screenshots/` выбираются visual и readme jobs, без функционального e2e. План учитывает общие Gradle-файлы, wrapper и настройки JVM, влияющие на тестируемую сборку.
 
 Генерация локального game snapshot предшествует сборке androidTest assets и моделям lint: совместный запуск полного CI и VR не зависит от порядка выполнения этих задач.
 
@@ -486,4 +490,4 @@ RELEASE_NOTES.md и .release-notes.json формируются общей ком
 связывает комментарий, main, версию и хеш содержимого, а publish повторяет её
 на SHA выпуска. Подробности: [процесс релиза](releasing.md).
 
-🤖 Generated with GPT-6.1 Sol
+🤖 Generated with GPT-6 Sol
