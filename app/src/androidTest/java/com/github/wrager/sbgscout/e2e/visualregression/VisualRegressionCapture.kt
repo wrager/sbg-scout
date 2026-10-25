@@ -21,10 +21,12 @@ import com.github.wrager.sbgscout.e2e.screenshots.ScrollStitchCapture
  * gradle-задачи `compareVisualRegressionBaselines` или
  * `copyVisualRegressionBaselines` далее обрабатывают эти файлы.
  *
- * Native-разрешение принципиально для VR (а не 360px как в README): pixel-diff
- * чувствителен к anti-aliasing и font-hinting, которые `Bitmap.createScaledBitmap`
+ * Native-разрешение принципиально для pixel-diff: сравнение
+ * чувствительно к anti-aliasing и font-hinting, которые `Bitmap.createScaledBitmap`
  * сглаживает. Низкоуровневые операции захвата делегируются в
  * [ScrollStitchCapture].
+ *
+ * 🤖 Generated with GPT-6 Sol
  */
 object VisualRegressionCapture {
     /**

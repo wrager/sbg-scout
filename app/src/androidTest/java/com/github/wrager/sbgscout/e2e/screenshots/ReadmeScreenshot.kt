@@ -41,10 +41,11 @@ annotation class ReadmeScreenshot
  */
 object ReadmeScreenshotCapture {
     /**
-     * Целевая ширина PNG — 360 px (mdpi-эквивалент).
-     * Текущие ручные скриншоты в README сделаны под эту ширину
-     * (game_settings.png 360x193, settings.png 360x1208, script-manager.png 360x732),
-     * её надо сохранить, чтобы не сломать вёрстку README.
+     * Стандартная ширина PNG - 360 px (mdpi-эквивалент).
+     * game_loading.png сохраняется в исходном разрешении, а в README
+     * отображается с шириной 360 px ради чёткости мелкого текста.
+     *
+     * 🤖 Generated with GPT-6 Sol
      */
     const val TARGET_WIDTH_PX = 360
 
@@ -86,6 +87,7 @@ object ReadmeScreenshotCapture {
     fun captureRegion(
         name: String,
         region: Rect,
+        nativeResolution: Boolean = false,
     ) {
         val full = ScrollStitchCapture.takeScreenshot()
         try {
@@ -99,7 +101,7 @@ object ReadmeScreenshotCapture {
                     safeRegion.height(),
                 )
             try {
-                writePng(name, scaleToTargetWidth(cropped))
+                writePng(name, if (nativeResolution) cropped else scaleToTargetWidth(cropped))
             } finally {
                 cropped.recycle()
             }

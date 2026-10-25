@@ -1,15 +1,19 @@
 package com.github.wrager.sbgscout.e2e.screenshots
 
+import android.Manifest
 import android.graphics.Rect
+import android.provider.Settings
 import android.view.WindowInsets
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.GameActivity
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import com.github.wrager.sbgscout.e2e.screens.LoadingUiState
+import com.github.wrager.sbgscout.e2e.visualregression.ThemeOverride
 import okhttp3.mockwebserver.MockResponse
 import org.junit.After
 import org.junit.Before
@@ -20,28 +24,47 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Снимает game_loading.png - экран загрузки игры: надпись "Загрузка...",
- * "Настройки SBG Scout" и "Reload" внизу экрана и индикатор загрузки страницы
- * в правом нижнем углу. Системные панели в снимок не входят.
+ * "Настройки SBG Scout" и "Reload" между центром и нижней частью экрана,
+ * индикатор загрузки страницы в правом нижнем углу. Системные панели в снимок не входят.
  *
  * Фикстура app-page-loading-screen-realistic.html не убирает экран загрузки игры.
  * Индикатор виден, только пока грузятся ресурсы страницы, поэтому на страницу
  * добавлена картинка, на которую сервер отвечает лишь после снимка.
  *
- * 🤖 Generated with Claude Opus 5.5
+ * 🤖 Generated with GPT-6 Sol
  */
 @RunWith(AndroidJUnit4::class)
 class GameLoadingScreenshotE2ETest : E2ETestBase() {
     private val pendingImageReleased = CountDownLatch(1)
+    private var savedAnimatorDurationScale: String? = null
+    private var animatorDurationScaleSaved = false
 
     @Before
-    fun setUpLocale() {
+    fun setUpScreenshot() {
         ReadmeScreenshotCapture.forceRussianLocale()
+        ThemeOverride.forceLightTheme()
+        val contentResolver = InstrumentationRegistry.getInstrumentation().targetContext.contentResolver
+        savedAnimatorDurationScale = Settings.Global.getString(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE)
+        animatorDurationScaleSaved = true
+        // В тестовом эмуляторе анимации отключены; крутилка иначе застывает в форме Reload.
+        // 🤖 Generated with GPT-6 Sol
+        setAnimatorDurationScale("1")
     }
 
     @After
     fun tearDownScreenshot() {
         pendingImageReleased.countDown()
-        ReadmeScreenshotCapture.resetLocale()
+        try {
+            if (animatorDurationScaleSaved) {
+                setAnimatorDurationScale(savedAnimatorDurationScale)
+            }
+        } finally {
+            try {
+                ThemeOverride.resetTheme()
+            } finally {
+                ReadmeScreenshotCapture.resetLocale()
+            }
+        }
     }
 
     @Test
@@ -65,7 +88,24 @@ class GameLoadingScreenshotE2ETest : E2ETestBase() {
             .waitForPageLoadingIndicatorInPlace()
         Thread.sleep(RENDER_SETTLE_MS)
 
-        ReadmeScreenshotCapture.captureRegion("game_loading", contentRegion(scenario))
+        ReadmeScreenshotCapture.captureRegion("game_loading", contentRegion(scenario), nativeResolution = true)
+    }
+
+    private fun setAnimatorDurationScale(value: String?) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val automation = instrumentation.uiAutomation
+        automation.adoptShellPermissionIdentity(Manifest.permission.WRITE_SECURE_SETTINGS)
+        try {
+            check(
+                Settings.Global.putString(
+                    instrumentation.targetContext.contentResolver,
+                    Settings.Global.ANIMATOR_DURATION_SCALE,
+                    value,
+                ),
+            )
+        } finally {
+            automation.dropShellPermissionIdentity()
+        }
     }
 
     private fun contentRegion(scenario: ActivityScenario<GameActivity>): Rect {
