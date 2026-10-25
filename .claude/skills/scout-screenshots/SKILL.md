@@ -7,6 +7,8 @@ description: Перегенерировать README-скриншоты SBG Scou
 
 Работать из корня репозитория по `AGENTS.md`. Подготовка эмулятора: `docs/agent-setup.md`. В PowerShell заменить `./gradlew` на `./gradlew.bat`.
 
+Если работа добавляет самостоятельный экран Scout, включить его в раздел «Скриншоты» README в том же коммите: найти все перечни снимков, добавить e2e-тест с `@ReadmeScreenshot`, имя в `readmeScreenshotNames` в `app/build.gradle.kts`, полученный PNG, ссылку `<img>` с `alt` в `README.md`, запись в `.github/workflows/prepare-release.yml` и проверку списка в `scripts/planChecks.test.mjs`. Обновить перечень в этом скилле. Сохранить исходное разрешение PNG, если уменьшение делает текст или индикатор нечётким; размер в README задать через `width` у `<img>`. Прогнать `:app:verifyReadmeScreenshots` до коммита, чтобы новый файл проверялся в CI.
+
 1. Проверить `adb devices`: нужен подключённый эмулятор в состоянии `device`. Профиль: API 33, Pixel 4, WebView 101, образ `default` без Google Play. Если устройств несколько, выбрать нужный через `ANDROID_SERIAL`.
 2. При подготовке релиза сначала должна быть обновлена версия в `app/build.gradle.kts`: экран настроек показывает `BuildConfig.VERSION_NAME`.
 3. Запустить:
