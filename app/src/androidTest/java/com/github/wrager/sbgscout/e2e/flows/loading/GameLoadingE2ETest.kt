@@ -19,14 +19,14 @@ import org.junit.runner.RunWith
  * полной загрузки игры: bootstrap ScoutBridge ждёт, пока игра уберёт свой экран
  * загрузки `.loading-screen`. При ошибке этапа и при `.fatal-error` надпись,
  * "Reload" и "Scout" остаются. До загрузки HTML-кнопка Scout в настройки игры
- * не вставляется. Блок кнопок стоит внизу экрана выше навигационной панели,
- * в том числе в полноэкранном режиме.
+ * не вставляется. Центр блока кнопок расположен между центром содержимого и нижней
+ * опорой над навигационной панелью, в том числе в полноэкранном режиме.
  *
  * Исходы загрузки изображает фикстура `app-page-loading-screen.html`
  * (`window.__sbgFakeLoading`). Отрицательные проверки идут окном
  * [GameScreen.assertLoadingUiStays], много длиннее интервала опроса bootstrap.
  *
- * 🤖 Generated with Claude Opus 5.5
+ * 🤖 Generated with GPT-6 Sol
  */
 @RunWith(AndroidJUnit4::class)
 class GameLoadingE2ETest : E2ETestBase() {
@@ -47,6 +47,7 @@ class GameLoadingE2ETest : E2ETestBase() {
 
         game
             .waitForLoadingUi(LoadingUiState.hidden(scout = true))
+            .waitForNativeButtonsInPlace()
             .assertLoadingUiStays(LoadingUiState.hidden(scout = true))
         assertFalse("HTML-кнопке некуда вставляться", game.isHtmlButtonInjected())
     }

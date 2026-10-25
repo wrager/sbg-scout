@@ -175,14 +175,19 @@ class GameScreen(
         return shown
     }
 
-    /** Ждёт, пока блок нативных кнопок встанет внизу по центру выше навигационной панели и выреза экрана. */
+    /**
+     * Ждёт, пока блок нативных кнопок окажется посередине между центром содержимого
+     * и нижней опорой выше навигационной панели и выреза экрана.
+     *
+     * 🤖 Generated with GPT-6 Sol
+     */
     fun waitForNativeButtonsInPlace(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen =
         waitForPlacement(
             R.id.nativeButtonsContainer,
             R.dimen.native_buttons_bottom_margin,
             "Блок нативных кнопок",
             timeoutMs,
-        ) { it.isAboveNavigationBar && it.isCentered }
+        ) { it.isHalfwayBetweenCenterAndBottom && it.isCentered }
 
     /** Ждёт полноэкранного режима, в котором у `rootLayout` нет отступа снизу. */
     fun waitForFullscreen(timeoutMs: Long = LOADING_UI_TIMEOUT_MS): GameScreen {
@@ -242,9 +247,12 @@ class GameScreen(
                     shown = view.isShown,
                     left = viewLocation[0],
                     right = viewLocation[0] + view.width,
+                    top = viewLocation[1],
                     bottom = viewLocation[1] + view.height,
                     contentLeft = rootLocation[0] + root.paddingLeft,
                     contentRight = rootLocation[0] + root.width - root.paddingRight,
+                    contentTop = rootLocation[1] + root.paddingTop,
+                    contentBottom = rootLocation[1] + root.height - root.paddingBottom,
                     safeBottom = rootLocation[1] + root.height - safeBottomInset,
                     margin = activity.resources.getDimensionPixelSize(marginId),
                 )
@@ -292,7 +300,9 @@ class GameScreen(
      * Касание элемента страницы с id [elementId] настоящим касанием экрана
      * (Espresso в экранных координатах), а не JS `click()`: переход по такому
      * касанию идёт с действием пользователя и остаётся в истории для «Назад».
-     * Элемент не должен быть под нативными кнопками внизу экрана.
+     * Элемент не должен быть под нативными кнопками.
+     *
+     * 🤖 Generated with GPT-6 Sol
      */
     fun tapElement(elementId: String) {
         val raw =
