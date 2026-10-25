@@ -1,13 +1,17 @@
 package com.github.wrager.sbgscout.e2e.screenshots
 
 import android.Manifest
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Rect
 import android.provider.Settings
+import android.view.View
 import android.view.WindowInsets
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.wrager.sbgscout.GameActivity
+import com.github.wrager.sbgscout.R
 import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
@@ -16,6 +20,7 @@ import com.github.wrager.sbgscout.e2e.screens.LoadingUiState
 import com.github.wrager.sbgscout.e2e.visualregression.ThemeOverride
 import okhttp3.mockwebserver.MockResponse
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -87,8 +92,39 @@ class GameLoadingScreenshotE2ETest : E2ETestBase() {
             .waitForNativeButtonsInPlace()
             .waitForPageLoadingIndicatorInPlace()
         Thread.sleep(RENDER_SETTLE_MS)
+        assertSpinnerAnimates(scenario)
 
         ReadmeScreenshotCapture.captureRegion("game_loading", contentRegion(scenario), nativeResolution = true)
+    }
+
+    private fun assertSpinnerAnimates(scenario: ActivityScenario<GameActivity>) {
+        val initialFrame = indicatorFrame(scenario)
+        try {
+            var moved = false
+            repeat(5) {
+                Thread.sleep(SPINNER_FRAME_INTERVAL_MS)
+                val nextFrame = indicatorFrame(scenario)
+                try {
+                    if (!initialFrame.sameAs(nextFrame)) moved = true
+                } finally {
+                    nextFrame.recycle()
+                }
+            }
+            assertTrue("Индикатор загрузки должен вращаться", moved)
+        } finally {
+            initialFrame.recycle()
+        }
+    }
+
+    private fun indicatorFrame(scenario: ActivityScenario<GameActivity>): Bitmap {
+        var frame: Bitmap? = null
+        scenario.onActivity { activity ->
+            val indicator = activity.findViewById<View>(R.id.pageLoadingIndicator)
+            val bitmap = Bitmap.createBitmap(indicator.width, indicator.height, Bitmap.Config.ARGB_8888)
+            indicator.draw(Canvas(bitmap))
+            frame = bitmap
+        }
+        return checkNotNull(frame) { "Индикатор загрузки недоступен" }
     }
 
     private fun setAnimatorDurationScale(value: String?) {
@@ -125,5 +161,6 @@ class GameLoadingScreenshotE2ETest : E2ETestBase() {
         const val PENDING_IMAGE_STYLE = "position:absolute;top:0;left:0;width:1px;height:1px"
         const val PENDING_IMAGE_TIMEOUT_MS = 30_000L
         const val RENDER_SETTLE_MS = 500L
+        const val SPINNER_FRAME_INTERVAL_MS = 100L
     }
 }
