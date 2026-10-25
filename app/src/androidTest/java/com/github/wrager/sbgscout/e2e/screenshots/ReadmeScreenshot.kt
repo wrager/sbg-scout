@@ -41,10 +41,11 @@ annotation class ReadmeScreenshot
  */
 object ReadmeScreenshotCapture {
     /**
-     * Целевая ширина PNG — 360 px (mdpi-эквивалент).
-     * Текущие ручные скриншоты в README сделаны под эту ширину
-     * (game_settings.png 360x193, settings.png 360x1208, script-manager.png 360x732),
-     * её надо сохранить, чтобы не сломать вёрстку README.
+     * Стандартная ширина PNG - 360 px (mdpi-эквивалент).
+     * game_loading.png сохраняется в исходном разрешении, а в README
+     * отображается с шириной 360 px ради чёткости мелкого текста.
+     *
+     * 🤖 Generated with GPT-6 Sol
      */
     const val TARGET_WIDTH_PX = 360
 
@@ -86,9 +87,11 @@ object ReadmeScreenshotCapture {
     fun captureRegion(
         name: String,
         region: Rect,
+        nativeResolution: Boolean = false,
     ) {
         val full = ScrollStitchCapture.takeScreenshot()
         try {
+            requireDeviceProfile(full)
             val safeRegion = clamp(region, full.width, full.height)
             val cropped =
                 Bitmap.createBitmap(
@@ -99,7 +102,7 @@ object ReadmeScreenshotCapture {
                     safeRegion.height(),
                 )
             try {
-                writePng(name, scaleToTargetWidth(cropped))
+                writePng(name, cropped, nativeResolution)
             } finally {
                 cropped.recycle()
             }
@@ -167,9 +170,15 @@ object ReadmeScreenshotCapture {
         name: String,
         scrollable: RecyclerView,
     ) {
+        val frame = ScrollStitchCapture.takeScreenshot()
+        try {
+            requireDeviceProfile(frame)
+        } finally {
+            frame.recycle()
+        }
         val stitched = ScrollStitchCapture.captureScrollableStitched(scrollable)
         try {
-            writePng(name, scaleToTargetWidth(stitched))
+            writePng(name, stitched)
         } finally {
             stitched.recycle()
         }
@@ -178,18 +187,60 @@ object ReadmeScreenshotCapture {
     private fun writePng(
         name: String,
         bitmap: Bitmap,
+        nativeResolution: Boolean = false,
     ) {
-        val storage = PlatformTestStorageRegistry.getInstance()
-        storage.openOutputFile("readme/$name.png").use { stream ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        val output = if (nativeResolution) bitmap else scaleToTargetWidth(bitmap)
+        try {
+            val storage = PlatformTestStorageRegistry.getInstance()
+            storage.openOutputFile("readme/$name.png").use { stream ->
+                output.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            }
+        } finally {
+            if (output !== bitmap) output.recycle()
         }
     }
 
-    private fun scaleToTargetWidth(bitmap: Bitmap): Bitmap {
+    internal fun scaleToTargetWidth(bitmap: Bitmap): Bitmap {
         if (bitmap.width == TARGET_WIDTH_PX) return bitmap
         val scale = TARGET_WIDTH_PX.toFloat() / bitmap.width
         val targetHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(bitmap, TARGET_WIDTH_PX, targetHeight, true)
+        var nextWidth = TARGET_WIDTH_PX
+        while (nextWidth * 2 < bitmap.width) nextWidth *= 2
+        var current = bitmap
+        try {
+            while (nextWidth > TARGET_WIDTH_PX) {
+                val nextHeight = (bitmap.height * nextWidth.toFloat() / bitmap.width).toInt().coerceAtLeast(1)
+                val next = Bitmap.createScaledBitmap(current, nextWidth, nextHeight, true)
+                if (current !== bitmap) current.recycle()
+                current = next
+                nextWidth /= 2
+            }
+            return Bitmap.createScaledBitmap(current, TARGET_WIDTH_PX, targetHeight, true)
+        } finally {
+            if (current !== bitmap) current.recycle()
+        }
+    }
+
+    private fun requireDeviceProfile(frame: Bitmap) {
+        val resources = InstrumentationRegistry.getInstrumentation().targetContext.resources
+        requireCaptureProfile(
+            frame.width,
+            frame.height,
+            resources.displayMetrics.densityDpi,
+            resources.configuration.fontScale,
+        )
+    }
+
+    internal fun requireCaptureProfile(
+        width: Int,
+        height: Int,
+        densityDpi: Int,
+        fontScale: Float,
+    ) {
+        require(width == 1080 && height == 2280 && densityDpi == 440 && fontScale == 1f) {
+            "README-снимкам нужен Pixel 4 1080x2280, 440 dpi, fontScale=1.0; " +
+                "получено ${width}x$height, $densityDpi dpi, fontScale=$fontScale"
+        }
     }
 
     private fun clamp(

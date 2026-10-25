@@ -32,8 +32,8 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 
 <table>
 <tr>
-<td valign="top"><img src=".github/images/screenshots/game_loading.png" alt="Экран загрузки игры с кнопками SBG Scout"></td>
-<!-- 🤖 Generated with Claude Opus 5.5 -->
+<td valign="top"><img src=".github/images/screenshots/game_loading.png" alt="Экран загрузки игры с кнопками SBG Scout" width="360"></td>
+<!-- 🤖 Generated with GPT-6 Sol -->
 <td valign="top"><img src=".github/images/screenshots/game_settings.png" alt="Настройки игры со встроенной кнопкой SBG Scout"></td>
 </tr>
 <tr>

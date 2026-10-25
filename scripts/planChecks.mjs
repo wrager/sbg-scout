@@ -82,7 +82,7 @@ export function planChecks(files, { full = false, releasePr = false } = {}) {
     } else if (file === 'detekt.yml') {
       add('detekt');
     } else if (/^docs\//.test(file) || /^\.github\/ISSUE_TEMPLATE\//.test(file) ||
-      /^\.github\/images\/screenshots\//.test(file) ||
+      (file.startsWith('.github/images/screenshots/') && file.endsWith('.png')) ||
       ['README.md', 'AGENTS.md', 'CLAUDE.md', 'LICENSE', '.gitignore', 'app/.gitignore',
         '.github/images/icon.png', '.github/images/visual-regression/README.md'].includes(file)) {
       // These files are neither build inputs nor executable agent tooling.

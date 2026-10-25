@@ -15,7 +15,7 @@ import org.junit.runner.RunWith
 
 /**
  * Снимает game-loading-light.png - экран загрузки игры с надписью "Загрузка...",
- * "Настройки SBG Scout" и "Reload" внизу экрана.
+ * "Настройки SBG Scout" и "Reload" между центром и нижней частью экрана.
  *
  * Фикстура app-page-loading-screen-realistic.html не убирает экран загрузки,
  * поэтому игра остаётся в состоянии загрузки. Индикатора загрузки страницы
@@ -23,7 +23,7 @@ import org.junit.runner.RunWith
  *
  * Только light: фикстура без dark CSS.
  *
- * 🤖 Generated with Claude Opus 5.5
+ * 🤖 Generated with GPT-6 Sol
  */
 @RunWith(AndroidJUnit4::class)
 class GameLoadingVisualRegressionTest : E2ETestBase() {

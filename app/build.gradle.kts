@@ -3,6 +3,8 @@ import java.awt.image.BufferedImage
 import java.util.Base64
 import javax.imageio.ImageIO
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 
 plugins {
     alias(libs.plugins.android.application)
@@ -14,6 +16,11 @@ plugins {
 jacoco {
     toolVersion = "0.8.15"
 }
+
+val readmeScreenshotMode =
+    gradle.startParameter.taskNames.any {
+        it.substringAfterLast(":") == "updateReadmeScreenshots"
+    }
 
 android {
     namespace = "com.github.wrager.sbgscout"
@@ -38,17 +45,12 @@ android {
         // coverage-файлы теряются между тестами.
         testInstrumentationRunnerArguments["useTestStorageService"] = "true"
 
-        // Если запускают `./gradlew updateReadmeScreenshots` - фильтруем
-        // androidTest по аннотации @ReadmeScreenshot, чтобы прогонялись только
-        // скриншот-тесты. AGP не позволяет per-task переопределить
-        // testInstrumentationRunnerArguments, поэтому смотрим в startParameter
-        // на configuration phase.
-        val isUpdateScreenshots =
-            gradle.startParameter.taskNames.any {
-                val name = it.substringAfterLast(":")
-                name == "updateReadmeScreenshots"
-            }
-        if (isUpdateScreenshots) {
+        /*
+         * AGP не позволяет задавать testInstrumentationRunnerArguments отдельно
+         * для задач, поэтому режим README-снимков выбирается до конфигурации теста.
+         * 🤖 Generated with GPT-6 Sol
+         */
+        if (readmeScreenshotMode) {
             testInstrumentationRunnerArguments["annotation"] =
                 "com.github.wrager.sbgscout.e2e.screenshots.ReadmeScreenshot"
         }
@@ -257,6 +259,29 @@ tasks.register<JacocoReport>("jacocoCombinedReport") {
 // useTestStorageService=true вытаскивает файлы, записанные через
 // PlatformTestStorageRegistry, в build/outputs/connected_android_test_additional_output/
 // (точная структура подкаталогов зависит от версии AGP, поэтому ищем walkTopDown).
+val readmeScreenshotNames = setOf("game_loading.png", "game_settings.png", "settings.png", "script-manager.png")
+val vrMaxChannelDiff = 8
+val vrMaxDifferentFraction = 0.001
+
+tasks.matching { it.name == "connectedInstrAndroidTest" }.configureEach {
+    if (readmeScreenshotMode) {
+        outputs.upToDateWhen { false }
+        doFirst {
+            val outputsDir =
+                layout.buildDirectory
+                    .dir("outputs/connected_android_test_additional_output")
+                    .get()
+                    .asFile
+            if (outputsDir.exists()) {
+                outputsDir
+                    .walkTopDown()
+                    .filter { it.isFile && it.parentFile.name == "readme" && it.extension == "png" }
+                    .forEach { check(it.delete()) { "Не удалось удалить устаревший скриншот: $it" } }
+            }
+        }
+    }
+}
+
 tasks.register("copyReadmeScreenshots") {
     group = "verification"
     description = "Скопировать README-скриншоты из test outputs в .github/images/screenshots/"
@@ -273,29 +298,20 @@ tasks.register("copyReadmeScreenshots") {
                     "(см. .agents/skills/scout-screenshots/SKILL.md).",
             )
         }
+        val sourcesByName =
+            outputsDir
+                .walkTopDown()
+                .filter { it.isFile && it.parentFile.name == "readme" && it.extension == "png" }
+                .groupBy { it.name }
+        check(sourcesByName.keys == readmeScreenshotNames && sourcesByName.values.all { it.size == 1 }) {
+            "Ожидались ровно ${readmeScreenshotNames.sorted()}; найдены ${sourcesByName.mapValues { it.value.size }}"
+        }
         val targetDir = rootProject.file(".github/images/screenshots")
         targetDir.mkdirs()
-        val expectedNames = setOf("game_loading.png", "game_settings.png", "settings.png", "script-manager.png")
-        val copied = mutableListOf<String>()
-        outputsDir
-            .walkTopDown()
-            .filter { it.isFile && it.name in expectedNames }
-            .forEach { source ->
-                val target = File(targetDir, source.name)
-                source.copyTo(target, overwrite = true)
-                copied += source.name
-            }
-        if (copied.isEmpty()) {
-            error(
-                "В $outputsDir не найдено ни одного из ${expectedNames.joinToString()}. " +
-                    "Проверьте, что скриншот-тесты с @ReadmeScreenshot прошли успешно.",
-            )
+        for (name in readmeScreenshotNames.sorted()) {
+            sourcesByName.getValue(name).single().copyTo(File(targetDir, name), overwrite = true)
         }
-        logger.lifecycle("Скопировано в .github/images/screenshots/: ${copied.sorted().joinToString()}")
-        val missing = expectedNames - copied.toSet()
-        if (missing.isNotEmpty()) {
-            logger.warn("Не найдены: ${missing.joinToString()}. Соответствующие тесты упали или не запускались.")
-        }
+        logger.lifecycle("Скопировано в .github/images/screenshots/: ${readmeScreenshotNames.sorted().joinToString()}")
     }
 }
 
@@ -318,11 +334,15 @@ tasks.register("updateReadmeScreenshots") {
 // сравнивают actual с baseline в .github/images/visual-regression/ (в режиме
 // проверки), либо перезаписывают baseline (в режиме обновления).
 //
-// Параметры diff'а - см. vrMaxChannelDiff и vrMaxDifferentFraction ниже.
-
 val vrBaselineDirRel = ".github/images/visual-regression"
-val vrMaxChannelDiff = 8
-val vrMaxDifferentFraction = 0.001
+
+tasks.register("checkReadmeLoadingSpinner") {
+    group = "verification"
+    description = "Проверить форму индикатора загрузки в README-скриншоте"
+    doLast {
+        validatePageLoadingSpinner(rootProject.file(".github/images/screenshots/game_loading.png"))
+    }
+}
 
 tasks.register("compareVisualRegressionBaselines") {
     group = "verification"
@@ -693,6 +713,37 @@ fun compareVisualRegressionImages(
         totalPixels = width * height,
     )
 }
+
+fun validatePageLoadingSpinner(file: File) {
+    val image = ImageIO.read(file) ?: error("Не читается скриншот: $file")
+    val pixelsPerDp = pixel4PixelsPerDp(image)
+    val centerX = image.width - 32 * pixelsPerDp
+    val centerY = image.height - 32 * pixelsPerDp
+    val innerRadiusSquared = 7 * pixelsPerDp * 7 * pixelsPerDp
+    val ringInnerRadiusSquared = 9 * pixelsPerDp * 9 * pixelsPerDp
+    val ringOuterRadiusSquared = 12 * pixelsPerDp * 12 * pixelsPerDp
+    var darkCenterPixels = 0
+    var darkRingPixels = 0
+    for (y in floor(centerY - 12 * pixelsPerDp).toInt()..ceil(centerY + 12 * pixelsPerDp).toInt()) {
+        for (x in floor(centerX - 12 * pixelsPerDp).toInt()..ceil(centerX + 12 * pixelsPerDp).toInt()) {
+            val distanceSquared = (x - centerX) * (x - centerX) + (y - centerY) * (y - centerY)
+            val pixel = image.getRGB(x, y)
+            val dark =
+                ((pixel ushr 16) and 0xFF) < 150 &&
+                    ((pixel ushr 8) and 0xFF) < 150 &&
+                    (pixel and 0xFF) < 150
+            if (dark && distanceSquared <= innerRadiusSquared) darkCenterPixels++
+            if (dark && distanceSquared in ringInnerRadiusSquared..ringOuterRadiusSquared) darkRingPixels++
+        }
+    }
+    check(darkCenterPixels == 0 && darkRingPixels > 0) {
+        "Индикатор загрузки на $file должен быть дугой с пустым центром: " +
+            "$darkCenterPixels тёмных пикселей внутри, $darkRingPixels тёмных пикселей на дуге"
+    }
+    check(image.width >= 720) { "README-скриншот $file имеет ширину ${image.width}px; нужно не менее 720px" }
+}
+
+fun pixel4PixelsPerDp(image: BufferedImage): Double = image.width * 440.0 / (1080 * 160)
 
 private fun vrPixelDiffers(
     p1: Int,

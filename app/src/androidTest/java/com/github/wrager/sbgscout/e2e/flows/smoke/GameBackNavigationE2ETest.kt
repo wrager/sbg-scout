@@ -128,8 +128,8 @@ class GameBackNavigationE2ETest : E2ETestBase() {
      * Настоящий тап, а не JS-клик: без user activation WebView 101 помечает
      * запись `/login` в истории пропускаемой, и `canGoBack()` ложен. Точка
      * в левой четверти ширины на середине высоты не задета нативными кнопками,
-     * которые стоят внизу по центру.
-     * 🤖 Generated with Claude Fable 5.1
+     * расположенными по центру ширины экрана.
+     * 🤖 Generated with GPT-6 Sol
      */
     private fun tapWebView() {
         val location = IntArray(2)

@@ -102,6 +102,7 @@ class GameActivity : AppCompatActivity() {
     @VisibleForTesting
     internal var isFullscreen = false
         private set
+    private var safeBottomInset = 0
     private val gameSettingsReader = GameSettingsReader()
     private var lastAppliedTheme: GameSettingsReader.ThemeMode? = null
     private var lastAppliedLanguage: String? = null
@@ -337,6 +338,10 @@ class GameActivity : AppCompatActivity() {
                 .getDefaultSharedPreferences(this)
                 .getBoolean(KEY_FULLSCREEN_MODE, false)
 
+        val nativeButtons = findViewById<View>(R.id.nativeButtonsContainer)
+        rootLayout.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateNativeButtonsPosition() }
+        nativeButtons.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateNativeButtonsPosition() }
+
         // Edge-to-edge всегда включён (обязательно на Android 15+).
         // В неполноэкранном режиме сдвигаем корневой layout паддингами,
         // чтобы WebView не залезал под системные бары.
@@ -354,12 +359,13 @@ class GameActivity : AppCompatActivity() {
                     maxOf(barInsets.bottom, imeInsets.bottom),
                 )
             }
-            updateBottomMargins(
+            safeBottomInset =
                 windowInsets
                     .getInsetsIgnoringVisibility(
                         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
-                    ).bottom,
-            )
+                    ).bottom
+            updateBottomMargins(safeBottomInset)
+            updateNativeButtonsPosition()
             windowInsets
         }
     }
@@ -807,6 +813,20 @@ class GameActivity : AppCompatActivity() {
                 this.bottomMargin = bottomMargin
             }
         }
+    }
+
+    private fun updateNativeButtonsPosition() {
+        val nativeButtons = findViewById<View>(R.id.nativeButtonsContainer)
+        if (rootLayout.height == 0 || nativeButtons.height == 0) return
+
+        val contentCenter =
+            (rootLayout.paddingTop + rootLayout.height - rootLayout.paddingBottom) / 2f
+        val bottomReferenceCenter =
+            rootLayout.height -
+                maxOf(rootLayout.paddingBottom, safeBottomInset) -
+                resources.getDimensionPixelSize(R.dimen.native_buttons_bottom_margin) -
+                nativeButtons.height / 2f
+        nativeButtons.translationY = (contentCenter - bottomReferenceCenter) / 2f
     }
 
     private fun openSettings() {

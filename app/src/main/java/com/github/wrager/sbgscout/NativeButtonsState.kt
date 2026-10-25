@@ -19,11 +19,13 @@ internal enum class PageLoadState {
 }
 
 /**
- * Надпись и кнопки блока `nativeButtonsContainer` внизу экрана поверх WebView.
+ * Надпись и кнопки блока `nativeButtonsContainer` поверх WebView.
  *
  * @property loadingLabel надпись о загрузке игры.
  * @property reloadButton "Reload": загрузка страницы игры.
  * @property scoutButton нативная "Scout": экран настроек приложения.
+ *
+ * 🤖 Generated with GPT-6 Sol
  */
 internal data class NativeButtonsState(
     val loadingLabel: Boolean,

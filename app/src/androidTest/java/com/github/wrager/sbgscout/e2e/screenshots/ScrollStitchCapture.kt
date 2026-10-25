@@ -12,10 +12,12 @@ import androidx.test.platform.app.InstrumentationRegistry
  * длинный bitmap.
  *
  * Без масштабирования и без записи на диск - вызывающая сторона решает, что
- * делать с результатом (README-тесты сохраняют сжатый PNG в 360px-ширину для
- * вёрстки документа, visual-regression-тесты пишут native-разрешение для
+ * делать с результатом (README-тесты сохраняют PNG в нужном для снимка
+ * разрешении, visual-regression-тесты пишут native-разрешение для
  * pixel-diff). Pixel-overlap detection при stitching уже есть здесь
  * ([pixelsTolerantMatch]) и переиспользуется в обеих ветках.
+ *
+ * 🤖 Generated with GPT-6 Sol
  */
 object ScrollStitchCapture {
     /**
