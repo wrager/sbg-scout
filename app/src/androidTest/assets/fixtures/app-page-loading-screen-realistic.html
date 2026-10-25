@@ -13,13 +13,18 @@
         .loading-screen {
             box-sizing: border-box;
             height: 100%;
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            position: relative;
         }
-        .loading-screen__tasks { list-style: none; margin: 0; padding: 0; font-size: 16px; line-height: 2; }
+        .loading-screen__tasks {
+            position: absolute;
+            top: 26%;
+            left: 6.4%;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            font-size: 16px;
+            line-height: 1.4;
+        }
         .loading-screen__task { color: #999; }
         .loading-screen__task.success { color: #222; }
         .loading-screen__task.loading { color: #222; font-weight: bold; }

@@ -19,7 +19,9 @@ import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import com.github.wrager.sbgscout.e2e.screens.LoadingUiState
 import com.github.wrager.sbgscout.e2e.visualregression.ThemeOverride
 import okhttp3.mockwebserver.MockResponse
+import org.json.JSONArray
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -86,11 +88,23 @@ class GameLoadingScreenshotE2ETest : E2ETestBase() {
         CookieFixtures.injectFakeAuth(server.baseUrl)
 
         val scenario = launchGameActivity()
-        GameScreen(scenario, idling)
+        val game = GameScreen(scenario, idling)
+        game
             .waitForFakePage("app")
             .waitForLoadingUi(LoadingUiState.LOADING)
             .waitForNativeButtonsInPlace()
             .waitForPageLoadingIndicatorInPlace()
+        val steps =
+            JSONArray(
+                game.evaluateJs(
+                    "(function(){var rows=document.querySelectorAll('.loading-screen__task');" +
+                        "var first=rows[0].getBoundingClientRect();var second=rows[1].getBoundingClientRect();" +
+                        "return [first.left/innerWidth,first.top/innerHeight,second.top-first.top];})()",
+                ),
+            )
+        assertEquals("Отступ этапов загрузки слева", 0.064, steps.getDouble(0), 0.02)
+        assertEquals("Отступ этапов загрузки сверху", 0.26, steps.getDouble(1), 0.02)
+        assertEquals("Интервал этапов загрузки", 22.0, steps.getDouble(2), 3.0)
         Thread.sleep(RENDER_SETTLE_MS)
         assertSpinnerAnimates(scenario)
 
