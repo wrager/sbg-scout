@@ -464,6 +464,8 @@ WebView-экраны (`game-settings`, `login`, `game-loading`) только в 
 
 README-снимки создаются локально через `updateReadmeScreenshots` при подготовке релиза. `game_loading.png` сохраняется в исходной ширине 1080 px и отображается в README с шириной 360 px. `game_settings.png` может использовать локальный приватный snapshot из `refs/game/private`; mock-вариант настроек отдельно покрыт VR baseline `game-settings-light.png`.
 
+Перед захватом README-снимка проверяются физический кадр 1080x2280, плотность 440 dpi и масштаб шрифта 1.0. Несовпадение останавливает генерацию с фактическими параметрами устройства. Снимки шириной 360 px уменьшаются через промежуточные размеры, кратные итоговому, с коэффициентом не более двух за шаг: для 1080 px это 1080 -> 720 -> 360. Это сохраняет тонкие штрихи текста, которые теряются при уменьшении втрое за один проход. Проверка тонких линий по обеим осям и при разных сдвигах входит в `ReadmeScreenshotCaptureTest`.
+
 Скилл `scout-visual-regression` описывает проверку и обновление baseline для Codex и Claude Code (см. [общий источник](../.agents/skills/scout-visual-regression/SKILL.md)).
 
 ### CI
@@ -489,4 +491,4 @@ RELEASE_NOTES.md и .release-notes.json формируются общей ком
 связывает комментарий, main, версию и хеш содержимого, а publish повторяет её
 на SHA выпуска. Подробности: [процесс релиза](releasing.md).
 
-🤖 Generated with GPT-6 Sol
+🤖 Generated with GPT-6.1 Sol
