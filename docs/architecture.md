@@ -486,9 +486,10 @@ README-снимки создаются локально через `updateReadme
 
 `pr-title.yml` остаётся независимым обязательным workflow для всех PR; `release.yml` обрабатывает каждый push main через release-please и публикует APK только при `release_created`. Подробная матрица и локальные команды — [ci-checks.md](ci-checks.md).
 
-Пользовательские release notes хранятся в помеченном комментарии release PR;
-RELEASE_NOTES.md и .release-notes.json формируются общей командой. Проверка
-связывает комментарий, main, версию и хеш содержимого, а publish повторяет её
+Черновые release notes и подтверждения хранятся в помеченном комментарии release PR;
+после редактуры пользователя финальный блок notes помещается в описание PR.
+RELEASE_NOTES.md и .release-notes.json схемы 2 формируются общей командой. Проверка
+связывает финальные notes, main, версию и хеш содержимого, а publish повторяет её
 на SHA выпуска. Подробности: [процесс релиза](releasing.md).
 
 🤖 Generated with GPT-6.1 Sol
