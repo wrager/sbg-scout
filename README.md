@@ -69,8 +69,9 @@ Android-клиент для игры [SBG](https://sbg-game.ru/) со встро
 | Подготовка release PR | `$scout-release` | `/scout-release` |
 | Анонс изменений | `$scout-announce 1.2.0` | `/scout-announce 1.2.0` |
 
-Release Please предлагает версию в release PR. Пользовательские notes редактируются
-в его комментарии; общая команда или Actions / Prepare release готовит файл notes,
+Release Please предлагает версию в release PR. Черновые notes собираются в комментарии;
+после редактуры пользователя финальный текст помещается в описание PR.
+Общая команда или Actions / Prepare release готовит файл notes,
 SVP и скриншоты. После проверок ручной squash merge запускает выпуск APK.
 [Процесс релиза](docs/releasing.md) одинаков для ручной работы и агентов.
 
