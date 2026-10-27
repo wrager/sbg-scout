@@ -8,28 +8,22 @@ import com.github.wrager.sbgscout.e2e.E2ETestBase
 import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Снимает game_settings.png — секцию настроек игры с инжектированной кнопкой
- * "SBG Scout".
+ * Приватный snapshot при наличии сохраняет реалистичный вид README, а публичный
+ * mock обеспечивает контекст игровых настроек в CI без приватных файлов.
+ * Заголовок, язык и тема проверяются внутри crop, чтобы снимок не потерял окружение кнопки Scout.
  *
- * Источник DOM:
- * - Если есть `fixtures/game-snapshot.html` (генерируется gradle-таском
- *   `inlineGameSnapshot` из локального snapshot реальной страницы игры в
- *   `refs/game/private/`) — берётся он, рендер близок к реальной игре.
- * - Иначе fallback на минимальный mock
- *   `fixtures/app-page-with-settings-content-realistic.html` - в нём только
- *   контейнер `.settings-content` для инжекции кнопки, без копий игровых
- *   стилей и контента. На fallback-скриншот попадает только наша кнопка.
- *
- * Crop: наша инжектированная `.settings-section__item` + первая секция настроек
- * игры (h4 + 2-3 пункта). Полный список настроек игры на скриншоте не нужен -
- * README показывает компактный пример "вот так наша кнопка встроена".
+ * 🤖 Generated with GPT-6.1 Sol
  */
 @RunWith(AndroidJUnit4::class)
 class GameSettingsScreenshotE2ETest : E2ETestBase() {
@@ -46,9 +40,26 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
     @Test
     @ReadmeScreenshot
     fun captureGameSettingsScreenshot() {
-        server.gamePageBody =
+        captureGameSettings(
             AssetLoader.readOrNull("fixtures/game-snapshot.html")
-                ?: AssetLoader.read("fixtures/app-page-with-settings-content-realistic.html")
+                ?: AssetLoader.read("fixtures/app-page-with-settings-content-realistic.html"),
+            saveScreenshot = true,
+        )
+    }
+
+    @Test
+    fun fallbackRetainsGameSettingsContext() {
+        captureGameSettings(
+            AssetLoader.read("fixtures/app-page-with-settings-content-realistic.html"),
+            saveScreenshot = false,
+        )
+    }
+
+    private fun captureGameSettings(
+        body: String,
+        saveScreenshot: Boolean,
+    ) {
+        server.gamePageBody = body
         CookieFixtures.injectFakeAuth(server.baseUrl)
 
         val scenario = launchGameActivity()
@@ -76,7 +87,70 @@ class GameSettingsScreenshotE2ETest : E2ETestBase() {
             screenWidth = wv.width
         }
         val region = Rect(0, 0, screenWidth, anchor.bottom)
-        ReadmeScreenshotCapture.captureRegion("game_settings", region)
+        assertGameSettingsContextInFrame(game, region)
+        if (saveScreenshot) ReadmeScreenshotCapture.captureRegion("game_settings", region)
+    }
+
+    private fun assertGameSettingsContextInFrame(
+        game: GameScreen,
+        region: Rect,
+    ) {
+        val context =
+            JSONArray(
+                game.evaluateJs(
+                    """
+                    (function() {
+                        var title = document.querySelector('.settings h3');
+                        var section = document.querySelector('.settings-section__header');
+                        var language = document.querySelector('select[data-setting="lang"]');
+                        var theme = document.querySelector('select[data-setting="theme"]');
+                        function label(select) {
+                            var parent = select && select.closest('label');
+                            var text = parent && parent.querySelector('span');
+                            return text ? text.textContent.trim() : null;
+                        }
+                        function selected(select) {
+                            var option = select && select.options[select.selectedIndex];
+                            return option ? option.textContent.trim() : null;
+                        }
+                        return [title ? title.textContent.trim() : null,
+                            section ? section.textContent.trim() : null,
+                            label(language), label(theme), selected(language), selected(theme)];
+                    })()
+                    """.trimIndent(),
+                ),
+            )
+        val expected = listOf("Настройки", "Общее", "Язык", "Тема", "Русский", "Авто")
+        expected.forEachIndexed { index, text ->
+            assertEquals("Контекст игровых настроек в README, элемент $index", text, context.optString(index))
+        }
+        val selectors =
+            listOf(
+                ".settings h3",
+                ".settings-section__header",
+                "select[data-setting=\"lang\"]",
+                "select[data-setting=\"theme\"]",
+                "#sbg-scout-settings-btn",
+            )
+        for (selector in selectors) {
+            val bounds =
+                ReadmeScreenshotCapture.webBoundsInScreen(
+                    game.webView(),
+                    """
+                    (function() {
+                        var element = document.querySelector(${JSONObject.quote(selector)});
+                        if (!element) return JSON.stringify({error: 'Missing settings context'});
+                        var rect = element.getBoundingClientRect();
+                        return JSON.stringify({left: rect.left, top: rect.top,
+                            width: rect.width, height: rect.height});
+                    })()
+                    """.trimIndent(),
+                )
+            assertTrue(
+                "Элемент $selector должен целиком входить в README-снимок: $bounds внутри $region",
+                bounds.width() > 0 && bounds.height() > 0 && region.contains(bounds),
+            )
+        }
     }
 
     private fun waitForButtonInjected(game: GameScreen) {

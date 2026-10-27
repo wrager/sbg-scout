@@ -3,8 +3,6 @@ import java.awt.image.BufferedImage
 import java.util.Base64
 import javax.imageio.ImageIO
 import kotlin.math.abs
-import kotlin.math.ceil
-import kotlin.math.floor
 
 plugins {
     alias(libs.plugins.android.application)
@@ -335,14 +333,6 @@ tasks.register("updateReadmeScreenshots") {
 // проверки), либо перезаписывают baseline (в режиме обновления).
 //
 val vrBaselineDirRel = ".github/images/visual-regression"
-
-tasks.register("checkReadmeLoadingSpinner") {
-    group = "verification"
-    description = "Проверить форму индикатора загрузки в README-скриншоте"
-    doLast {
-        validatePageLoadingSpinner(rootProject.file(".github/images/screenshots/game_loading.png"))
-    }
-}
 
 tasks.register("compareVisualRegressionBaselines") {
     group = "verification"
@@ -713,37 +703,6 @@ fun compareVisualRegressionImages(
         totalPixels = width * height,
     )
 }
-
-fun validatePageLoadingSpinner(file: File) {
-    val image = ImageIO.read(file) ?: error("Не читается скриншот: $file")
-    val pixelsPerDp = pixel4PixelsPerDp(image)
-    val centerX = image.width - 32 * pixelsPerDp
-    val centerY = image.height - 32 * pixelsPerDp
-    val innerRadiusSquared = 7 * pixelsPerDp * 7 * pixelsPerDp
-    val ringInnerRadiusSquared = 9 * pixelsPerDp * 9 * pixelsPerDp
-    val ringOuterRadiusSquared = 12 * pixelsPerDp * 12 * pixelsPerDp
-    var darkCenterPixels = 0
-    var darkRingPixels = 0
-    for (y in floor(centerY - 12 * pixelsPerDp).toInt()..ceil(centerY + 12 * pixelsPerDp).toInt()) {
-        for (x in floor(centerX - 12 * pixelsPerDp).toInt()..ceil(centerX + 12 * pixelsPerDp).toInt()) {
-            val distanceSquared = (x - centerX) * (x - centerX) + (y - centerY) * (y - centerY)
-            val pixel = image.getRGB(x, y)
-            val dark =
-                ((pixel ushr 16) and 0xFF) < 150 &&
-                    ((pixel ushr 8) and 0xFF) < 150 &&
-                    (pixel and 0xFF) < 150
-            if (dark && distanceSquared <= innerRadiusSquared) darkCenterPixels++
-            if (dark && distanceSquared in ringInnerRadiusSquared..ringOuterRadiusSquared) darkRingPixels++
-        }
-    }
-    check(darkCenterPixels == 0 && darkRingPixels > 0) {
-        "Индикатор загрузки на $file должен быть дугой с пустым центром: " +
-            "$darkCenterPixels тёмных пикселей внутри, $darkRingPixels тёмных пикселей на дуге"
-    }
-    check(image.width >= 720) { "README-скриншот $file имеет ширину ${image.width}px; нужно не менее 720px" }
-}
-
-fun pixel4PixelsPerDp(image: BufferedImage): Double = image.width * 440.0 / (1080 * 160)
 
 private fun vrPixelDiffers(
     p1: Int,

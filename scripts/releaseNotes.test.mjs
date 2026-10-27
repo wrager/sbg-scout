@@ -17,6 +17,11 @@ import {
   renderLocal,
   digest,
   main,
+  BUNDLED_SVP_START,
+  BUNDLED_SVP_END,
+  BUNDLED_SVP_TEXT,
+  updateBundledSvpDraft,
+  validateBundledSvpNote,
 } from './releaseNotes.mjs';
 import { prepareRelease, runCommands } from './prepareRelease.mjs';
 
@@ -184,9 +189,10 @@ for (const mutate of [
   });
 }
 
-function apiFixture(routes) {
+function apiFixture(routes, options = {}) {
   const requests = [];
   const api = new ReleaseNotes(repository, {
+    ...options,
     token: 'secret-token',
     fetcher: async (url, options) => {
       const path = url.replace(`https://api.github.com/repos/${repository}`, '');
@@ -222,6 +228,167 @@ test('reads final notes from the release PR description instead of the draft com
   const current = await api.state({ ...pull, body: finalDescription });
   assert.equal(current.notes, '## Исправления\n\n- Добавлен ручной текст.');
   assert.ok(requests.every((request) => !request.path.startsWith('/issues/')));
+});
+
+const bundledSvpPath = 'app/src/main/assets/scripts/sbg-vanilla-plus.user.js';
+const bundledBefore = `/contents/${encodeURIComponent(bundledSvpPath)}?ref=refs%2Ftags%2Fv1.2.0`;
+const bundledAfter = `/contents/${encodeURIComponent(bundledSvpPath)}?ref=${head}`;
+const bundleHistory = `/commits?path=${encodeURIComponent(bundledSvpPath)}&sha=${head}&per_page=100&page=1`;
+const bundleComparison = `/compare/refs%2Ftags%2Fv1.2.0...${head}?per_page=100&page=1`;
+const bundleCommits = ['c'.repeat(40), 'd'.repeat(40)];
+const bundledNote = `- ${BUNDLED_SVP_TEXT} [#25](https://github.com/${repository}/pull/25), [#44](https://github.com/${repository}/pull/44)`;
+
+function bundledSvpRoutes() {
+  const merged = (number) => ({ ...pull, number, merged_at: '2026-10-27' });
+  return {
+    ...releaseStateRoutes(),
+    '/releases?per_page=100&page=1': [
+      { tag_name: 'v1.2.0', draft: false, prerelease: false },
+      { tag_name: 'v1.2.9', draft: true, prerelease: false },
+      { tag_name: 'v1.2.8', draft: false, prerelease: true },
+      { tag_name: 'v2.0.0', draft: false, prerelease: false },
+    ],
+    [bundledBefore]: { type: 'file', sha: base },
+    [bundledAfter]: { type: 'file', sha: head },
+    [bundleComparison]: { status: 'ahead', behind_by: 0, total_commits: 3, commits: [...bundleCommits, head].map((sha) => ({ sha })) },
+    [bundleHistory]: [...bundleCommits, base].map((sha) => ({ sha })),
+    [`/commits/${bundleCommits[0]}/pulls?per_page=100&page=1`]: [merged(44)],
+    [`/commits/${bundleCommits[1]}/pulls?per_page=100&page=1`]: [merged(44), merged(25), pull, { ...merged(80), base: { ref: 'other' } }],
+  };
+}
+
+test('bundled SVP note groups every update PR once since the previous published stable release', async () => {
+  const { api, requests } = apiFixture(bundledSvpRoutes(), { bundledSvpPath });
+  assert.equal(await api.bundledSvpNote(pull, '1.3.0'), bundledNote);
+  assert.ok(requests.every((request) => request.method === 'GET'));
+  assert.ok(!requests.some((request) => request.path.includes(`/commits/${base}/pulls`)));
+});
+
+test('bundled SVP unchanged bytes produce no note and require no commit history', async () => {
+  const routes = bundledSvpRoutes();
+  routes[bundledAfter].sha = routes[bundledBefore].sha;
+  const { api, requests } = apiFixture(routes, { bundledSvpPath });
+  assert.equal(await api.bundledSvpNote(pull, '1.3.0'), '');
+  assert.ok(!requests.some((request) => /\/(?:compare|commits)/.test(request.path)));
+});
+
+test('bundled SVP includes merged update PRs from forks and deleted source repositories', async () => {
+  const routes = bundledSvpRoutes();
+  routes[`/commits/${bundleCommits[0]}/pulls?per_page=100&page=1`][0].head = {
+    ...pull.head, repo: { full_name: 'contributor/sbg-scout' },
+  };
+  routes[`/commits/${bundleCommits[1]}/pulls?per_page=100&page=1`] = [{
+    ...pull, number: 25, merged_at: '2026-10-27', head: { ...pull.head, repo: null },
+  }];
+  const { api } = apiFixture(routes, { bundledSvpPath });
+  assert.equal(await api.bundledSvpNote(pull, '1.3.0'), bundledNote);
+});
+
+test('bundled SVP reads every comparison and file-history page', async () => {
+  const routes = bundledSvpRoutes();
+  const comparisonPrefix = bundleComparison.slice(0, -1);
+  const historyPrefix = bundleHistory.slice(0, -1);
+  routes[bundleComparison] = {
+    status: 'ahead', behind_by: 0, total_commits: 102,
+    commits: Array.from({ length: 100 }, (_, index) => ({ sha: (index + 1).toString(16).padStart(40, '0') })),
+  };
+  routes[`${comparisonPrefix}2`] = { ...routes[bundleComparison], commits: bundleCommits.map((sha) => ({ sha })) };
+  routes[bundleHistory] = Array.from({ length: 100 }, () => ({ sha: base }));
+  routes[`${historyPrefix}2`] = bundleCommits.map((sha) => ({ sha }));
+  const { api, requests } = apiFixture(routes, { bundledSvpPath });
+  assert.equal(await api.bundledSvpNote(pull, '1.3.0'), bundledNote);
+  assert.ok(requests.some((request) => request.path === `${comparisonPrefix}2`));
+  assert.ok(requests.some((request) => request.path === `${historyPrefix}2`));
+});
+
+for (const [condition, change, message] of [
+  ['diverged release', (routes) => { routes[bundleComparison].status = 'diverged'; }, /descend/],
+  ['incomplete range', (routes) => { routes[bundleComparison].total_commits = 4; }, /Incomplete/],
+  ['missing update history', (routes) => { routes[bundleHistory] = [{ sha: base }]; }, /no update commits/],
+  ['unmerged update', (routes) => { routes[`/commits/${bundleCommits[0]}/pulls?per_page=100&page=1`] = [pull]; }, /separate merged PR/],
+  ['update inside release PR', (routes) => { routes[`/commits/${bundleCommits[0]}/pulls?per_page=100&page=1`] = [{ ...pull, merged_at: '2026-10-27' }]; }, /separate merged PR/],
+]) {
+  test(`bundled SVP refuses ${condition}`, async () => {
+    const routes = bundledSvpRoutes();
+    change(routes);
+    const { api } = apiFixture(routes, { bundledSvpPath });
+    await assert.rejects(api.bundledSvpNote(pull, '1.3.0'), message);
+  });
+}
+
+test('bundled SVP automatic draft preserves user text and removes a stale update', () => {
+  const original = `${body}\nПодтверждение пользователя.\n`;
+  const updated = updateBundledSvpDraft(original, bundledNote);
+  assert.ok(updated.startsWith(original));
+  assert.equal(updated.split(BUNDLED_SVP_START).length, 2);
+  assert.equal(updateBundledSvpDraft(updated, bundledNote), updated);
+  const replacement = bundledNote.replace('#44', '#45').replace('/44)', '/45)');
+  assert.equal(updateBundledSvpDraft(updated, replacement), updated.replace(bundledNote, replacement));
+  assert.equal(updateBundledSvpDraft(updated, ''), original);
+  assert.equal(updateBundledSvpDraft(original, ''), original);
+  assert.throws(() => updateBundledSvpDraft(`${BUNDLED_SVP_START}${BUNDLED_SVP_START}`, bundledNote), /Invalid automatic/);
+  assert.throws(() => updateBundledSvpDraft(`${BUNDLED_SVP_END}${BUNDLED_SVP_START}`, bundledNote), /reversed/);
+});
+
+test('bundled SVP final notes require one exact grouped item in Возможности', () => {
+  const final = `## Возможности\n\n${bundledNote}\n\n## Исправления\n\n- Исправлена панель.`;
+  assert.doesNotThrow(() => validateBundledSvpNote(final, bundledNote));
+  assert.doesNotThrow(() => validateBundledSvpNote(state.notes, ''));
+  for (const invalid of [state.notes, `${final}\n${bundledNote}`, final.replace(', [#44](https://github.com/wrager/example/pull/44)', ''), `## Исправления\n\n${bundledNote}`]) {
+    assert.throws(() => validateBundledSvpNote(invalid, bundledNote));
+  }
+  assert.throws(() => validateBundledSvpNote(final, ''), /exactly once/);
+});
+
+test('bundled SVP preparation checks final notes without rewriting the description', async () => {
+  const { api, requests } = apiFixture(bundledSvpRoutes(), { bundledSvpPath });
+  await assert.rejects(api.state(pull), /Final Vanilla/);
+  const complete = { ...pull, body: description.replace('## Исправления', `## Возможности\n\n${bundledNote}\n\n## Исправления`) };
+  assert.ok((await api.state(complete)).notes.includes(bundledNote));
+  assert.ok(requests.every((request) => request.method === 'GET'));
+});
+
+test('bundled SVP draft automation updates only its owned comment block and is idempotent', async () => {
+  const routes = bundledSvpRoutes();
+  routes['/issues/comments/123'] = (options) => {
+    const updated = { ...comment, body: JSON.parse(options.body).body };
+    routes['/issues/60/comments?per_page=100&page=1'] = [updated];
+    return updated;
+  };
+  const { api, requests } = apiFixture(routes, { bundledSvpPath });
+  const updated = await api.ensure(pull, 'unused template');
+  assert.equal(updated.body, updateBundledSvpDraft(comment.body, bundledNote));
+  assert.deepEqual(await api.ensure(pull, 'unused template'), updated);
+  const writes = requests.filter((request) => request.method !== 'GET');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].path, '/issues/comments/123');
+});
+
+test('bundled SVP new rules preserve recovery of an already prepared legacy release', async () => {
+  const { api, requests } = apiFixture(retryRoutes(), { bundledSvpPath });
+  assert.deepEqual(await api.retryTarget('v1.3.0'), { sha: head, tag_name: 'v1.3.0' });
+  assert.ok(requests.every((request) => request.method === 'GET'));
+});
+
+test('bundled SVP preparation preserves the separately committed bundle', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'release-bundle-readonly-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  mkdirSync(join(directory, 'scripts'));
+  const bundle = join(directory, bundledSvpPath);
+  mkdirSync(join(directory, 'app/src/main/assets/scripts'), { recursive: true });
+  writeFileSync(join(directory, 'scripts/updateBundledSvp.mjs'),
+    `import { writeFileSync } from 'node:fs'; if (!process.argv.includes('--check')) writeFileSync(${JSON.stringify(bundledSvpPath)}, 'rewritten by preparation');`);
+  const config = JSON.parse(readFileSync(new URL('../.github/release-notes.json', import.meta.url), 'utf8'));
+  const workflow = readFileSync(new URL('../.github/workflows/prepare-release.yml', import.meta.url), 'utf8');
+  const workflowCommand = workflow.match(/- run: (node scripts\/updateBundledSvp\.mjs[^\r\n]*)/)?.[1];
+  assert.ok(workflowCommand);
+  for (const command of [config.beforeNotes[0], workflowCommand.split(' ')]) {
+    writeFileSync(bundle, 'separately approved bundle');
+    runCommands([command], undefined, { cwd: directory });
+    assert.equal(readFileSync(bundle, 'utf8'), 'separately approved bundle');
+  }
+  assert.ok(!config.artifacts.includes(bundledSvpPath));
+  assert.doesNotMatch(workflow, /cp release-materials\/app\/src\/main\/assets/);
 });
 
 test('final notes remain usable when the draft comment is missing or incomplete', async () => {

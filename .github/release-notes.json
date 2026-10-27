@@ -1,8 +1,8 @@
 {
   "repository": "wrager/sbg-scout",
   "android": true,
+  "bundledSvpPath": "app/src/main/assets/scripts/sbg-vanilla-plus.user.js",
   "artifacts": [
-    "app/src/main/assets/scripts/sbg-vanilla-plus.user.js",
     ".github/images/screenshots/game_loading.png",
     ".github/images/screenshots/game_settings.png",
     ".github/images/screenshots/script-manager.png",
@@ -22,7 +22,8 @@
   "beforeNotes": [
     [
       "node",
-      "scripts/updateBundledSvp.mjs"
+      "scripts/updateBundledSvp.mjs",
+      "--check"
     ],
     [
       "./gradlew",

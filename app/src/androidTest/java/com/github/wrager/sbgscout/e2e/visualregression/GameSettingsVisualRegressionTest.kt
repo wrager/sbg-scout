@@ -14,23 +14,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Снимает game-settings-light.png - секцию настроек игры внутри WebView с
- * инжектированной кнопкой "SBG Scout".
+ * Публичная mock-фикстура обеспечивает одинаковый VR baseline в CI и локально,
+ * не завися от наличия приватного snapshot игры.
+ * Проверяется контекст инжекции Scout; вариант light соответствует фиксированным стилям фикстуры.
  *
- * Принципиально использует ТОЛЬКО mock-фикстуру `app-page-with-settings-
- * content-realistic.html`, не game-snapshot.html (даже если последний есть в
- * assets). game-snapshot.html генерируется gradle-таском inlineGameSnapshot
- * из локального refs/game/private/ snapshot реальной страницы игры
- * (gitignored). Если бы VR-тест читал его при наличии, baseline в
- * .github/images/visual-regression/ содержал бы рендер настоящего игрового
- * UI - нарушение правил проекта (запрет на код/контент, похожий на код игры,
- * в открытом репо). Mock-фикстура содержит только нужный для injection
- * контейнер `.settings-content` и нашу инжекцию SBG Scout button - именно
- * то, что VR должна сторожить от регрессий.
- *
- * Захват через captureFullNative (весь экран эмулятора), наша кнопка
- * проскроллена в видимую область через scrollIntoView. Native-разрешение,
- * без масштабирования. Только light: даже mock-фикстура содержит light CSS.
+ * 🤖 Generated with GPT-6.1 Sol
  */
 @RunWith(AndroidJUnit4::class)
 class GameSettingsVisualRegressionTest : E2ETestBase() {

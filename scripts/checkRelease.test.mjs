@@ -119,7 +119,7 @@ test('release workflow routes automatic and manual publication to the selected c
   const publishAction = publish.split('      - name: Publish GitHub Release after uploading APK\n')[1];
   assert.ok(publishAction);
   const automaticPublication = publishAction.match(/        if: (.+)/)?.[1] || 'true';
-  const artifact = publish.match(/      - name: Save verified recovery APK\n([\s\S]*?)(?=\n      - name:)/)?.[1];
+  const appToken = publish.match(/      - name: Create release publication token\n([\s\S]*?)(?=\n      - name:)/)?.[1];
   for (const [event, ref, created, recovered, expected] of [
     ['push', 'refs/heads/main', 'true', false, 'a'.repeat(40)],
     ['push', 'refs/heads/main', 'false', false, undefined],
@@ -139,18 +139,40 @@ test('release workflow routes automatic and manual publication to the selected c
       context.env = { RELEASE_SHA: evaluate(selectedSha, context), RELEASE_TAG: evaluate(selectedTag, context) };
       assert.equal(evaluate(checkout, context), expected);
       assert.equal(context.env.RELEASE_TAG, automaticRuns ? 'v1.4.0' : 'v1.3.0');
-      assert.equal(Boolean(evaluate(automaticPublication, context)), event === 'push', 'Manual recovery cannot update the draft with GITHUB_TOKEN');
-      if (event === 'workflow_dispatch') {
-        assert.ok(artifact, 'Recovery must preserve the verified APK');
-        assert.equal(Boolean(evaluate(artifact.match(/        if: (.+)/)?.[1], context)), true);
-        assert.ok(publish.indexOf('      - name: Save verified recovery APK') > publish.indexOf('      - name: Recheck manual notes before publishing'));
-        assert.match(artifact, /if-no-files-found: error/);
-        const artifactPath = artifact.match(/          path: (.+)/)?.[1];
-        assert.ok(artifactPath);
-        assert.equal(artifactPath.replace(/\$\{\{ (.+?) \}\}/g, (_, expression) => evaluate(expression, context)), `app/build/outputs/apk/release/sbg-scout-${context.env.RELEASE_TAG}.apk`);
-      }
+      assert.equal(Boolean(evaluate(automaticPublication, context)), true, 'Both release paths must publish in CI');
+      assert.ok(appToken, 'Publication requires a scoped GitHub App token');
+      assert.match(appToken, /repositories: \$\{\{ github.repository \}\}/);
+      assert.match(appToken, /permission-contents: write/);
+      assert.match(appToken, /permission-workflows: write/);
+      assert.doesNotMatch(appToken, /skip-token-revoke: true/);
+      assert.match(publishAction, /token: \$\{\{ steps.release-token.outputs.token \}\}/);
+      assert.ok(publish.indexOf('      - name: Create release publication token') > publish.indexOf('      - name: Recheck manual notes before publishing'));
     }
     context.cancelled = () => true;
     assert.equal(evaluate(publishCondition, context), false);
   }
 });
+
+for (const [condition, clientId, privateKey, expected] of [
+  ['configured app', 'test-client-id', 'private-key-only-for-test', 0],
+  ['missing client ID', '', 'private-key-only-for-test', 1],
+  ['missing private key', 'test-client-id', '', 1],
+]) {
+  test(`release app credential gate: ${condition}`, (t) => {
+    const { directory } = fixture(t);
+    const workflow = readFileSync(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+    const commands = workflow.match(/      - name: Require release app credentials\n[\s\S]*?        run: \|\n((?:          .*\n)+)/)?.[1];
+    assert.ok(commands, 'Missing app credential gate');
+    assert.ok(workflow.indexOf('      - name: Require release app credentials') < workflow.indexOf('      - name: Build release APK'));
+    const gitPath = execFileSync('git', ['--exec-path'], { encoding: 'utf8' }).trim();
+    const shell = process.platform === 'win32' ? resolve(gitPath, '../../../bin/bash.exe') : 'bash';
+    const result = spawnSync(shell, ['--noprofile', '--norc', '-e', '-c', commands.replace(/^          /gm, '')], {
+      cwd: directory,
+      encoding: 'utf8',
+      env: { ...process.env, RELEASE_APP_CLIENT_ID: clientId, RELEASE_APP_PRIVATE_KEY: privateKey },
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, expected, result.stderr);
+    assert.doesNotMatch(result.stdout + result.stderr, /test-client-id|private-key-only-for-test/);
+  });
+}
