@@ -472,7 +472,7 @@ WebView-экраны (`game-settings`, `login`, `game-loading`) только в 
 ### Gradle-задачи
 
 - `./gradlew visualRegressionTest` — прогон + сравнение с baseline. Зелёный = регрессий нет.
-- `./gradlew updateVisualRegressionBaselines` — прогон + перезапись baseline в `.github/images/visual-regression/`. Запускается локально при намеренных UI-изменениях; `git diff` показывает реально изменившиеся файлы, коммитятся только они.
+- `./gradlew updateVisualRegressionBaselines` - прогон + перезапись baseline в `.github/images/visual-regression/`. Запускается при намеренных UI-изменениях, включая видимые версии Scout/SVP; `git diff` показывает реально изменившиеся файлы, коммитятся только просмотренные изменения. В Prepare release причина обновления - смена видимой версии, а не сам факт релиза.
 - `./gradlew copyVisualRegressionBaselines` / `compareVisualRegressionBaselines` — host-side финализаторы.
 - `./gradlew checkReadmeLoadingSpinner` - проверяет сохранённый `game_loading.png` без эмулятора: у видимого индикатора есть дуга и пустая середина.
 
