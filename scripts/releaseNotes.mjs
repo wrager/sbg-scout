@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, appendFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { previousRelease } from './checkReleaseSigning.mjs';
 
 export const COMMENT_MARKER = '<!-- release-notes:v1 -->';
 export const NOTES_START = '<!-- release-notes:start -->';
@@ -11,10 +12,37 @@ export const NOTES_END = '<!-- release-notes:end -->';
 export const RELEASE_BRANCH = 'release-please--branches--main';
 export const SNAPSHOT_PATH = '.release-notes.json';
 export const NOTES_PATH = 'RELEASE_NOTES.md';
+export const BUNDLED_SVP_START = '<!-- bundled-svp:start -->';
+export const BUNDLED_SVP_END = '<!-- bundled-svp:end -->';
+export const BUNDLED_SVP_TEXT = 'Обновлён вшитый скрипт Vanilla+.';
 const SHA = /^[a-f0-9]{40}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const normalize = (text) => text.replace(/\r\n/g, '\n');
 export const digest = (text) => createHash('sha256').update(text).digest('hex');
+
+export function updateBundledSvpDraft(body, note) {
+  const starts = body.split(BUNDLED_SVP_START).length - 1;
+  const ends = body.split(BUNDLED_SVP_END).length - 1;
+  assert.ok(starts <= 1 && starts === ends, 'Invalid automatic Vanilla+ draft block');
+  const block = note
+    ? `${BUNDLED_SVP_START}\n## Обновление Vanilla+\n\n${note}\n\n🤖 Generated with GitHub Actions\n${BUNDLED_SVP_END}`
+    : '';
+  if (!starts) return block ? `${body}\n\n${block}` : body;
+  let start = body.indexOf(BUNDLED_SVP_START);
+  const end = body.indexOf(BUNDLED_SVP_END) + BUNDLED_SVP_END.length;
+  assert.ok(end > start, 'Automatic Vanilla+ draft markers are reversed');
+  if (!block && body.slice(start - 2, start) === '\n\n') start -= 2;
+  return body.slice(0, start) + block + body.slice(end);
+}
+
+export function validateBundledSvpNote(notes, expected) {
+  const updates = notes.split('\n').filter((line) => line.startsWith(`- ${BUNDLED_SVP_TEXT}`));
+  assert.deepEqual(updates, expected ? [expected] : [], 'Final Vanilla+ note must match all bundle update PRs exactly once');
+  if (expected) {
+    const features = notes.split(/^## /m).find((section) => section.startsWith('Возможности\n'));
+    assert.ok(features?.split('\n').includes(expected), 'Vanilla+ update belongs in Возможности');
+  }
+}
 
 export function extractNotes(body) {
   assert.equal(typeof body, 'string', 'Missing release PR description');
@@ -67,11 +95,12 @@ export function assertReleasePr(pull, repository, { merged = false } = {}) {
 }
 
 export class ReleaseNotes {
-  constructor(repository, { token = '', fetcher = fetch } = {}) {
+  constructor(repository, { token = '', fetcher = fetch, bundledSvpPath } = {}) {
     assert.match(repository, /^[\w.-]+\/[\w.-]+$/, 'Expected owner/repository');
     this.repository = repository;
     this.token = token;
     this.fetcher = fetcher;
+    this.bundledSvpPath = bundledSvpPath;
   }
 
   async request(path, { method = 'GET', body } = {}) {
@@ -142,16 +171,68 @@ export class ReleaseNotes {
       'PR title differs from release version',
     );
     const tree = await this.request(`/git/trees/${pull.head.sha}?recursive=1`);
+    if (this.bundledSvpPath && pull.state === 'open') {
+      validateBundledSvpNote(notes, await this.bundledSvpNote(pull, version));
+    }
     return { pull, notes, version, contentSha256: fingerprint(tree) };
+  }
+
+  async bundledSvpNote(pull, version) {
+    assert.ok(this.bundledSvpPath, 'Bundled SVP path is not configured');
+    const previous = previousRelease(await this.pages('/releases'), `v${version}`);
+    const previousRef = `refs/tags/${previous.tag_name}`;
+    const filePath = `/contents/${encodeURIComponent(this.bundledSvpPath)}`;
+    const before = await this.request(`${filePath}?ref=${encodeURIComponent(previousRef)}`);
+    const after = await this.request(`${filePath}?ref=${pull.head.sha}`);
+    for (const file of [before, after]) {
+      assert.equal(file.type, 'file', 'Expected a bundled SVP file');
+      assert.match(file.sha, SHA, 'Invalid bundled SVP blob SHA');
+    }
+    if (before.sha === after.sha) return '';
+    const range = new Set();
+    for (let page = 1; ; page += 1) {
+      const comparison = await this.request(
+        `/compare/${encodeURIComponent(previousRef)}...${pull.head.sha}?per_page=100&page=${page}`,
+      );
+      assert.equal(comparison.status, 'ahead', 'Release must descend from the previous stable tag');
+      assert.equal(comparison.behind_by, 0, 'Release diverged from the previous stable tag');
+      assert.ok(Array.isArray(comparison.commits), 'Expected release commits');
+      for (const commit of comparison.commits) range.add(commit.sha);
+      if (comparison.commits.length < 100) {
+        assert.equal(range.size, comparison.total_commits, 'Incomplete release commit range');
+        break;
+      }
+    }
+    const history = await this.pages(
+      `/commits?path=${encodeURIComponent(this.bundledSvpPath)}&sha=${pull.head.sha}`,
+    );
+    const changes = history.filter((commit) => range.has(commit.sha));
+    assert.ok(changes.length, 'Changed bundled SVP has no update commits in the release range');
+    const numbers = new Set();
+    for (const commit of changes) {
+      const pulls = (await this.pages(`/commits/${commit.sha}/pulls`)).filter(
+        (candidate) => candidate.merged_at && candidate.base.ref === 'main' && candidate.number !== pull.number,
+      );
+      assert.ok(pulls.length, 'Update bundled SVP in a separate merged PR before preparing the release');
+      for (const candidate of pulls) numbers.add(candidate.number);
+    }
+    const links = [...numbers].sort((left, right) => left - right)
+      .map((number) => `[#${number}](https://github.com/${this.repository}/pull/${number})`);
+    return `- ${BUNDLED_SVP_TEXT} ${links.join(', ')}`;
   }
 
   async ensure(pull, template) {
     const existing = await this.comment(pull);
-    if (existing) return existing;
-    assert.ok(template.startsWith(COMMENT_MARKER), 'Invalid comment template');
-    return this.request(`/issues/${pull.number}/comments`, {
-      method: 'POST',
-      body: { body: template },
+    if (!existing) assert.ok(template.startsWith(COMMENT_MARKER), 'Invalid comment template');
+    let body = existing?.body || template;
+    if (this.bundledSvpPath) {
+      const manifest = JSON.parse(await this.file('.release-please-manifest.json', pull.head.sha));
+      body = updateBundledSvpDraft(body, await this.bundledSvpNote(pull, manifest['.']));
+    }
+    if (existing && body === existing.body) return existing;
+    return this.request(existing ? `/issues/comments/${existing.id}` : `/issues/${pull.number}/comments`, {
+      method: existing ? 'PATCH' : 'POST',
+      body: { body },
     });
   }
 
@@ -349,6 +430,7 @@ export async function main(args, environment = process.env) {
   const repository = environment.GITHUB_REPOSITORY || config.repository;
   const client = new ReleaseNotes(repository, {
     token: environment.GH_TOKEN || environment.GITHUB_TOKEN,
+    bundledSvpPath: config.bundledSvpPath,
   });
   if (command === 'publish-check') return client.publishCheck(argument || environment.GITHUB_SHA);
   if (command === 'retry-target') {
@@ -420,6 +502,11 @@ export async function main(args, environment = process.env) {
   }
   assert.equal(command, 'inspect', 'Unknown release notes command');
   const comment = await client.comment(pull);
+  let bundledSvpNote;
+  if (client.bundledSvpPath) {
+    const manifest = JSON.parse(await client.file('.release-please-manifest.json', pull.head.sha));
+    bundledSvpNote = await client.bundledSvpNote(pull, manifest['.']);
+  }
   console.log(
     JSON.stringify(
       {
@@ -428,6 +515,7 @@ export async function main(args, environment = process.env) {
         head: pull.head.sha,
         base: pull.base.sha,
         comment: comment?.html_url || null,
+        bundledSvpNote,
       },
       null,
       2,
