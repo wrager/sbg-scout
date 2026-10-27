@@ -402,9 +402,14 @@ job `check` прикрепляет debug APK с номером запуска и
 Ручной запуск Release на main восстанавливает только существующий пустой draft:
 `retry-target` сверяет стабильный тег с подготовленным squash-коммитом release PR.
 Job `recover` исполняется из main, а `publish` собирает точный SHA существующего тега.
-В ручном режиме проверенный APK сохраняется артефактом на 14 дней; завершение
-публикации выполняется отдельно через GitHub CLI с правами `repo` и `workflow`.
-`GITHUB_TOKEN` не может обновить draft старого SHA с отличающимися workflow.
+Оба пути автоматически завершают публикацию в CI. После всех проверок
+`actions/create-github-app-token` создаёт installation token для текущего репозитория
+с `Contents: write` и `Workflows: write`; только шаг публикации получает этот токен.
+Post-step отзывает его при завершении job. Client ID хранится в variable
+`RELEASE_APP_CLIENT_ID`, PEM-ключ - в secret `RELEASE_APP_PRIVATE_KEY`.
+Проверка наличия настроек выполняется до сборки; обычный `GITHUB_TOKEN` job `publish`
+имеет только права чтения. App token позволяет обновить draft старого SHA с другими workflow,
+для которого прав `GITHUB_TOKEN` недостаточно.
 Проверка версии APK использует `aapt` по абсолютному пути из Build Tools 36.0.0;
 наличие `apkanalyzer` в PATH не требуется.
 <!-- 🤖 Generated with GPT-6.1 Sol -->
@@ -493,7 +498,7 @@ README-снимки создаются локально через `updateReadme
 
 `ci.yml` сохраняет required checks `check` и `agent-skills`, условно запускает jobs и отдельные шаги, а также вызывает e2e только для PR. Если планирование падает или не возвращает флаг группы, оба required jobs запускаются и падают на проверке плана. При успешном плане ненужные jobs получают Skipped, допустимый для branch protection. Debug artifact и комментарий создаются только при выбранной debug-сборке. Release PR всегда получает полный набор и сетевую проверку актуальности SVP.
 
-`pr-title.yml` остаётся независимым обязательным workflow для всех PR; `release.yml` обрабатывает каждый push main через release-please и публикует APK при `release_created`. Ручной `recover` подготавливает проверенный APK для отдельно согласованной публикации через CLI. Подробная матрица и локальные команды - [ci-checks.md](ci-checks.md).
+`pr-title.yml` остаётся независимым обязательным workflow для всех PR; `release.yml` обрабатывает каждый push main через release-please и публикует APK при `release_created` либо после успешного `recover`. Оба пути используют GitHub App для публикации. Подробная матрица и локальные команды - [ci-checks.md](ci-checks.md).
 
 Черновые release notes и подтверждения хранятся в помеченном комментарии release PR;
 после редактуры пользователя финальный блок notes помещается в описание PR.

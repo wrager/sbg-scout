@@ -328,15 +328,37 @@ debug-секрет и использует временный ключ; preview 
 затем после отдельного подтверждения запустить **Actions / Release / Run workflow**
 на main с существующим `release_tag`. Допустим только пустой draft; проверка
 `retry-target` связывает тег с подготовленным release PR, а сборка использует
-исходный SHA тега. Ручной запуск сохраняет проверенный APK артефактом; загрузка
-в draft и публикация согласуются отдельно и выполняются через GitHub CLI с правами
-`repo` и `workflow`. Подробности и ограничения - в [процессе релиза](releasing.md#восстановление-публикации).
+исходный SHA тега. Сборка и публикация завершаются в CI через GitHub App, как и
+при обычном выпуске. Подробности и ограничения - в [процессе релиза](releasing.md#восстановление-публикации).
 Не повторять успешный job release-please ради восстановления:
 успешный job release-please уже передал SHA и тег, повторный расчёт может не
 вернуть `release_created`. Уже загруженный APK не перезаписывается
 (`overwrite_files: false`); повтор завершает тот же draft. При повреждённом
 asset или другом состоянии, требующем ручного ремонта, сначала проверить
 draft через GitHub UI/CLI; не удалять теги и не публиковать draft без готового APK.
+
+### GitHub App для публикации
+
+Обычная публикация и восстановление используют installation token отдельного
+GitHub App. Установить App только в `wrager/sbg-scout`; разрешения репозитория -
+`Contents: Read and write`, `Workflows: Read and write` и обязательное `Metadata: Read-only`.
+Остальные разрешения и события не нужны. Webhook выключить, callback URL оставить
+пустым, OAuth-авторизацию пользователей не включать; доступность App - только владельцу.
+Homepage URL - `https://github.com/wrager/sbg-scout`.
+
+В настройках Actions этого репозитория сохранить:
+
+- Variable `RELEASE_APP_CLIENT_ID` - Client ID со страницы App, не App ID.
+- Secret `RELEASE_APP_PRIVATE_KEY` - полное содержимое сгенерированного PEM-файла,
+  включая строки BEGIN и END. Ключ не добавлять в Git и не передавать в чат.
+
+Job `publish` проверяет наличие обоих значений до сборки, но создаёт токен только
+после проверок APK, SVP и notes. `actions/create-github-app-token` ограничивает токен
+текущим репозиторием и двумя правами записи; post-step отзывает его по завершении job.
+Обычный `GITHUB_TOKEN` этого job имеет только права чтения. Новый App token не
+используется для checkout, сборки или исполнения скриптов из тега.
+
+Настройка соответствует [инструкции GitHub App в Actions](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow).
 
 ### Настройки GitHub и первое включение
 
