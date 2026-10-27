@@ -1,0 +1,10 @@
+{
+  "schema": 2,
+  "repository": "wrager/sbg-scout",
+  "pullRequest": 60,
+  "sourceHeadSha": "583a9f19fb8388ce053bde98163a30dbc2d8c4e0",
+  "baseSha": "3f19840aaeb50753bc25a722c2a7de3796110d25",
+  "version": "1.3.0",
+  "notesSha256": "dbbe408226d58f22a8409955424ad1ee78c44476e81047cb7e38e4aec4d0416b",
+  "contentSha256": "4c95e32ccc49c4b7108bdba9322334548493239432fbdfce28cea09063c3ad11"
+}
