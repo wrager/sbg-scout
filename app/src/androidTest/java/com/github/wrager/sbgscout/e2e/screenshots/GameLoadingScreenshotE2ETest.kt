@@ -3,6 +3,7 @@ package com.github.wrager.sbgscout.e2e.screenshots
 import android.Manifest
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Rect
 import android.provider.Settings
 import android.view.View
@@ -17,6 +18,7 @@ import com.github.wrager.sbgscout.e2e.infra.AssetLoader
 import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import com.github.wrager.sbgscout.e2e.screens.LoadingUiState
+import com.github.wrager.sbgscout.e2e.visualregression.ClipboardOverlay
 import com.github.wrager.sbgscout.e2e.visualregression.ThemeOverride
 import okhttp3.mockwebserver.MockResponse
 import org.json.JSONArray
@@ -30,15 +32,11 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * Снимает game_loading.png - экран загрузки игры: надпись "Загрузка...",
- * "Настройки SBG Scout" и "Reload" между центром и нижней частью экрана,
- * индикатор загрузки страницы в правом нижнем углу. Системные панели в снимок не входят.
+ * Фикстура сохраняет игровые этапы загрузки после завершения ресурсов страницы,
+ * поэтому README показывает надпись и кнопки без индикатора справа внизу.
+ * Отдельный сценарий удерживает ресурс незагруженным для проверки настоящей анимации индикатора.
  *
- * Фикстура app-page-loading-screen-realistic.html не убирает экран загрузки игры.
- * Индикатор виден, только пока грузятся ресурсы страницы, поэтому на страницу
- * добавлена картинка, на которую сервер отвечает лишь после снимка.
- *
- * 🤖 Generated with GPT-6 Sol
+ * 🤖 Generated with GPT-6.1 Sol
  */
 @RunWith(AndroidJUnit4::class)
 class GameLoadingScreenshotE2ETest : E2ETestBase() {
@@ -77,14 +75,7 @@ class GameLoadingScreenshotE2ETest : E2ETestBase() {
     @Test
     @ReadmeScreenshot
     fun captureGameLoadingScreenshot() {
-        server.gamePageBody =
-            AssetLoader
-                .read("fixtures/app-page-loading-screen-realistic.html")
-                .replace("</body>", "<img src=\"$PENDING_IMAGE_PATH\" alt=\"\" style=\"$PENDING_IMAGE_STYLE\"></body>")
-        server.stubResponse(PENDING_IMAGE_PATH) {
-            pendingImageReleased.await(PENDING_IMAGE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-            MockResponse().setResponseCode(404)
-        }
+        server.gamePageBody = AssetLoader.read("fixtures/app-page-loading-screen-realistic.html")
         CookieFixtures.injectFakeAuth(server.baseUrl)
 
         val scenario = launchGameActivity()
@@ -93,7 +84,7 @@ class GameLoadingScreenshotE2ETest : E2ETestBase() {
             .waitForFakePage("app")
             .waitForLoadingUi(LoadingUiState.LOADING)
             .waitForNativeButtonsInPlace()
-            .waitForPageLoadingIndicatorInPlace()
+            .waitForPageLoadingIndicatorHidden()
         val steps =
             JSONArray(
                 game.evaluateJs(
@@ -106,14 +97,34 @@ class GameLoadingScreenshotE2ETest : E2ETestBase() {
         assertEquals("Отступ этапов загрузки сверху", 0.26, steps.getDouble(1), 0.02)
         assertEquals("Интервал этапов загрузки", 22.0, steps.getDouble(2), 3.0)
         Thread.sleep(RENDER_SETTLE_MS)
-        assertSpinnerAnimates(scenario)
-
+        ClipboardOverlay.waitUntilGone()
         ReadmeScreenshotCapture.captureRegion("game_loading", contentRegion(scenario), nativeResolution = true)
+    }
+
+    @Test
+    fun pageLoadingIndicatorAnimatesWhileResourceIsPending() {
+        server.gamePageBody =
+            AssetLoader
+                .read("fixtures/app-page-loading-screen-realistic.html")
+                .replace("</body>", "<img src=\"$PENDING_IMAGE_PATH\" alt=\"\" style=\"$PENDING_IMAGE_STYLE\"></body>")
+        server.stubResponse(PENDING_IMAGE_PATH) {
+            pendingImageReleased.await(PENDING_IMAGE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            MockResponse().setResponseCode(404)
+        }
+        CookieFixtures.injectFakeAuth(server.baseUrl)
+        val scenario = launchGameActivity()
+        GameScreen(scenario, idling)
+            .waitForFakePage("app")
+            .waitForLoadingUi(LoadingUiState.LOADING)
+            .waitForPageLoadingIndicatorInPlace()
+        Thread.sleep(RENDER_SETTLE_MS)
+        assertSpinnerAnimates(scenario)
     }
 
     private fun assertSpinnerAnimates(scenario: ActivityScenario<GameActivity>) {
         val initialFrame = indicatorFrame(scenario)
         try {
+            assertSpinnerHasEmptyCenter(initialFrame)
             var moved = false
             repeat(5) {
                 Thread.sleep(SPINNER_FRAME_INTERVAL_MS)
@@ -128,6 +139,36 @@ class GameLoadingScreenshotE2ETest : E2ETestBase() {
         } finally {
             initialFrame.recycle()
         }
+    }
+
+    private fun assertSpinnerHasEmptyCenter(frame: Bitmap) {
+        val density =
+            InstrumentationRegistry
+                .getInstrumentation()
+                .targetContext.resources.displayMetrics.density
+        val centerX = frame.width / 2.0
+        val centerY = frame.height / 2.0
+        val innerRadiusSquared = 7 * density * 7 * density
+        val ringInnerRadiusSquared = 9 * density * 9 * density
+        val ringOuterRadiusSquared = 12 * density * 12 * density
+        var darkCenterPixels = 0
+        var darkRingPixels = 0
+        for (y in 0 until frame.height) {
+            for (x in 0 until frame.width) {
+                val distanceSquared = (x - centerX) * (x - centerX) + (y - centerY) * (y - centerY)
+                val color = frame.getPixel(x, y)
+                if (Color.red(color) < 150 &&
+                    Color.green(color) < 150 &&
+                    Color.blue(color) < 150 &&
+                    Color.alpha(color) > 150
+                ) {
+                    if (distanceSquared <= innerRadiusSquared) darkCenterPixels++
+                    if (distanceSquared in ringInnerRadiusSquared..ringOuterRadiusSquared) darkRingPixels++
+                }
+            }
+        }
+        assertEquals("Центр индикатора должен оставаться пустым", 0, darkCenterPixels)
+        assertTrue("Дуга индикатора должна быть видна", darkRingPixels > 0)
     }
 
     private fun indicatorFrame(scenario: ActivityScenario<GameActivity>): Bitmap {
