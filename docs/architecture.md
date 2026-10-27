@@ -476,7 +476,7 @@ WebView-экраны (`game-settings`, `login`, `game-loading`) только в 
 - `./gradlew copyVisualRegressionBaselines` / `compareVisualRegressionBaselines` — host-side финализаторы.
 - `./gradlew checkReadmeLoadingSpinner` - проверяет сохранённый `game_loading.png` без эмулятора: у видимого индикатора есть дуга и пустая середина.
 
-README-снимки создаются локально через `updateReadmeScreenshots` при подготовке релиза. `game_loading.png` сохраняется в исходной ширине 1080 px и отображается в README с шириной 360 px. `game_settings.png` может использовать локальный приватный snapshot из `refs/game/private`; mock-вариант настроек отдельно покрыт VR baseline `game-settings-light.png`.
+README-снимки создаются через `updateReadmeScreenshots` при подготовке релиза. `game_loading.png` сохраняется в исходной ширине 1080 px и отображается в README с шириной 360 px. `game_settings.png` предпочитает локальный приватный snapshot из `refs/game/private`; публичный fallback сохраняет заголовок, язык, тему и строку Scout внутри кадра и отдельно проверяется независимо от наличия snapshot. Mock также покрыт VR baseline `game-settings-light.png`.
 
 Перед захватом README-снимка проверяются физический кадр 1080x2280, плотность 440 dpi и масштаб шрифта 1.0. Несовпадение останавливает генерацию с фактическими параметрами устройства. Снимки шириной 360 px уменьшаются через промежуточные размеры, кратные итоговому, с коэффициентом не более двух за шаг: для 1080 px это 1080 -> 720 -> 360. Это сохраняет тонкие штрихи текста, которые теряются при уменьшении втрое за один проход. Проверка тонких линий по обеим осям и при разных сдвигах входит в `ReadmeScreenshotCaptureTest`.
 
