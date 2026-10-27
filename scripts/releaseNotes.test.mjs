@@ -16,6 +16,7 @@ import {
   assertReleasePr,
   renderLocal,
   digest,
+  main,
 } from './releaseNotes.mjs';
 import { prepareRelease, runCommands } from './prepareRelease.mjs';
 
@@ -411,6 +412,77 @@ test('publish checks the merged SHA, squash parent and live final notes', async 
   await assert.rejects(api.publishCheck(mergedSha), /squash merge/);
   routes['/pulls/60'] = { ...mergedPull, merge_commit_sha: head };
   await assert.rejects(api.publishCheck(mergedSha), /does not belong/);
+});
+
+function retryRoutes() {
+  const file = (value) => ({ type: 'file', encoding: 'base64', content: Buffer.from(value).toString('base64') });
+  return {
+    '/git/ref/tags/v1.3.0': { object: { type: 'commit', sha: head } },
+    '/releases?per_page=100&page=1': [{ tag_name: 'v1.3.0', name: 'v1.3.0', draft: true, prerelease: false, assets: [] }],
+    [`/git/commits/${head}`]: { parents: [{ sha: base }] },
+    [`/contents/.release-notes.json?ref=${head}`]: file(JSON.stringify(client().snapshot(state))),
+    '/pulls/60': { ...pull, state: 'closed', merged_at: '2026-10-27', merge_commit_sha: head },
+    [`/contents/.release-please-manifest.json?ref=${head}`]: file('{".":"1.3.0"}'),
+    [`/git/trees/${head}?recursive=1`]: tree,
+    [`/contents/RELEASE_NOTES.md?ref=${head}`]: file(text),
+  };
+}
+
+test('recovery resolves an empty draft to its original prepared commit without writes', async () => {
+  const routes = retryRoutes();
+  const target = routes['/releases?per_page=100&page=1'];
+  routes['/releases?per_page=100&page=1'] = Array.from({ length: 100 }, () => ({ tag_name: 'v9.0.0' }));
+  routes['/releases?per_page=100&page=2'] = target;
+  const { api, requests } = apiFixture(routes);
+  assert.deepEqual(await api.retryTarget('v1.3.0'), { sha: head, tag_name: 'v1.3.0' });
+  assert.ok(requests.every((request) => request.method === 'GET'));
+});
+
+for (const [condition, change, message] of [
+  ['missing release', (routes) => { routes['/releases?per_page=100&page=1'] = []; }, /existing release/],
+  ['published release', (routes) => { routes['/releases?per_page=100&page=1'][0].draft = false; }, /already published/],
+  ['prerelease', (routes) => { routes['/releases?per_page=100&page=1'][0].prerelease = true; }, /prerelease/],
+  ['changed title', (routes) => { routes['/releases?per_page=100&page=1'][0].name = 'Other title'; }, /title/],
+  ['existing assets', (routes) => { routes['/releases?per_page=100&page=1'][0].assets = [{ name: 'app.apk' }]; }, /already has assets/],
+  ['annotated tag', (routes) => { routes['/git/ref/tags/v1.3.0'].object.type = 'tag'; }, /directly to a commit/],
+  ['different commit', (routes) => { routes['/pulls/60'].merge_commit_sha = base; }, /does not belong/],
+  ['edited notes', (routes) => { routes['/pulls/60'].body = description.replace(state.notes, 'Изменённые notes.'); }, /notes changed/],
+  ['changed source', (routes) => { routes[`/git/trees/${head}?recursive=1`] = { ...tree, tree: [{ ...tree.tree[0], sha: base }] }; }, /contents changed/],
+]) {
+  test(`recovery rejects ${condition}`, async () => {
+    const routes = retryRoutes();
+    change(routes);
+    const { api, requests } = apiFixture(routes);
+    await assert.rejects(api.retryTarget('v1.3.0'), message);
+    assert.ok(requests.every((request) => request.method === 'GET'));
+  });
+}
+
+test('recovery rejects unsafe or nonstable tags before requesting GitHub', async () => {
+  const { api, requests } = apiFixture({});
+  for (const tag of ['', 'main', 'v1.3.0-beta', 'v1.3.0\nsha=other', 'v1.3.0/other']) {
+    await assert.rejects(api.retryTarget(tag), /stable release tag/);
+  }
+  assert.deepEqual(requests, []);
+});
+
+test('recovery rejects a tag that differs from the prepared version', async () => {
+  const routes = retryRoutes();
+  routes['/git/ref/tags/v1.3.1'] = routes['/git/ref/tags/v1.3.0'];
+  const release = routes['/releases?per_page=100&page=1'][0];
+  release.tag_name = release.name = 'v1.3.1';
+  const { api } = apiFixture(routes);
+  await assert.rejects(api.retryTarget('v1.3.1'), /differs from the prepared version/);
+});
+
+test('recovery command exports the validated target for the publish job', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'release-recovery-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const output = join(directory, 'output');
+  const { api } = apiFixture(retryRoutes());
+  t.mock.method(globalThis, 'fetch', api.fetcher);
+  assert.deepEqual(await main(['retry-target', 'v1.3.0'], { GITHUB_REPOSITORY: repository, GITHUB_OUTPUT: output }), { sha: head, tag_name: 'v1.3.0' });
+  assert.equal(readFileSync(output, 'utf8'), `sha=${head}\ntag_name=v1.3.0\n`);
 });
 
 test('final notes edits set a failing required status instead of leaving a green check', async () => {

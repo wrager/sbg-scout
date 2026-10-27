@@ -205,6 +205,22 @@ export class ReleaseNotes {
     return state;
   }
 
+  async retryTarget(tag) {
+    assert.match(tag, /^v\d+\.\d+\.\d+$/, 'Expected a stable release tag');
+    const reference = await this.request(`/git/ref/tags/${tag}`);
+    assert.equal(reference.object.type, 'commit', 'Release tag must point directly to a commit');
+    const releases = (await this.pages('/releases')).filter((release) => release.tag_name === tag);
+    assert.equal(releases.length, 1, 'Expected exactly one existing release');
+    const release = releases[0];
+    assert.equal(release.draft, true, 'Release is already published');
+    assert.equal(release.prerelease, false, 'Cannot recover a prerelease');
+    assert.equal(release.name, tag, 'Unexpected release title');
+    assert.deepEqual(release.assets, [], 'Release already has assets; inspect the failed publish job');
+    const state = await this.publishCheck(reference.object.sha);
+    assert.equal(`v${state.version}`, tag, 'Release tag differs from the prepared version');
+    return { sha: reference.object.sha, tag_name: tag };
+  }
+
   async status(pull, failOnInvalid = true) {
     let error;
     try {
@@ -335,6 +351,13 @@ export async function main(args, environment = process.env) {
     token: environment.GH_TOKEN || environment.GITHUB_TOKEN,
   });
   if (command === 'publish-check') return client.publishCheck(argument || environment.GITHUB_SHA);
+  if (command === 'retry-target') {
+    const target = await client.retryTarget(argument);
+    console.log(JSON.stringify(target, null, 2));
+    if (environment.GITHUB_OUTPUT)
+      appendFileSync(environment.GITHUB_OUTPUT, `sha=${target.sha}\ntag_name=${target.tag_name}\n`);
+    return target;
+  }
   const event = environment.GITHUB_EVENT_PATH
     ? JSON.parse(readFileSync(environment.GITHUB_EVENT_PATH, 'utf8'))
     : {};

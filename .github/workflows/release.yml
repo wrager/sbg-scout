@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing stable tag with an empty draft to recover
+        type: string
+        required: true
 
 concurrency:
   group: release-main
@@ -13,6 +19,7 @@ permissions:
 
 jobs:
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -41,15 +48,42 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  recover:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    outputs:
+      sha: ${{ steps.target.outputs.sha }}
+      tag_name: ${{ steps.target.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: Resolve existing draft and prepared release commit
+        id: target
+        run: node scripts/releaseNotes.mjs retry-target "$RELEASE_TAG"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+
   publish:
-    needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    needs: [release-please, recover]
+    if: >-
+      ${{ !cancelled() &&
+          ((needs.release-please.result == 'success' && needs.release-please.outputs.release_created == 'true') ||
+           needs.recover.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: read
     env:
-      RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+      RELEASE_TAG: ${{ needs.release-please.outputs.tag_name || needs.recover.outputs.tag_name }}
+      RELEASE_SHA: ${{ needs.release-please.outputs.sha || needs.recover.outputs.sha }}
     steps:
       - name: Require signing secrets
         env:
@@ -63,7 +97,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ needs.release-please.outputs.sha }}
+          ref: ${{ env.RELEASE_SHA }}
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -74,7 +108,6 @@ jobs:
         run: node scripts/releaseNotes.mjs publish-check "$RELEASE_SHA"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_SHA: ${{ needs.release-please.outputs.sha }}
       - name: Check release notes
         run: node scripts/checkRelease.mjs "$RELEASE_TAG"
 
@@ -100,9 +133,10 @@ jobs:
       - name: Verify release assets
         run: |
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
-          test "$(apkanalyzer manifest version-name app/build/outputs/apk/release/app-release.apk)" = "${RELEASE_TAG#v}"
+          badging="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging app/build/outputs/apk/release/app-release.apk)"
+          test "$(printf '%s\n' "$badging" | sed -n "s/^package: .*versionName='\([^']*\)'.*$/\1/p")" = "${RELEASE_TAG#v}"
           IFS=. read -r major minor patch <<< "${RELEASE_TAG#v}"
-          test "$(apkanalyzer manifest version-code app/build/outputs/apk/release/app-release.apk)" = "$((major * 10000 + minor * 100 + patch))"
+          test "$(printf '%s\n' "$badging" | sed -n "s/^package: .*versionCode='\([^']*\)'.*$/\1/p")" = "$((major * 10000 + minor * 100 + patch))"
           unzip -p app/build/outputs/apk/release/app-release.apk assets/scripts/sbg-vanilla-plus.user.js | cmp - app/src/main/assets/scripts/sbg-vanilla-plus.user.js
           mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/sbg-scout-$RELEASE_TAG.apk"
 
@@ -120,14 +154,13 @@ jobs:
         run: node scripts/releaseNotes.mjs publish-check "$RELEASE_SHA"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_SHA: ${{ needs.release-please.outputs.sha }}
       - name: Publish GitHub Release after uploading APK
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          tag_name: ${{ needs.release-please.outputs.tag_name }}
-          target_commitish: ${{ needs.release-please.outputs.sha }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ env.RELEASE_SHA }}
           body_path: RELEASE_NOTES.md
-          files: app/build/outputs/apk/release/sbg-scout-${{ needs.release-please.outputs.tag_name }}.apk
+          files: app/build/outputs/apk/release/sbg-scout-${{ env.RELEASE_TAG }}.apk
           fail_on_unmatched_files: true
           overwrite_files: false
           draft: false
