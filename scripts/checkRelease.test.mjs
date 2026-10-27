@@ -116,6 +116,10 @@ test('release workflow routes automatic and manual publication to the selected c
   const selectedSha = publish.match(/      RELEASE_SHA: (.+)/)?.[1];
   const selectedTag = publish.match(/      RELEASE_TAG: (.+)/)?.[1];
   const checkout = publish.match(/          ref: (.+)/)?.[1];
+  const publishAction = publish.split('      - name: Publish GitHub Release after uploading APK\n')[1];
+  assert.ok(publishAction);
+  const automaticPublication = publishAction.match(/        if: (.+)/)?.[1] || 'true';
+  const artifact = publish.match(/      - name: Save verified recovery APK\n([\s\S]*?)(?=\n      - name:)/)?.[1];
   for (const [event, ref, created, recovered, expected] of [
     ['push', 'refs/heads/main', 'true', false, 'a'.repeat(40)],
     ['push', 'refs/heads/main', 'false', false, undefined],
@@ -135,6 +139,16 @@ test('release workflow routes automatic and manual publication to the selected c
       context.env = { RELEASE_SHA: evaluate(selectedSha, context), RELEASE_TAG: evaluate(selectedTag, context) };
       assert.equal(evaluate(checkout, context), expected);
       assert.equal(context.env.RELEASE_TAG, automaticRuns ? 'v1.4.0' : 'v1.3.0');
+      assert.equal(Boolean(evaluate(automaticPublication, context)), event === 'push', 'Manual recovery cannot update the draft with GITHUB_TOKEN');
+      if (event === 'workflow_dispatch') {
+        assert.ok(artifact, 'Recovery must preserve the verified APK');
+        assert.equal(Boolean(evaluate(artifact.match(/        if: (.+)/)?.[1], context)), true);
+        assert.ok(publish.indexOf('      - name: Save verified recovery APK') > publish.indexOf('      - name: Recheck manual notes before publishing'));
+        assert.match(artifact, /if-no-files-found: error/);
+        const artifactPath = artifact.match(/          path: (.+)/)?.[1];
+        assert.ok(artifactPath);
+        assert.equal(artifactPath.replace(/\$\{\{ (.+?) \}\}/g, (_, expression) => evaluate(expression, context)), `app/build/outputs/apk/release/sbg-scout-${context.env.RELEASE_TAG}.apk`);
+      }
     }
     context.cancelled = () => true;
     assert.equal(evaluate(publishCondition, context), false);
