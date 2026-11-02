@@ -42,7 +42,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: 24
+          node-version: 26
       - name: Ensure release notes draft
         run: node scripts/releaseNotes.mjs ensure
         env:
@@ -63,7 +63,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: 24
+          node-version: 26
       - name: Resolve existing draft and prepared release commit
         id: target
         run: node scripts/releaseNotes.mjs retry-target "$RELEASE_TAG"
@@ -109,7 +109,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Verify prepared release against its PR description
         run: node scripts/releaseNotes.mjs publish-check "$RELEASE_SHA"
@@ -128,7 +128,7 @@ jobs:
           distribution: temurin
           java-version: 25
 
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6
 
       - name: Build release APK
         env:
