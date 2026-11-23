@@ -44,7 +44,7 @@ unstaged и новые неигнорируемые файлы. После из�
 | `.github/images/visual-regression/*.png` | Только VR |
 | Общие Gradle-файлы, `gradle/**`, wrapper, `buildSrc/**`, `build-logic/**` | Полный Android-набор + e2e + VR |
 | `.editorconfig` / `detekt.yml` | ktlint / detekt |
-| `.github/workflows/e2e.yml`, `scripts/logRunnerMemory.sh` | actionlint + тесты планировщика/команд workflow + функциональный e2e + VR |
+| `.github/workflows/e2e.yml`, `scripts/logRunnerMemory.sh`, `scripts/runVisualRegression.sh` | actionlint + тесты планировщика/команд workflow + функциональный e2e + VR |
 | `.github/workflows/prepare-release.yml` | actionlint + тесты планировщика/release/SVP + функциональный e2e + VR |
 | `.github/workflows/release.yml`, `.github/workflows/release-notes.yml` | actionlint + релизные файлы и тесты release/SVP |
 | `.github/workflows/pr-title.yml` | actionlint |
@@ -88,7 +88,12 @@ Node/PowerShell-инструментов. Для workflows дополнител�
   выбираются независимо. Переименовывать required checks в настройках GitHub не нужно.
 - Только выбранная debug-сборка создаёт preview APK и комментарий. Комментарий
   сообщает о выбранных Android-проверках, а статусы остальных jobs смотрятся отдельно.
-- E2e вызывается из CI только для PR. Ручной запуск `e2e.yml` выполняет e2e и VR.
+- E2e вызывается из CI только для PR. Ручной запуск `e2e.yml` по умолчанию выполняет
+  e2e и VR; `suite` позволяет выбрать только `functional` или `visual`. Для VR
+  `test_class` принимает класс либо `класс#метод`, а `repetitions` - от 1 до 10.
+  Повторы требуют фильтра теста и останавливаются на первом сбое. Обёртка
+  `scripts/runVisualRegression.sh` сохраняет PNG, отчёты и logcat каждой попытки
+  в `build/visual-regression-runs/`, включённом в artifact `e2e-reports-visual`.
   Функциональный набор исключает VR-аннотацию и делится на четыре шарда
   (`numShards`/`shardIndex`) в matrix job `functional`; VR сравнивает PNG в отдельном
   job `visual`. У каждого job свой эмулятор: SwiftShader в QEMU не освобождает память

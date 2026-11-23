@@ -3,6 +3,9 @@ package com.github.wrager.sbgscout.e2e.visualregression
 import android.graphics.Bitmap
 import android.graphics.Insets
 import android.graphics.Rect
+import android.os.Handler
+import android.os.Looper
+import android.view.PixelCopy
 import android.view.WindowInsets
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.platform.app.InstrumentationRegistry
@@ -10,6 +13,9 @@ import androidx.test.platform.io.PlatformTestStorageRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import com.github.wrager.sbgscout.e2e.screenshots.ScrollStitchCapture
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Снимает actual.png для visual regression в native-разрешении эмулятора
@@ -29,6 +35,51 @@ import com.github.wrager.sbgscout.e2e.screenshots.ScrollStitchCapture
  * 🤖 Generated with GPT-6 Sol
  */
 object VisualRegressionCapture {
+    /** Читает буфер окна после frame commit; вызывающий освобождает bitmap. */
+    fun takeWindowScreenshot(): Bitmap {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val copied = CountDownLatch(1)
+        val result = AtomicInteger(PixelCopy.ERROR_UNKNOWN)
+        var capture: Bitmap? = null
+        instrumentation.runOnMainSync {
+            val activity =
+                ActivityLifecycleMonitorRegistry
+                    .getInstance()
+                    .getActivitiesInStage(Stage.RESUMED)
+                    .single()
+            val decor = activity.window.decorView
+            val bitmap = Bitmap.createBitmap(decor.width, decor.height, Bitmap.Config.ARGB_8888)
+            capture = bitmap
+            PixelCopy.request(
+                activity.window,
+                bitmap,
+                { status ->
+                    result.set(status)
+                    copied.countDown()
+                },
+                Handler(Looper.getMainLooper()),
+            )
+        }
+        val bitmap = requireNotNull(capture)
+        check(copied.await(WINDOW_COPY_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+            "PixelCopy не завершился за ${WINDOW_COPY_TIMEOUT_MS}ms"
+        }
+        if (result.get() != PixelCopy.SUCCESS) {
+            bitmap.recycle()
+            error("PixelCopy завершился с кодом ${result.get()}")
+        }
+        return bitmap
+    }
+
+    fun captureWindowNative(name: String) {
+        val bitmap = takeWindowScreenshot()
+        try {
+            writeScreenContentPng(name, bitmap)
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
     /**
      * Снимает экран целиком (без scroll-stitching) - подходит для одного
      * viewport'а Activity/Fragment, диалогов, login-страницы. Ширина и высота
@@ -143,4 +194,6 @@ object VisualRegressionCapture {
         val bottom = region.bottom.coerceIn(top + 1, maxHeight)
         return Rect(left, top, right, bottom)
     }
+
+    private const val WINDOW_COPY_TIMEOUT_MS = 10_000L
 }

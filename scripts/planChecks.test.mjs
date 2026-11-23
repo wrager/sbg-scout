@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { changedFiles, githubRange, planChecks } from './planChecks.mjs';
 
 const checks = (files, options) => planChecks(files, options).checks;
@@ -83,6 +84,7 @@ test('workflow changes exercise only the relevant workflow dependencies', () => 
   assert.deepEqual(checks(['.github/workflows/pr-title.yml']), ['workflows']);
   assert.deepEqual(checks(['.github/workflows/e2e.yml']), ['planner-tests', 'workflows', 'e2e', 'visual']);
   assert.deepEqual(checks(['scripts/logRunnerMemory.sh']), ['planner-tests', 'workflows', 'e2e', 'visual']);
+  assert.deepEqual(checks(['scripts/runVisualRegression.sh']), ['planner-tests', 'workflows', 'e2e', 'visual']);
   assert.deepEqual(checks(['.github/workflows/prepare-release.yml']), ['release-files', 'release-tests', 'svp-tests', 'planner-tests', 'workflows', 'e2e', 'visual']);
   for (const workflow of ['release.yml', 'release-notes.yml']) {
     assert.deepEqual(checks([`.github/workflows/${workflow}`]), ['release-files', 'release-tests', 'svp-tests', 'workflows']);
@@ -189,8 +191,18 @@ test('GitHub output is valid and missing diff metadata cannot produce a green sk
 });
 
 test('e2e jobs start only for the suites requested by CI or a manual run', () => {
-  assert.equal(workflowJob('functional').condition, "github.event_name == 'workflow_dispatch' || inputs.functional");
-  assert.equal(workflowJob('visual').condition, "github.event_name == 'workflow_dispatch' || inputs.visual");
+  for (const suite of ['all', 'functional', 'visual']) {
+    const context = { github: { event_name: 'workflow_dispatch' }, inputs: { suite } };
+    assert.equal(runInNewContext(workflowJob('functional').condition, context), suite !== 'visual');
+    assert.equal(runInNewContext(workflowJob('visual').condition, context), suite !== 'functional');
+  }
+  for (const functional of [false, true]) {
+    for (const visual of [false, true]) {
+      const context = { github: { event_name: 'pull_request' }, inputs: { functional, visual } };
+      assert.equal(runInNewContext(workflowJob('functional').condition, context), functional);
+      assert.equal(runInNewContext(workflowJob('visual').condition, context), visual);
+    }
+  }
   assert.doesNotMatch(readFileSync(new URL('../.github/workflows/e2e.yml', import.meta.url), 'utf8'), /^  readme:/m);
 });
 
@@ -211,6 +223,53 @@ test('the visual job compares native baselines', (t) => {
   const { directory, shell, calls } = emulatorDirectory(t);
   execFileSync(shell, ['-c', workflowJob('visual').script], { cwd: directory });
   assert.deepEqual(calls().map((call) => call.split(' ')[0]), ['visualRegressionTest']);
+});
+
+test('visual investigations preserve each capture and pass the class filter as one argument', (t) => {
+  const { directory, shell, calls } = emulatorDirectory(t);
+  const testClass = 'example.VisualTest#capture; touch injected';
+  execFileSync(shell, ['-c', workflowJob('visual').script], {
+    cwd: directory,
+    env: { ...process.env, VR_TEST_CLASS: testClass, VR_REPETITIONS: '3' },
+  });
+  assert.equal(calls().length, 3);
+  for (const call of calls()) assert.ok(call.includes(`-Pandroid.testInstrumentationRunnerArguments.class=${testClass}`));
+  assert.throws(() => readFileSync(join(directory, 'injected')));
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const output = join(directory, 'build/visual-regression-runs', `attempt-${attempt}`);
+    assert.equal(readFileSync(join(output, 'connected_android_test_additional_output/frame.png'), 'utf8'), `${attempt}\n`);
+    assert.equal(readFileSync(join(output, 'logcat.txt'), 'utf8'), 'emulator log\n');
+  }
+});
+
+test('visual investigations reject unbounded or malformed repetition counts before Gradle', (t) => {
+  for (const count of ['0', '11', '1.5', 'bad']) {
+    const { directory, shell, calls } = emulatorDirectory(t);
+    const result = spawnSync(shell, ['-c', workflowJob('visual').script], {
+      cwd: directory, env: { ...process.env, VR_REPETITIONS: count },
+    });
+    assert.equal(result.status, 2, count);
+    assert.deepEqual(calls(), []);
+  }
+});
+
+test('visual investigations stop at the first Gradle failure and retain its report', (t) => {
+  const { directory, shell, calls } = emulatorDirectory(t);
+  const result = spawnSync(shell, ['-c', workflowJob('visual').script], {
+    cwd: directory, env: { ...process.env, VR_TEST_CLASS: 'example.VisualTest', VR_REPETITIONS: '3', FAIL_GRADLE: 'true' },
+  });
+  assert.equal(result.status, 7);
+  assert.equal(calls().length, 1);
+  assert.equal(readFileSync(join(directory, 'build/visual-regression-runs/attempt-1/connected_android_test_additional_output/frame.png'), 'utf8'), '1\n');
+});
+
+test('visual repetitions require a targeted test instead of repeating the whole suite', (t) => {
+  const { directory, shell, calls } = emulatorDirectory(t);
+  const result = spawnSync(shell, ['-c', workflowJob('visual').script], {
+    cwd: directory, env: { ...process.env, VR_REPETITIONS: '2', VR_TEST_CLASS: '' },
+  });
+  assert.equal(result.status, 2);
+  assert.deepEqual(calls(), []);
 });
 
 test('emulator jobs fail with the Gradle exit status', (t) => {
@@ -280,10 +339,17 @@ function emulatorDirectory(t) {
   const directory = mkdtempSync(join(tmpdir(), 'scout-emulator-script-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   writeFileSync(join(directory, 'calls'), '');
-  writeFileSync(join(directory, 'gradlew'), '#!/bin/sh\nprintf "%s\\n" "$*" >> calls\nif [ "$FAIL_GRADLE" = true ]; then exit 7; fi\n');
+  writeFileSync(join(directory, 'gradlew'), '#!/bin/sh\nprintf "%s\\n" "$*" >> calls\n' +
+    'mkdir -p app/build/outputs/connected_android_test_additional_output\n' +
+    'wc -l < calls | tr -d " " > app/build/outputs/connected_android_test_additional_output/frame.png\n' +
+    'if [ "$FAIL_GRADLE" = true ]; then exit 7; fi\n');
   chmodSync(join(directory, 'gradlew'), 0o755);
   mkdirSync(join(directory, 'scripts'));
-  copyFileSync(new URL('./logRunnerMemory.sh', import.meta.url), join(directory, 'scripts/logRunnerMemory.sh'));
+  writeFileSync(join(directory, 'scripts/logRunnerMemory.sh'), 'export PATH="$PWD:$PATH"\n' +
+    readFileSync(new URL('./logRunnerMemory.sh', import.meta.url), 'utf8'));
+  copyFileSync(new URL('./runVisualRegression.sh', import.meta.url), join(directory, 'scripts/runVisualRegression.sh'));
+  writeFileSync(join(directory, 'adb'), '#!/bin/sh\nprintf "emulator log\\n"\n');
+  chmodSync(join(directory, 'adb'), 0o755);
   const calls = () => readFileSync(join(directory, 'calls'), 'utf8').trim().split('\n').filter(Boolean);
   return { directory, shell: shellPath(), calls };
 }

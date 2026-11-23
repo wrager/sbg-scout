@@ -10,6 +10,20 @@ on:
         required: true
         type: boolean
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Test suite
+        type: choice
+        options: [all, functional, visual]
+        default: all
+      test_class:
+        description: Optional visual test class or class#method
+        type: string
+        default: ''
+      repetitions:
+        description: Visual repetitions (1-10, stop on first failure)
+        type: number
+        default: 1
 
 concurrency:
   group: e2e-${{ github.ref }}
@@ -20,7 +34,7 @@ permissions:
 
 jobs:
   functional:
-    if: github.event_name == 'workflow_dispatch' || inputs.functional
+    if: (github.event_name == 'workflow_dispatch' && inputs.suite != 'visual') || (github.event_name != 'workflow_dispatch' && inputs.functional)
     name: functional (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -87,9 +101,12 @@ jobs:
           retention-days: 14
 
   visual:
-    if: github.event_name == 'workflow_dispatch' || inputs.visual
+    if: (github.event_name == 'workflow_dispatch' && inputs.suite != 'functional') || (github.event_name != 'workflow_dispatch' && inputs.visual)
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      VR_TEST_CLASS: ${{ inputs.test_class }}
+      VR_REPETITIONS: ${{ inputs.repetitions }}
     steps:
       - uses: actions/checkout@v7
 
@@ -129,7 +146,7 @@ jobs:
             -no-window -gpu swiftshader -feature -Vulkan -cores 2 -no-snapshot
             -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: sh scripts/logRunnerMemory.sh ./gradlew visualRegressionTest --stacktrace --no-daemon
+          script: sh scripts/logRunnerMemory.sh sh scripts/runVisualRegression.sh
 
       - name: Upload reports
         if: always()
@@ -141,5 +158,6 @@ jobs:
             app/build/outputs/androidTest-results/
             app/build/reports/visual-regression/
             app/build/outputs/connected_android_test_additional_output/**/visual-regression/
+            build/visual-regression-runs/
           if-no-files-found: warn
           retention-days: 14
