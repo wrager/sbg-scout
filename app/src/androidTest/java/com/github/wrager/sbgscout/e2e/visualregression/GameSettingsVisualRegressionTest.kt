@@ -13,7 +13,6 @@ import com.github.wrager.sbgscout.e2e.infra.CookieFixtures
 import com.github.wrager.sbgscout.e2e.infra.ScriptStorageFixture
 import com.github.wrager.sbgscout.e2e.screens.GameScreen
 import com.github.wrager.sbgscout.e2e.screenshots.ReadmeScreenshotCapture
-import com.github.wrager.sbgscout.e2e.screenshots.ScrollStitchCapture
 import com.github.wrager.sbgscout.script.preset.PresetScripts
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -55,7 +54,7 @@ class GameSettingsVisualRegressionTest : E2ETestBase() {
     fun captureGameSettingsLight() {
         val game = openGameSettings(AssetLoader.read("fixtures/app-page-with-settings-content-realistic.html"))
         prepareScreenshot(game)
-        VisualRegressionCapture.captureFullNative("game-settings-light")
+        VisualRegressionCapture.captureWindowNative("game-settings-light")
     }
 
     @Test
@@ -100,7 +99,7 @@ class GameSettingsVisualRegressionTest : E2ETestBase() {
             )
             waitForScreenshotFrame(webView)
             assertTrue("DOM готов, но заголовок настроек ещё не попал в кадр", settingsTitleIsDrawn(bounds))
-            VisualRegressionCapture.captureFullNative("game-settings-light")
+            VisualRegressionCapture.captureWindowNative("game-settings-light")
         } finally {
             instrumentation.runOnMainSync { webView.viewTreeObserver.removeOnPreDrawListener(delayedDraw) }
         }
@@ -170,7 +169,7 @@ class GameSettingsVisualRegressionTest : E2ETestBase() {
         )
 
     private fun settingsTitleIsDrawn(bounds: Rect): Boolean {
-        val bitmap = ScrollStitchCapture.takeScreenshot()
+        val bitmap = VisualRegressionCapture.takeWindowScreenshot()
         try {
             val pixels = IntArray(bounds.width() * bounds.height())
             bitmap.getPixels(pixels, 0, bounds.width(), bounds.left, bounds.top, bounds.width(), bounds.height())
