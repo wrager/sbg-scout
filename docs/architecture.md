@@ -472,6 +472,12 @@ WebView-экраны (`game-settings`, `login`, `game-loading`) только в 
 - [`ThemeOverride`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/ThemeOverride.kt) — записывает `KEY_APPLIED_GAME_THEME` в SharedPreferences до `launchGameActivity()` и вызывает `AppCompatDelegate.setDefaultNightMode`. Без этого тема осталась бы AUTO и тесты были бы недетерминированы по системной теме эмулятора.
 - [`StatusBarDemoMode`](../app/src/androidTest/java/com/github/wrager/sbgscout/e2e/visualregression/StatusBarDemoMode.kt) — через SystemUI demo mode broadcast'ы фиксирует часы (12:00), батарею (100%), иконки сети и скрывает notifications. Демо-режим стабилизирует исходные кадры; финальные полноэкранные и прокручиваемые PNG исключают системные панели по WindowInsets.
 - Локаль приложения — русская, через `LocaleManager.setApplicationLocales`.
+- `game-settings` фиксирует выключенный SVP, чтобы его отложенная инициализация
+  не меняла mock-страницу. После инжекции Scout и прокрутки тест ждёт
+  `WebView.postVisualStateCallback`, затем commit кадра через `ViewTreeObserver`.
+  Фиксированной паузы перед снимком нет; отсутствие кадра за 10 секунд завершает тест.
+  Регрессионный сценарий удерживает draw после готовности DOM и проверяет пиксели
+  заголовка до и после ожидания, затем сравнивает снимок с тем же baseline.
 - WebView-сценарии `login` и `game-loading` ждут исчезновения панели буфера обмена SystemUI по resource ID `com.android.systemui:id/clipboard_preview` (`ClipboardOverlay`), независимо от текста и системной локали. Если панель не исчезла за 10 секунд, тест завершается до сохранения PNG.
 - Фиксированные stub'ы FakeGameServer для динамических данных (версии релизов, body release notes).
 
